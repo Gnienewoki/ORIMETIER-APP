@@ -121,8 +121,9 @@ function espRenderInspecteurDashboard(sub){
         <div class="esp-title" style="font-size:16px;">💬 Discussion entre inspecteurs</div>
         <p class="esp-sub">Espace d'échange partagé entre tous les inspecteurs d'orientation de la plateforme. Utilise « Important » pour signaler un problème qui nécessite une attention particulière.</p>
         <div id="esp-chat-list" class="esp-chat-list">
-          ${messages.length ? messages.map(m => espChatMessageHtml(m, { mine: m.inspecteurId === insp.id, inspecteursCache: db.inspecteurs })).join('') : `<p class="esp-empty">Aucun message pour le moment. Sois le premier à écrire !</p>`}
+          ${messages.length ? messages.map(m => espChatMessageHtml(m, { mine: m.inspecteurId === insp.id, inspecteursCache: db.inspecteurs, allMessages: messages, replyHandler: 'espSetReplyTarget' })).join('') : `<p class="esp-empty">Aucun message pour le moment. Sois le premier à écrire !</p>`}
         </div>
+        <div id="esp-chat-reply-preview"></div>
         <div id="esp-chat-error"></div>
         <div class="esp-field-row" style="margin-top:10px;align-items:flex-end;">
           <div class="esp-field" style="flex:2;">
@@ -165,6 +166,7 @@ function espRenderInspecteurDashboard(sub){
   if(sub === 'chat'){
     const list = document.getElementById('esp-chat-list');
     if(list) list.scrollTop = list.scrollHeight;
+    espUpdateReplyPreview();
   }
 }
 
@@ -174,16 +176,18 @@ async function espSendChatMessage(){
   const typeSelect = document.getElementById('esp-chat-type');
   const texte = input.value.trim();
   const type = typeSelect ? typeSelect.value : 'C';
+  const replyTo = _espReplyTarget ? _espReplyTarget.id : null;
   const errEl = document.getElementById('esp-chat-error');
   if(!texte) return;
   try {
-    const ok = await espPostMessageRPC(session.id, session.password, texte, type);
+    const ok = await espPostMessageRPC(session.id, session.password, texte, type, replyTo);
     if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible d\'envoyer le message (session expirée, ou compte suspendu). Merci de te reconnecter.</p>'; return; }
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
   input.value = '';
+  _espReplyTarget = null;
   await espLoadFromSupabase();
   espRenderInspecteurDashboard('chat');
 }

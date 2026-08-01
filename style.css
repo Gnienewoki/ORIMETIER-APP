@@ -645,19 +645,20 @@
 
 /* Boutons flottants PWA (installer / partager) */
 #pwa-install-btn, #pwa-share-btn{
-  position:fixed; bottom:18px; z-index:950;
+  position:fixed; top:14px; z-index:950;
   background:linear-gradient(90deg,var(--orange),var(--green));
-  color:#fff; border:none; border-radius:999px;
-  padding:12px 18px; font-weight:700; font-size:13.5px;
-  box-shadow:0 6px 18px rgba(0,0,0,0.18); cursor:pointer;
+  color:#fff; border:none; border-radius:50%;
+  width:38px; height:38px; padding:0; font-size:17px;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 12px rgba(0,0,0,0.18); cursor:pointer;
 }
-#pwa-install-btn{ right:18px; }
-#pwa-share-btn{ right:18px; bottom:70px; background:linear-gradient(90deg,var(--green),var(--green-dark)); }
+#pwa-install-btn{ right:14px; }
+#pwa-share-btn{ right:58px; background:linear-gradient(90deg,var(--green),var(--green-dark)); }
 #pwa-install-btn:hover, #pwa-share-btn:hover{ filter:brightness(1.05); }
 @media (max-width:600px){
-  #pwa-install-btn, #pwa-share-btn{ padding:10px 14px; font-size:12.5px; }
-  #pwa-install-btn{ bottom:14px; right:14px; }
-  #pwa-share-btn{ bottom:62px; right:14px; }
+  #pwa-install-btn, #pwa-share-btn{ width:34px; height:34px; font-size:15px; top:10px; }
+  #pwa-install-btn{ right:10px; }
+  #pwa-share-btn{ right:50px; }
 }
 
 /* Chat entre inspecteurs */
@@ -690,3 +691,21 @@
   float:right; cursor:pointer; opacity:0.6; font-size:13px;
 }
 #view-espaces .esp-chat-delete:hover{ opacity:1; }
+
+/* Réponse à un message précis */
+#view-espaces .esp-chat-cited{
+  font-size:11.5px; opacity:0.85; padding:5px 8px; margin:4px 0 6px;
+  border-left:3px solid rgba(0,0,0,0.2); background:rgba(0,0,0,0.04); border-radius:4px;
+}
+#view-espaces .esp-chat-msg-mine .esp-chat-cited{ background:rgba(255,255,255,0.18); border-left-color:rgba(255,255,255,0.5); }
+#view-espaces .esp-chat-cited-deleted{ font-style:italic; opacity:0.6; }
+#view-espaces .esp-chat-reply-link{
+  font-size:11px; opacity:0.65; cursor:pointer; margin-top:4px; display:inline-block;
+}
+#view-espaces .esp-chat-reply-link:hover{ opacity:1; text-decoration:underline; }
+#view-espaces .esp-chat-reply-preview{
+  font-size:12.5px; background:var(--bg); border:1px solid var(--border); border-left:3px solid var(--orange);
+  border-radius:6px; padding:7px 10px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;
+}
+#view-espaces .esp-chat-cancel-reply{ cursor:pointer; opacity:0.6; font-weight:700; }
+#view-espaces .esp-chat-cancel-reply:hover{ opacity:1; }
