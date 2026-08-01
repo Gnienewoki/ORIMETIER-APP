@@ -30,7 +30,7 @@ function espRowToEtab(r){ return { id:r.id, nom:r.nom, ville:r.ville, type:r.typ
 function espEtabToRow(e){ return { id:e.id, nom:e.nom, ville:e.ville, type:e.type, responsable:e.responsable, tel:e.tel, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[] }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
-function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur' }; }
+function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null }; }
 
 // ---------------- Chargement initial depuis Supabase (jamais les mots de passe) ----------------
 async function espLoadFromSupabase(){
@@ -132,13 +132,13 @@ async function espAddNoteRPC(inspecteurId, password, eleveId, texte){
   if(error) throw error;
   return !!data;
 }
-async function espPostMessageRPC(inspecteurId, password, texte, type){
-  const { data, error } = await supabaseClient.rpc('inspecteur_post_message', { p_inspecteur_id: inspecteurId, p_password: password, p_texte: texte, p_type: type || 'C' });
+async function espPostMessageRPC(inspecteurId, password, texte, type, replyTo){
+  const { data, error } = await supabaseClient.rpc('inspecteur_post_message', { p_inspecteur_id: inspecteurId, p_password: password, p_texte: texte, p_type: type || 'C', p_reply_to: replyTo || null });
   if(error) throw error;
   return !!data;
 }
-async function espAdminPostMessageRPC(adminPassword, texte, type){
-  const { data, error } = await supabaseClient.rpc('admin_post_message', { p_admin_password: adminPassword, p_texte: texte, p_type: type || 'O' });
+async function espAdminPostMessageRPC(adminPassword, texte, type, replyTo){
+  const { data, error } = await supabaseClient.rpc('admin_post_message', { p_admin_password: adminPassword, p_texte: texte, p_type: type || 'O', p_reply_to: replyTo || null });
   if(error) throw error;
   return !!data;
 }
@@ -166,6 +166,12 @@ function espChatMessageHtml(m, opts){
   const isAdminMsg = m.auteurRole === 'admin';
   const typeLabel = m.type === 'A' ? '📌 Important' : (m.type === 'O' ? '📣 Officiel' : '');
   const typeClass = m.type === 'A' ? 'esp-chat-type-a' : (m.type === 'O' ? 'esp-chat-type-o' : '');
+  const cited = m.replyTo && opts.allMessages ? opts.allMessages.find(x => x.id === m.replyTo) : null;
+  const citedHtml = cited ? `
+    <div class="esp-chat-cited">
+      ↩️ <b>${escapeHtml(cited.inspecteurNom)}</b> : ${escapeHtml(cited.texte.length > 80 ? cited.texte.slice(0,80) + '…' : cited.texte)}
+    </div>
+  ` : (m.replyTo ? `<div class="esp-chat-cited esp-chat-cited-deleted">↩️ Message d'origine supprimé</div>` : '');
   return `
     <div class="esp-chat-msg ${opts.mine ? 'esp-chat-msg-mine' : ''} ${isAdminMsg ? 'esp-chat-msg-admin' : ''} ${typeClass}">
       <div class="esp-chat-msg-author">
@@ -174,7 +180,35 @@ function espChatMessageHtml(m, opts){
         <span class="esp-chat-msg-date">${escapeHtml(m.date)}</span>
         ${opts.canDelete ? `<span class="esp-chat-delete" onclick="${opts.deleteHandler}('${m.id}')" title="Supprimer ce message">🗑️</span>` : ''}
       </div>
+      ${citedHtml}
       <div class="esp-chat-msg-text">${escapeHtml(m.texte)}</div>
+      ${opts.replyHandler ? `<div class="esp-chat-reply-link" onclick="${opts.replyHandler}('${m.id}')">↩️ Répondre</div>` : ''}
+    </div>
+  `;
+}
+
+// ---------------- Répondre à un message précis (état partagé entre Inspecteur et Admin) ----------------
+let _espReplyTarget = null;
+function espSetReplyTarget(messageId){
+  const db = espDB();
+  const m = (db.messages || []).find(x => x.id === messageId);
+  if(!m) return;
+  _espReplyTarget = { id: m.id, nom: m.inspecteurNom, texte: m.texte };
+  espUpdateReplyPreview();
+}
+function espCancelReply(){
+  _espReplyTarget = null;
+  espUpdateReplyPreview();
+}
+function espUpdateReplyPreview(){
+  const el = document.getElementById('esp-chat-reply-preview');
+  if(!el) return;
+  if(!_espReplyTarget){ el.innerHTML = ''; return; }
+  const snippet = _espReplyTarget.texte.length > 60 ? _espReplyTarget.texte.slice(0,60) + '…' : _espReplyTarget.texte;
+  el.innerHTML = `
+    <div class="esp-chat-reply-preview">
+      ↩️ Réponse à <b>${escapeHtml(_espReplyTarget.nom)}</b> : ${escapeHtml(snippet)}
+      <span class="esp-chat-cancel-reply" onclick="espCancelReply()" title="Annuler">✕</span>
     </div>
   `;
 }

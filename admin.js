@@ -181,8 +181,9 @@ function espRenderAdminDashboard(sub){
         <div class="esp-title" style="font-size:16px;">💬 Discussion & 📣 Actualités</div>
         <p class="esp-sub">Ce fil est partagé avec tous les inspecteurs. Utilise « Officiel » pour une annonce administrative, ou « Ordinaire » pour participer aux échanges. Tu peux supprimer n'importe quel message.</p>
         <div id="esp-chat-list" class="esp-chat-list">
-          ${messages.length ? messages.map(m => espChatMessageHtml(m, { inspecteursCache: db.inspecteurs, canDelete: true, deleteHandler: 'espAdminDeleteMessage' })).join('') : `<p class="esp-empty">Aucun message pour le moment.</p>`}
+          ${messages.length ? messages.map(m => espChatMessageHtml(m, { inspecteursCache: db.inspecteurs, canDelete: true, deleteHandler: 'espAdminDeleteMessage', allMessages: messages, replyHandler: 'espSetReplyTarget' })).join('') : `<p class="esp-empty">Aucun message pour le moment.</p>`}
         </div>
+        <div id="esp-chat-reply-preview"></div>
         <div id="esp-chat-error"></div>
         <div class="esp-field-row" style="margin-top:10px;align-items:flex-end;">
           <div class="esp-field" style="flex:2;">
@@ -221,6 +222,7 @@ function espRenderAdminDashboard(sub){
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
+  espUpdateReplyPreview();
 }
 async function espAdminToggleCertifie(inspecteurId, nouvelEtat){
   const session = espSession();
@@ -251,16 +253,18 @@ async function espAdminSendChatMessage(){
   const typeSelect = document.getElementById('esp-chat-type');
   const texte = input.value.trim();
   const type = typeSelect ? typeSelect.value : 'O';
+  const replyTo = _espReplyTarget ? _espReplyTarget.id : null;
   const errEl = document.getElementById('esp-chat-error');
   if(!texte) return;
   try {
-    const ok = await espAdminPostMessageRPC(session.password, texte, type);
+    const ok = await espAdminPostMessageRPC(session.password, texte, type, replyTo);
     if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible de publier le message. Session expirée ?</p>'; return; }
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
   input.value = '';
+  _espReplyTarget = null;
   await espLoadFromSupabase();
   espRenderAdminDashboard('chat');
 }
