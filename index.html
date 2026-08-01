@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>ORIMETIER</title>
+
+<!-- PWA : application installable sur téléphone/PC -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff7a1a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ORIMETIER">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div id="splash-screen" class="splash-screen">
+  <div class="splash-content" id="splash-logo-content">
+    <h1 class="splash-logo">ORIMETIER</h1>
+    <p class="splash-powered">powered by GNIENEWOKI</p>
+  </div>
+  <div class="splash-content splash-hidden" id="splash-slogan-content">
+    <p class="splash-slogan">Orimetier, choisissez votre avenir</p>
+  </div>
+  <button class="splash-skip" id="splash-skip-btn" onclick="splashSkip()">Passer →</button>
+</div>
+
+<div id="auth-gate" class="gate-overlay">
+  <div class="gate-inner">
+    <div class="gate-brand">
+      <div class="dot"></div>
+      <h1>ORIMETIER</h1>
+    </div>
+    <p class="gate-powered">powered by GNIENEWOKI</p>
+    <p class="gate-tagline">Orimetier, choisissez votre avenir</p>
+    <p class="gate-intro">Connecte-toi ou crée un compte pour accéder à l'annuaire des formations, aux concours, au test d'orientation RIASEC et à ton espace personnel.</p>
+    <div id="gate-storage-warning" class="gate-storage-warning" style="display:none"></div>
+    <div id="gate-content">
+      <div id="esp-loading" style="text-align:center;padding:40px 10px;color:#6b7d70;font-size:14px;">⏳ Connexion à la base de données…</div>
+    </div>
+  </div>
+</div>
+
+<button id="pwa-install-btn" onclick="espTriggerInstall()">📲 Installer l'application</button>
+<button id="pwa-share-btn" onclick="espTriggerShare()">🔗 Partager l'application</button>
+
+<div class="wrap" id="platform-wrap" style="display:none">
+  <div class="brand">
+    <div class="dot"></div>
+    <h1>ORIMETIER</h1>
+    <div id="auth-bar" class="auth-bar"></div>
+  </div>
+  <p class="sub">Explore les formations professionnelles et universitaires disponibles, ou découvre ton profil d'orientation grâce au test de personnalité.</p>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" id="tab-formations" onclick="showView('formations')">🎓 Enseignement Technique et Formation Professionnelle</button>
+    <button class="tab-btn" id="tab-superieur" onclick="showView('superieur')">🏛️ Enseignement supérieur</button>
+    <button class="tab-btn" id="tab-concours" onclick="showView('concours')">📋 Concours & Grandes Écoles</button>
+    <button class="tab-btn" id="tab-test" onclick="showView('test')">🧭 Test d'orientation</button>
+    <button class="tab-btn" id="tab-espaces" onclick="showView('espaces')">🔐 Espaces</button>
+  </div>
+
+  <div id="view-formations">
+  <p class="sub" style="margin-top:-8px">Filtre les filières par nom, diplôme (2nde technique, CAP, BT, BTS) ou établissement (recherche combinée). <span id="total-formations-count">351</span> filières référencées, dont les classes de 2nde technique (passerelles vers le BT). Clique sur « Voir » pour consulter la fiche détaillée et les conditions d'accès correspondantes.</p>
+
+  <div class="filters">
+    <div class="filter-box">
+      <label for="f-filiere">Filière de formation</label>
+      <input id="f-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure...">
+    </div>
+    <div class="filter-box">
+      <label for="f-diplome">Diplôme</label>
+      <input id="f-diplome" type="text" placeholder="Ex : CAP, BT, BTS...">
+    </div>
+    <div class="filter-box">
+      <label for="f-etablissement">Établissement</label>
+      <input id="f-etablissement" type="text" placeholder="Ex : LPC Bouaké, LTP...">
+    </div>
+  </div>
+
+  <div class="meta">
+    <span class="count" id="count"></span>
+    <button class="reset" onclick="resetFilters()">Réinitialiser</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Filière de formation</th><th>Diplôme</th><th>Établissement</th><th>Fiche métier</th></tr>
+      </thead>
+      <tbody id="results"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty-msg" style="display:none;">Aucun résultat ne correspond à votre recherche.</div>
+  </div>
+
+  <div id="view-superieur" style="display:none">
+    <div class="es-header">
+      <h2 class="es-h1">🎓 Orientation Universitaire — Côte d'Ivoire</h2>
+      <p class="es-sub">Filières, conditions d'accès et débouchés · Édition 2025 (Direction de l'Orientation et des Bourses)</p>
+    </div>
+
+    <div class="es-tabs">
+      <button class="es-tab-btn active" data-tab="univ">🏛️ Universités publiques</button>
+      <button class="es-tab-btn" data-tab="ecole">🏫 Grandes écoles publiques</button>
+      <button class="es-tab-btn" data-tab="filiere">🎯 Filière → Débouchés</button>
+    </div>
+
+    <div class="es-main">
+
+      <!-- PANEL 1 : UNIVERSITES -->
+      <section class="es-panel active" id="panel-univ">
+        <div class="selector-box">
+          <label for="select-univ">Choisissez une université publique</label>
+          <select id="select-univ">
+            <option value="">— Sélectionner —</option>
+          </select>
+          <div class="note">⚠️ L'association filière ↔ université a été relevée visuellement dans le tableau source (grille de cases colorées). Fiable pour les filières générales ; à reconfirmer pour les filières spécialisées (n° 32 à 51) si vous disposez du fichier Word/Excel d'origine.</div>
+        </div>
+        <div class="results" id="results-univ">
+          <div class="empty-state">Sélectionnez une université pour afficher ses filières et conditions d'accès.</div>
+        </div>
+      </section>
+
+      <!-- PANEL 2 : GRANDES ECOLES -->
+      <section class="es-panel" id="panel-ecole">
+        <div class="selector-box">
+          <label for="select-ecole">Choisissez une grande école publique</label>
+          <select id="select-ecole">
+            <option value="">— Sélectionner —</option>
+          </select>
+        </div>
+        <div class="results" id="results-ecole">
+          <div class="empty-state">Sélectionnez une grande école pour afficher ses filières, conditions d'accès et débouchés.</div>
+        </div>
+      </section>
+
+      <!-- PANEL 3 : FILIERE -> DEBOUCHES -->
+      <section class="es-panel" id="panel-filiere">
+        <div class="selector-box">
+          <label for="select-filiere">Choisissez une filière</label>
+          <input type="text" class="search-box" id="search-filiere" placeholder="🔎 Rechercher une filière...">
+          <select id="select-filiere">
+            <option value="">— Sélectionner —</option>
+          </select>
+        </div>
+        <div class="results" id="results-filiere">
+          <div class="empty-state">Sélectionnez une filière pour afficher ses débouchés.</div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="es-footer">Données extraites de « Universités et Grandes Écoles : Filières – Conditions – Critères d'accès – Débouchés », Édition 2025, DOB / MESRS.</div>
+  </div>
+
+  <div id="view-concours" style="display:none">
+    <p class="sub" style="margin-top:-8px">Concours d'accès aux grandes écoles, instituts et formations qualifiantes de Côte d'Ivoire, classés par niveau de diplôme requis. <span id="concours-total-count">0</span> concours référencés. Clique sur une carte pour voir le détail (conditions, établissements, débouchés).</p>
+
+    <div class="filters" style="margin-bottom:10px;">
+      <div class="filter-box" style="flex:2;min-width:220px;">
+        <label for="cc-search">Recherche (nom, filière, établissement)</label>
+        <input id="cc-search" type="text" placeholder="Ex : ENA, INFAS, Gendarmerie, Comptabilité...">
+      </div>
+    </div>
+
+    <div class="cc-level-tabs">
+      <button class="cc-level-btn active" data-level="tous">Tous</button>
+      <button class="cc-level-btn" data-level="sans_bepc">Sans BEPC</button>
+      <button class="cc-level-btn" data-level="bepc">Niveau BEPC</button>
+      <button class="cc-level-btn" data-level="bac">Niveau BAC</button>
+    </div>
+
+    <div class="meta">
+      <span class="count" id="cc-count"></span>
+    </div>
+
+    <div id="cc-results" class="cc-grid"></div>
+    <div class="empty" id="cc-empty-msg" style="display:none;">Aucun concours ne correspond à votre recherche.</div>
+  </div>
+
+  <div id="view-test" style="display:none">
+    <div class="pt-inner">
+
+      <div class="pt-masthead">
+        <svg id="pt-compass" width="46" height="46" viewBox="0 0 56 56">
+          <circle cx="28" cy="28" r="26" fill="none" stroke="var(--green-dark)" stroke-width="1.5"/>
+          <circle cx="28" cy="28" r="21" fill="none" stroke="var(--border)" stroke-width="1"/>
+          <g id="pt-needle" style="transform-origin:28px 28px; transform:rotate(0deg); transition:transform 0.6s cubic-bezier(.4,0,.2,1);">
+            <polygon points="28,9 32,28 28,25 24,28" fill="var(--orange)"/>
+            <polygon points="28,47 32,28 28,31 24,28" fill="var(--green-dark)"/>
+          </g>
+          <circle cx="28" cy="28" r="2.5" fill="var(--orange-dark)"/>
+        </svg>
+        <div>
+          <p class="pt-eyebrow">Orientation scolaire et professionnelle</p>
+          <h2 class="pt-h1">Carnet de personnalité</h2>
+        </div>
+      </div>
+
+      <div id="pt-screen-intro" class="pt-screen">
+        <div class="pt-card">
+          <h2 class="pt-section-title">Avant de commencer</h2>
+          <p class="pt-section-sub">Ces informations personnalisent votre profil — elles restent sur cet appareil.</p>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Nom et prénoms</label><input id="pt-f-nom" type="text" placeholder="Votre nom"></div>
+            <div class="pt-field"><label>Genre</label>
+              <select id="pt-f-genre"><option value="">—</option><option>Féminin</option><option>Masculin</option></select>
+            </div>
+          </div>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Âge</label><input id="pt-f-age" type="number" min="8" max="99" placeholder="Ex : 16"></div>
+            <div class="pt-field"><label>Numéro de téléphone</label><input id="pt-f-tel" type="tel" placeholder="Ex : 07 00 00 00 00"></div>
+          </div>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Lieu d'habitation</label><input id="pt-f-lieu" type="text" placeholder="Ex : Abidjan, Yopougon"></div>
+            <div class="pt-field"><label>Classe</label><input id="pt-f-classe" type="text" placeholder="Ex : Terminale D"></div>
+          </div>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Établissement</label><input id="pt-f-etab" type="text" placeholder="Nom de l'établissement"></div>
+            <div class="pt-field"></div>
+          </div>
+          <p class="pt-intro-text">Ce carnet explore <strong>6 dimensions</strong> de votre personnalité professionnelle selon le modèle RIASEC de John Holland : Réaliste, Investigateur, Artistique, Social, Entreprenant et Conventionnel. Pour chaque dimension, cochez toutes les activités qui vous attirent — il n'y a pas de bonne ou de mauvaise réponse. Vos trois dimensions les plus fortes formeront votre <strong>code d'orientation personnel</strong>.</p>
+          <div class="pt-nav-row">
+            <span></span>
+            <button class="pt-btn pt-primary" onclick="ptGoTo(1)">Commencer le test →</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="pt-quiz-container"></div>
+
+      <div id="pt-screen-results" class="pt-screen pt-hidden"></div>
+
+      <p class="pt-footer-note">Carnet d'orientation — inspiré du modèle RIASEC (Holland Codes) de John L. Holland</p>
+    </div>
+  </div>
+
+  <div id="view-espaces" style="display:none">
+    <p class="sub" style="margin-top:-8px">Espaces personnalisés pour les différents acteurs de l'orientation scolaire. Les données sont synchronisées en ligne et partagées entre tous les utilisateurs.</p>
+    <div id="esp-role-select"></div>
+    <div id="esp-admin" style="display:none"></div>
+    <div id="esp-inspecteur" style="display:none"></div>
+    <div id="esp-eleve" style="display:none"></div>
+    <div id="esp-etablissement" style="display:none"></div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeFiche()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <button class="modal-close" onclick="closeFiche()" aria-label="Fermer">✕</button>
+      <h2 id="modal-titre">—</h2>
+      <div class="modal-tags" id="modal-tags"></div>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+
+<script src="annuaire-riasec.js"></script>
+<script src="orientation-superieur.js"></script>
+<script src="common.js"></script>
+<script src="admin.js"></script>
+<script src="inspecteur.js"></script>
+<script src="eleve.js"></script>
+<script src="etablissement.js"></script>
+<script src="bootstrap.js"></script>
+</body>
+</html>
