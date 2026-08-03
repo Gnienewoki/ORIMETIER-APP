@@ -110,12 +110,20 @@ function runSplashSequence(){
   if(loader) loader.style.display = 'none';
 
   const resetToken = new URLSearchParams(window.location.search).get('reset');
+  // L'animation d'ouverture ne doit se jouer qu'au lancement de l'application
+  // (premier chargement de l'onglet), pas à chaque passage d'une page à une
+  // autre : on ne la rejoue pas si elle a déjà tourné dans cette session.
+  const dejaLancee = sessionStorage.getItem('orimetier_splash_shown');
   if(resetToken){
     espRenderResetPasswordScreen(resetToken);
+    finishSplash();
+  } else if(dejaLancee){
+    platformInit();
     finishSplash();
   } else {
     platformInit();
     runSplashSequence();
+    sessionStorage.setItem('orimetier_splash_shown', '1');
   }
   espSetupRealtime();
 })();
