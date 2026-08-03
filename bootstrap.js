@@ -119,14 +119,21 @@ function runSplashSequence(){
   if(loader) loader.style.display = 'none';
 
   const resetToken = new URLSearchParams(window.location.search).get('reset');
-  // L'animation d'ouverture ne doit se jouer qu'au lancement de l'application
-  // (premier chargement de l'onglet), pas à chaque passage d'une page à une
-  // autre : on ne la rejoue pas si elle a déjà tourné dans cette session.
+  // L'animation d'ouverture ne doit JAMAIS se jouer en passant d'une page de
+  // l'app à une autre — uniquement au lancement de l'application, sur sa
+  // page d'entrée (index.html, cf. start_url dans manifest.json). Double
+  // garde-fou, volontairement indépendant l'un de l'autre :
+  // 1) la page courante doit être index.html (toute autre page = jamais
+  //    d'animation, quel que soit l'état de la session) ;
+  // 2) même sur index.html, on ne la rejoue pas si elle a déjà tourné dans
+  //    cette session du navigateur (retour en arrière, nouvel onglet lié...).
+  const path = window.location.pathname;
+  const estPageAccueil = path === '/' || path === '' || /\/index\.html$/.test(path);
   const dejaLancee = sessionStorage.getItem('orimetier_splash_shown');
   if(resetToken){
     espRenderResetPasswordScreen(resetToken);
     finishSplash();
-  } else if(dejaLancee){
+  } else if(!estPageAccueil || dejaLancee){
     platformInit();
     finishSplash();
   } else {
