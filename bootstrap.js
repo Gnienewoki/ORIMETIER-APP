@@ -1,4 +1,3 @@
-
 // ---------------- PWA : bouton "Partager l'application" ----------------
 async function espTriggerShare(){
   const shareData = {
@@ -41,8 +40,6 @@ function espTriggerInstall(){
     });
     return;
   }
-  // Pas d'invite automatique disponible (déjà installée, iPhone/Safari, ou navigateur qui ne la supporte pas) :
-  // on affiche les instructions manuelles adaptées.
   const ua = navigator.userAgent || '';
   const isIOS = /iPhone|iPad|iPod/.test(ua);
   const isAndroid = /Android/.test(ua);
