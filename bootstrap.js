@@ -68,6 +68,18 @@ if('serviceWorker' in navigator){
       console.warn('[PWA] Enregistrement du service worker échoué (non bloquant) :', e);
     });
   });
+  // Quand une nouvelle version de l'app est déployée, le nouveau service
+  // worker prend le contrôle de la page (self.skipWaiting()/clients.claim()
+  // dans sw.js) : "controllerchange" se déclenche à ce moment précis. On
+  // recharge alors la page une seule fois, pour que le visiteur récupère
+  // automatiquement le JS/CSS/HTML à jour, sans jamais avoir à vider son
+  // cache manuellement.
+  let _espSwReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(_espSwReloaded) return;
+    _espSwReloaded = true;
+    window.location.reload();
+  });
 }
 
 // ---------------- Écran d'ouverture animé ----------------

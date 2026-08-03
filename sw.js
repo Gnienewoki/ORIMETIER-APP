@@ -9,7 +9,12 @@
 // synchronisation est une étape ultérieure de la feuille de route.
 // ============================================================
 
-const CACHE_NAME = 'orimetier-shell-v3';
+// Incrémenter ce numéro à chaque déploiement qui modifie un fichier de
+// APP_SHELL : ça force la purge de l'ancien cache chez les visiteurs déjà
+// venus, et déclenche le rechargement automatique (voir "controllerchange"
+// dans bootstrap.js) pour qu'ils récupèrent la nouvelle version sans rien
+// avoir à faire.
+const CACHE_NAME = 'orimetier-shell-v4';
 const APP_SHELL = [
   './',
   './index.html',
