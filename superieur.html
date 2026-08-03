@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
-<title>ORIMETIER — Enseignement Technique et Formation Professionnelle</title>
+<title>ORIMETIER — Enseignement supérieur</title>
 
 <!-- PWA : application installable sur téléphone/PC -->
 <link rel="manifest" href="manifest.json">
@@ -64,8 +64,8 @@
   <p class="sub">Explore les formations professionnelles et universitaires disponibles, ou découvre ton profil d'orientation grâce au test de personnalité.</p>
 
   <div class="tab-nav">
-    <a class="tab-btn active" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
-    <a class="tab-btn" href="superieur.html">🏛️ Enseignement supérieur</a>
+    <a class="tab-btn" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
+    <a class="tab-btn active" href="superieur.html">🏛️ Enseignement supérieur</a>
     <a class="tab-btn" href="concours.html">📋 Concours & Grandes Écoles</a>
     <a class="tab-btn" href="test.html">🧭 Test d'orientation</a>
     <a class="tab-btn" id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
@@ -73,64 +73,77 @@
   </div>
 
   <div id="page-content">
-    <p class="sub" style="margin-top:-8px">Filtre les filières par nom, diplôme (2nde technique, CAP, BT, BTS) ou établissement (recherche combinée). <span id="total-formations-count">351</span> filières référencées, dont les classes de 2nde technique (passerelles vers le BT). Clique sur « Voir » pour consulter la fiche détaillée et les conditions d'accès correspondantes.</p>
-
-    <div class="filters">
-      <div class="filter-box">
-        <label for="f-filiere">Filière de formation</label>
-        <input id="f-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure...">
-      </div>
-      <div class="filter-box">
-        <label for="f-diplome">Diplôme</label>
-        <input id="f-diplome" type="text" placeholder="Ex : CAP, BT, BTS...">
-      </div>
-      <div class="filter-box">
-        <label for="f-etablissement">Établissement</label>
-        <input id="f-etablissement" type="text" placeholder="Ex : LPC Bouaké, LTP...">
-      </div>
+    <div class="es-header">
+      <h2 class="es-h1">🎓 Orientation Universitaire — Côte d'Ivoire</h2>
+      <p class="es-sub">Filières, conditions d'accès et débouchés · Édition 2025 (Direction de l'Orientation et des Bourses)</p>
     </div>
 
-    <div class="meta">
-      <span class="count" id="count"></span>
-      <button class="reset" onclick="resetFilters()">Réinitialiser</button>
+    <div class="es-tabs">
+      <button class="es-tab-btn active" data-tab="univ">🏛️ Universités publiques</button>
+      <button class="es-tab-btn" data-tab="ecole">🏫 Grandes écoles publiques</button>
+      <button class="es-tab-btn" data-tab="filiere">🎯 Filière → Débouchés</button>
     </div>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Filière de formation</th><th>Diplôme</th><th>Établissement</th><th>Fiche métier</th></tr>
-        </thead>
-        <tbody id="results"></tbody>
-      </table>
+    <div class="es-main">
+
+      <!-- PANEL 1 : UNIVERSITES -->
+      <section class="es-panel active" id="panel-univ">
+        <div class="selector-box">
+          <label for="select-univ">Choisissez une université publique</label>
+          <select id="select-univ">
+            <option value="">— Sélectionner —</option>
+          </select>
+          <div class="note">⚠️ L'association filière ↔ université a été relevée visuellement dans le tableau source (grille de cases colorées). Fiable pour les filières générales ; à reconfirmer pour les filières spécialisées (n° 32 à 51) si vous disposez du fichier Word/Excel d'origine.</div>
+        </div>
+        <div class="results" id="results-univ">
+          <div class="empty-state">Sélectionnez une université pour afficher ses filières et conditions d'accès.</div>
+        </div>
+      </section>
+
+      <!-- PANEL 2 : GRANDES ECOLES -->
+      <section class="es-panel" id="panel-ecole">
+        <div class="selector-box">
+          <label for="select-ecole">Choisissez une grande école publique</label>
+          <select id="select-ecole">
+            <option value="">— Sélectionner —</option>
+          </select>
+        </div>
+        <div class="results" id="results-ecole">
+          <div class="empty-state">Sélectionnez une grande école pour afficher ses filières, conditions d'accès et débouchés.</div>
+        </div>
+      </section>
+
+      <!-- PANEL 3 : FILIERE -> DEBOUCHES -->
+      <section class="es-panel" id="panel-filiere">
+        <div class="selector-box">
+          <label for="select-filiere">Choisissez une filière</label>
+          <input type="text" class="search-box" id="search-filiere" placeholder="🔎 Rechercher une filière...">
+          <select id="select-filiere">
+            <option value="">— Sélectionner —</option>
+          </select>
+        </div>
+        <div class="results" id="results-filiere">
+          <div class="empty-state">Sélectionnez une filière pour afficher ses débouchés.</div>
+        </div>
+      </section>
+
     </div>
-    <div class="empty" id="empty-msg" style="display:none;">Aucun résultat ne correspond à votre recherche.</div>
+
+    <div class="es-footer">Données extraites de « Universités et Grandes Écoles : Filières – Conditions – Critères d'accès – Débouchés », Édition 2025, DOB / MESRS.</div>
   </div>
 
-</div>
-
-<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal-card">
-    <div class="modal-header">
-      <button class="modal-close" onclick="closeModal()" aria-label="Fermer">✕</button>
-      <h2 id="modal-titre">—</h2>
-      <div class="modal-tags" id="modal-tags"></div>
-    </div>
-    <div class="modal-body" id="modal-body"></div>
-  </div>
 </div>
 
 <script src="utils.js"></script>
 <script src="data-riasec.js"></script>
-<script src="data-formations.js"></script>
-<script src="data-regions.js"></script>
+<script src="data-superieur.js"></script>
 <script src="supabase-client.js"></script>
 <script src="auth.js"></script>
 <script src="admin.js"></script>
 <script src="inspecteur.js"></script>
 <script src="eleve.js"></script>
 <script src="etablissement.js"></script>
-<script src="modal.js"></script>
-<script src="formations.js"></script>
+<script src="superieur.js"></script>
 <script src="bootstrap.js"></script>
 </body>
 </html>

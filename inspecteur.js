@@ -86,35 +86,14 @@ async function espInspecteurLogin(){
 function espInspecteurLogout(){ platformLogout(); }
 
 function espRenderInspecteurDashboard(sub){
-  sub = sub || 'eleves';
+  sub = sub || 'chat';
   const session = espSession();
   const db = espDB();
   const insp = db.inspecteurs.find(i => i.id === session.id);
   if(!insp){ espInspecteurLogout(); return; }
 
   let subHtml = '';
-  if(sub === 'eleves'){
-    subHtml = `
-      <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">Élèves inscrits sur la plateforme</div>
-        <p class="esp-sub">Retrouvez ici les élèves ayant créé un compte et consultez leur profil d'orientation RIASEC pour les accompagner.</p>
-        <table class="esp-table">
-          <thead><tr><th>Nom</th><th>Classe</th><th>Établissement</th><th>Test RIASEC</th><th></th></tr></thead>
-          <tbody>
-          ${db.eleves.length ? db.eleves.map(e => `
-            <tr>
-              <td><b>${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</b></td>
-              <td>${escapeHtml(e.classe)}</td>
-              <td>${escapeHtml(e.etablissement)}</td>
-              <td>${e.riasec ? `<span class="esp-badge valide">${e.riasec.hollandCode}</span>` : `<span class="esp-badge en_attente">Non passé</span>`}</td>
-              <td><button class="esp-btn" style="padding:5px 12px;font-size:12px;" onclick="espInspecteurViewEleve('${e.id}')">Voir le profil</button></td>
-            </tr>
-          `).join('') : `<tr><td colspan="5" class="esp-empty">Aucun élève inscrit pour le moment.</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    `;
-  } else if(sub === 'chat'){
+  if(sub === 'chat'){
     const messages = db.messages || [];
     subHtml = `
       <div class="esp-card">
@@ -138,7 +117,12 @@ function espRenderInspecteurDashboard(sub){
             </select>
           </div>
         </div>
-        <button class="esp-btn esp-btn-primary" onclick="espSendChatMessage()">Envoyer</button>
+        <div style="margin:6px 0 10px;">
+          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">📎 Joindre une photo ou un PDF</label><br>
+          <input type="file" id="esp-chat-file-input" accept="image/*,application/pdf" onchange="espChatPreviewAttachment(this)">
+          <div id="esp-chat-file-preview"></div>
+        </div>
+        <button class="esp-btn esp-btn-primary" id="esp-chat-send-btn" onclick="espSendChatMessage()">Envoyer</button>
       </div>
     `;
   }
@@ -156,8 +140,39 @@ function espRenderInspecteurDashboard(sub){
       `}
       <div id="esp-insp-email-form"></div>
     </div>
+    <div class="esp-card">
+      <div class="esp-title" style="font-size:15px;">Photo de profil</div>
+      <p class="esp-sub" style="margin-bottom:10px;">Visible à côté de ton nom dans la discussion.</p>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        ${insp.avatarUrl ? `<img src="${escapeHtml(insp.avatarUrl)}" class="esp-chat-avatar" style="width:56px;height:56px;">` : `<div class="esp-chat-avatar-placeholder" style="width:56px;height:56px;font-size:22px;">${escapeHtml((insp.nom||'?').charAt(0).toUpperCase())}</div>`}
+        <div>
+          <input type="file" id="esp-insp-avatar-input" accept="image/*" onchange="espInspecteurUploadAvatar(this)">
+          <div id="esp-insp-avatar-msg"></div>
+        </div>
+      </div>
+      <div class="esp-field" style="margin-top:14px;">
+        <label>Message d'accueil</label>
+        <textarea id="esp-insp-message-accueil" rows="2" maxlength="200" placeholder="Ex : Bonjour, je suis à votre écoute pour toute question d'orientation.">${escapeHtml(insp.messageAccueil||'')}</textarea>
+      </div>
+      <button class="esp-btn esp-btn-primary" style="margin-top:8px;" onclick="espInspecteurSaveMessageAccueil()">Enregistrer</button>
+      <div id="esp-insp-message-accueil-msg"></div>
+    </div>
+    <div class="esp-card">
+      <div class="esp-title" style="font-size:15px;">🛡️ Certification</div>
+      ${insp.certifie ? `
+        <p class="esp-sub" style="margin:0;">Ton compte est certifié <span class="esp-badge-certifie">✅</span></p>
+      ` : insp.certificationDemandee ? `
+        <p class="esp-sub" style="margin:0;">Demande envoyée, en attente de validation par l'administrateur.</p>
+      ` : `
+        <p class="esp-sub" style="margin:0 0 10px;">Un compte certifié affiche un badge ✅ visible par tous dans la discussion.</p>
+        <button class="esp-btn esp-btn-primary" onclick="espInspecteurRequestCertification()">Demander la certification</button>
+      `}
+      <div id="esp-insp-certif-msg"></div>
+    </div>
+    <div class="esp-card">
+      <a class="esp-btn esp-btn-primary" href="eleves.html">👥 Voir les élèves inscrits</a>
+    </div>
     <div class="esp-subtabs">
-      <button class="esp-subtab-btn ${sub==='eleves'?'active':''}" onclick="espRenderInspecteurDashboard('eleves')">👥 Élèves</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderInspecteurDashboard('chat')">💬 Discussion (${(db.messages||[]).length})</button>
     </div>
     ${subHtml}
@@ -178,83 +193,79 @@ async function espSendChatMessage(){
   const type = typeSelect ? typeSelect.value : 'C';
   const replyTo = _espReplyTarget ? _espReplyTarget.id : null;
   const errEl = document.getElementById('esp-chat-error');
-  if(!texte) return;
+  const sendBtn = document.getElementById('esp-chat-send-btn');
+  if(!texte && !_espChatPendingFile) return;
+  if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Envoi en cours...'; }
   try {
-    const ok = await espPostMessageRPC(session.id, session.password, texte, type, replyTo);
+    const attachment = await espChatUploadPendingAttachment();
+    const ok = await espPostMessageRPC(session.id, session.password, texte, type, replyTo, attachment);
     if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible d\'envoyer le message (session expirée, ou compte suspendu). Merci de te reconnecter.</p>'; return; }
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
+  } finally {
+    if(sendBtn){ sendBtn.disabled = false; sendBtn.textContent = 'Envoyer'; }
   }
   input.value = '';
+  espChatClearAttachment('esp-chat-file-input');
   _espReplyTarget = null;
   await espLoadFromSupabase();
   espRenderInspecteurDashboard('chat');
 }
 
-function espInspecteurViewEleve(eleveId){
+async function espInspecteurUploadAvatar(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('esp-insp-avatar-msg');
   const session = espSession();
-  const db = espDB();
-  const eleve = db.eleves.find(e => e.id === eleveId);
-  const insp = db.inspecteurs.find(i => i.id === session.id);
-  if(!eleve) return;
-
-  const notes = db.notes.filter(n => n.eleveId === eleveId);
-  const r = eleve.riasec;
-
-  document.getElementById('esp-inspecteur').innerHTML = `
-    <div class="esp-user-header">
-      <span class="esp-user-name">🧭 ${escapeHtml(insp.nom)} — Profil élève</span>
-      <button class="esp-btn" onclick="espRenderInspecteurDashboard()">← Retour à la liste</button>
-    </div>
-    <div class="esp-card">
-      <div class="esp-title" style="font-size:16px;">${escapeHtml(eleve.nom)} ${escapeHtml(eleve.prenoms||'')}</div>
-      <p class="esp-sub">${escapeHtml(eleve.classe)} · ${escapeHtml(eleve.etablissement)} · ${escapeHtml(eleve.tel)} · Inscrit(e) le ${escapeHtml(eleve.dateInscription)}</p>
-
-      ${r ? `
-        <div class="riasec-code-wrap" style="margin:14px 0;">
-          <div class="riasec-code-letters">${r.top3.map(l => `<div class="riasec-code-letter" style="background:${RIASEC_COLORS[l]}">${l}</div>`).join('')}</div>
-          <p class="riasec-code-names">${r.top3.map(l => RIASEC_DIMENSIONS.find(d=>d.letter===l).name).join(' · ')} — Code ${r.hollandCode} (réalisé le ${new Date(r.date).toLocaleDateString('fr-FR')})</p>
-        </div>
-        <div style="margin:10px 0 16px;">${r.scored.map(s => `
-          <div class="riasec-bar-row">
-            <span class="riasec-bar-label">${s.letter} — ${s.name}</span>
-            <span class="riasec-bar-track"><span class="riasec-bar-fill" style="width:${s.pct}%;background:${RIASEC_COLORS[s.letter]}"></span></span>
-            <span class="riasec-bar-pct">${s.pct}%</span>
-          </div>
-        `).join('')}</div>
-      ` : `<p class="esp-empty">Cet élève n'a pas encore réalisé (ou sauvegardé) son test d'orientation RIASEC.</p>`}
-
-      <div class="esp-title" style="font-size:15px;margin-top:20px;">Notes et recommandations</div>
-      ${notes.length ? notes.map(n => `
-        <div class="esp-note-item">${escapeHtml(n.texte)}<small>${escapeHtml(n.inspecteurNom)} — ${escapeHtml(n.date)}</small></div>
-      `).join('') : `<p class="esp-empty">Aucune note pour le moment.</p>`}
-
-      <div class="esp-field" style="margin-top:12px;">
-        <label>Ajouter une note / recommandation</label>
-        <textarea id="esp-insp-note-text" placeholder="Ex : orienter vers la filière Électrotechnique compte tenu du profil Réaliste dominant..."></textarea>
-      </div>
-      <button class="esp-btn esp-btn-primary" onclick="espInspecteurAddNote('${eleveId}')">Ajouter la note</button>
-    </div>
-  `;
-}
-async function espInspecteurAddNote(eleveId){
-  const session = espSession();
-  const db = espDB();
-  const insp = db.inspecteurs.find(i => i.id === session.id);
-  const texte = document.getElementById('esp-insp-note-text').value.trim();
-  if(!texte) return;
-  let ok;
+  msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Envoi en cours...</p>';
   try {
-    ok = await espAddNoteRPC(insp.id, session.password, eleveId, texte);
+    const url = await espUploadAvatarFile(file);
+    const ok = await espInspecteurUpdateAvatarRPC(session.id, session.password, url);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const db = espDB();
+    const insp = db.inspecteurs.find(i => i.id === session.id);
+    if(insp) insp.avatarUrl = url;
+    espSaveDB(db);
+    espRenderInspecteurDashboard('chat');
   } catch(e){
-    alert("Erreur lors de l'ajout de la note : " + e.message);
-    return;
+    msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>';
   }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  db.notes.push({ id:espUid(), eleveId, inspecteurId:insp.id, inspecteurNom: insp.nom + ' ' + (insp.prenoms||''), texte, date:espDate() });
-  espSaveDB(db);
-  espInspecteurViewEleve(eleveId);
+}
+
+async function espInspecteurSaveMessageAccueil(){
+  const textarea = document.getElementById('esp-insp-message-accueil');
+  const msgEl = document.getElementById('esp-insp-message-accueil-msg');
+  const message = textarea.value.trim();
+  const session = espSession();
+  msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
+  try {
+    const ok = await espInspecteurUpdateMessageAccueilRPC(session.id, session.password, message);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const db = espDB();
+    const insp = db.inspecteurs.find(i => i.id === session.id);
+    if(insp) insp.messageAccueil = message;
+    espSaveDB(db);
+    msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;color:var(--green-dark);">Message enregistré ✅</p>';
+  } catch(e){
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+  }
+}
+
+async function espInspecteurRequestCertification(){
+  const session = espSession();
+  const msgEl = document.getElementById('esp-insp-certif-msg');
+  try {
+    const ok = await espInspecteurRequestCertificationRPC(session.id, session.password);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const db = espDB();
+    const insp = db.inspecteurs.find(i => i.id === session.id);
+    if(insp) insp.certificationDemandee = true;
+    espSaveDB(db);
+    espRenderInspecteurDashboard('chat');
+  } catch(e){
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+  }
 }
 
 // ---------------- ÉLÈVE ----------------

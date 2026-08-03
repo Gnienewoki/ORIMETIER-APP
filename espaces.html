@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
-<title>ORIMETIER — Enseignement Technique et Formation Professionnelle</title>
+<title>ORIMETIER — Espaces</title>
 
 <!-- PWA : application installable sur téléphone/PC -->
 <link rel="manifest" href="manifest.json">
@@ -64,64 +64,25 @@
   <p class="sub">Explore les formations professionnelles et universitaires disponibles, ou découvre ton profil d'orientation grâce au test de personnalité.</p>
 
   <div class="tab-nav">
-    <a class="tab-btn active" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
+    <a class="tab-btn" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
     <a class="tab-btn" href="superieur.html">🏛️ Enseignement supérieur</a>
     <a class="tab-btn" href="concours.html">📋 Concours & Grandes Écoles</a>
     <a class="tab-btn" href="test.html">🧭 Test d'orientation</a>
     <a class="tab-btn" id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
-    <a class="tab-btn" href="espaces.html">🔐 Espaces</a>
+    <a class="tab-btn active" href="espaces.html">🔐 Espaces</a>
   </div>
 
   <div id="page-content">
-    <p class="sub" style="margin-top:-8px">Filtre les filières par nom, diplôme (2nde technique, CAP, BT, BTS) ou établissement (recherche combinée). <span id="total-formations-count">351</span> filières référencées, dont les classes de 2nde technique (passerelles vers le BT). Clique sur « Voir » pour consulter la fiche détaillée et les conditions d'accès correspondantes.</p>
-
-    <div class="filters">
-      <div class="filter-box">
-        <label for="f-filiere">Filière de formation</label>
-        <input id="f-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure...">
-      </div>
-      <div class="filter-box">
-        <label for="f-diplome">Diplôme</label>
-        <input id="f-diplome" type="text" placeholder="Ex : CAP, BT, BTS...">
-      </div>
-      <div class="filter-box">
-        <label for="f-etablissement">Établissement</label>
-        <input id="f-etablissement" type="text" placeholder="Ex : LPC Bouaké, LTP...">
-      </div>
-    </div>
-
-    <div class="meta">
-      <span class="count" id="count"></span>
-      <button class="reset" onclick="resetFilters()">Réinitialiser</button>
-    </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Filière de formation</th><th>Diplôme</th><th>Établissement</th><th>Fiche métier</th></tr>
-        </thead>
-        <tbody id="results"></tbody>
-      </table>
-    </div>
-    <div class="empty" id="empty-msg" style="display:none;">Aucun résultat ne correspond à votre recherche.</div>
+    <p class="sub" style="margin-top:-8px">Espaces personnalisés pour les différents acteurs de l'orientation scolaire. Les données sont synchronisées en ligne et partagées entre tous les utilisateurs.</p>
+    <div id="espaces-dashboard-mount"></div>
   </div>
 
-</div>
-
-<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal-card">
-    <div class="modal-header">
-      <button class="modal-close" onclick="closeModal()" aria-label="Fermer">✕</button>
-      <h2 id="modal-titre">—</h2>
-      <div class="modal-tags" id="modal-tags"></div>
-    </div>
-    <div class="modal-body" id="modal-body"></div>
-  </div>
 </div>
 
 <script src="utils.js"></script>
 <script src="data-riasec.js"></script>
 <script src="data-formations.js"></script>
+<script src="data-concours.js"></script>
 <script src="data-regions.js"></script>
 <script src="supabase-client.js"></script>
 <script src="auth.js"></script>
@@ -129,8 +90,7 @@
 <script src="inspecteur.js"></script>
 <script src="eleve.js"></script>
 <script src="etablissement.js"></script>
-<script src="modal.js"></script>
-<script src="formations.js"></script>
+<script src="espaces.js"></script>
 <script src="bootstrap.js"></script>
 </body>
 </html>

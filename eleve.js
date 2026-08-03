@@ -76,18 +76,82 @@ async function espEleveLogin(){
     document.getElementById('esp-eleve-error').innerHTML = '<p class="esp-error">Téléphone ou mot de passe incorrect.</p>';
     return;
   }
+  if(eleve.banni){
+    document.getElementById('esp-eleve-error').innerHTML = '<p class="esp-error">Ce compte a été suspendu par l\'administration. Contacte l\'administrateur de la plateforme pour plus d\'informations.</p>';
+    return;
+  }
   espSetSession('eleve', eleve.id, pass);
   platformUnlock();
 }
 function espEleveLogout(){ platformLogout(); }
 
-function espRenderEleveDashboard(){
+function espRenderEleveDashboard(sub){
+  sub = sub || 'profil';
   const session = espSession();
   const db = espDB();
   const eleve = db.eleves.find(e => e.id === session.id);
   if(!eleve){ espEleveLogout(); return; }
   const r = eleve.riasec;
   const notes = db.notes.filter(n => n.eleveId === eleve.id);
+
+  let subHtml = '';
+  if(sub === 'profil'){
+    subHtml = `
+      <div class="esp-card">
+        <div class="esp-title" style="font-size:16px;">Mon profil d'orientation RIASEC</div>
+        ${r ? `
+          <div class="riasec-code-wrap" style="margin:14px 0;">
+            <div class="riasec-code-letters">${r.top3.map(l => `<div class="riasec-code-letter" style="background:${RIASEC_COLORS[l]}">${l}</div>`).join('')}</div>
+            <p class="riasec-code-names">${r.top3.map(l => RIASEC_DIMENSIONS.find(d=>d.letter===l).name).join(' · ')} — Code ${r.hollandCode}</p>
+          </div>
+          <p class="esp-sub" style="text-align:center;">Test réalisé le ${new Date(r.date).toLocaleDateString('fr-FR')}</p>
+          <div style="margin:10px 0 16px;">${r.scored.map(s => `
+            <div class="riasec-bar-row">
+              <span class="riasec-bar-label">${s.letter} — ${s.name}</span>
+              <span class="riasec-bar-track"><span class="riasec-bar-fill" style="width:${s.pct}%;background:${RIASEC_COLORS[s.letter]}"></span></span>
+              <span class="riasec-bar-pct">${s.pct}%</span>
+            </div>
+          `).join('')}</div>
+          <a class="esp-btn" href="test.html">🔁 Repasser le test</a>
+        ` : `
+          <p class="esp-empty">Vous n'avez pas encore de profil RIASEC sauvegardé.</p>
+          <a class="esp-btn esp-btn-primary" href="test.html">🧭 Passer le test d'orientation</a>
+        `}
+      </div>
+
+      <div class="esp-card">
+        <div class="esp-title" style="font-size:15px;">Notes et recommandations de mon inspecteur d'orientation</div>
+        ${notes.length ? notes.map(n => `
+          <div class="esp-note-item">${escapeHtml(n.texte)}<small>${escapeHtml(n.inspecteurNom)} — ${escapeHtml(n.date)}</small></div>
+        `).join('') : `<p class="esp-empty">Aucune note pour le moment.</p>`}
+      </div>
+    `;
+  } else if(sub === 'etablissements'){
+    subHtml = `
+      <div class="esp-card">
+        <div class="esp-title" style="font-size:16px;">🏫 Trouver un établissement</div>
+        <p class="esp-sub">Recherche combinable par région, ville, quartier et filière proposée.</p>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Région</label>
+            <select id="esp-eleve-etab-region" onchange="espEleveSearchEtablissements()">
+              <option value="">Toutes les régions</option>
+              ${espRegionsListe().map(reg => `<option value="${escapeHtml(reg)}">${escapeHtml(reg)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="esp-field"><label>Ville</label>
+            <select id="esp-eleve-etab-ville" onchange="espEleveSearchEtablissements()">
+              <option value="">Toutes les villes</option>
+            </select>
+          </div>
+        </div>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Quartier</label><input type="text" id="esp-eleve-etab-quartier" placeholder="Ex : Cocody" oninput="espEleveSearchEtablissements()"></div>
+          <div class="esp-field"><label>Filière</label><input type="text" id="esp-eleve-etab-filiere" placeholder="Ex : BAC F2" oninput="espEleveSearchEtablissements()"></div>
+        </div>
+        <div id="esp-eleve-etab-results" style="margin-top:14px;"></div>
+      </div>
+    `;
+  }
 
   document.getElementById('esp-eleve').innerHTML = `
     <div class="esp-user-header">
@@ -107,35 +171,61 @@ function espRenderEleveDashboard(){
       <div id="esp-eleve-email-form"></div>
     </div>
 
-    <div class="esp-card">
-      <div class="esp-title" style="font-size:16px;">Mon profil d'orientation RIASEC</div>
-      ${r ? `
-        <div class="riasec-code-wrap" style="margin:14px 0;">
-          <div class="riasec-code-letters">${r.top3.map(l => `<div class="riasec-code-letter" style="background:${RIASEC_COLORS[l]}">${l}</div>`).join('')}</div>
-          <p class="riasec-code-names">${r.top3.map(l => RIASEC_DIMENSIONS.find(d=>d.letter===l).name).join(' · ')} — Code ${r.hollandCode}</p>
-        </div>
-        <p class="esp-sub" style="text-align:center;">Test réalisé le ${new Date(r.date).toLocaleDateString('fr-FR')}</p>
-        <div style="margin:10px 0 16px;">${r.scored.map(s => `
-          <div class="riasec-bar-row">
-            <span class="riasec-bar-label">${s.letter} — ${s.name}</span>
-            <span class="riasec-bar-track"><span class="riasec-bar-fill" style="width:${s.pct}%;background:${RIASEC_COLORS[s.letter]}"></span></span>
-            <span class="riasec-bar-pct">${s.pct}%</span>
-          </div>
-        `).join('')}</div>
-        <button class="esp-btn" onclick="showView('test')">🔁 Repasser le test</button>
-      ` : `
-        <p class="esp-empty">Vous n'avez pas encore de profil RIASEC sauvegardé.</p>
-        <button class="esp-btn esp-btn-primary" onclick="showView('test')">🧭 Passer le test d'orientation</button>
-      `}
+    <div class="esp-subtabs">
+      <button class="esp-subtab-btn ${sub==='profil'?'active':''}" onclick="espRenderEleveDashboard('profil')">🎓 Mon profil</button>
+      <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderEleveDashboard('etablissements')">🏫 Trouver un établissement</button>
     </div>
-
-    <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">Notes et recommandations de mon inspecteur d'orientation</div>
-      ${notes.length ? notes.map(n => `
-        <div class="esp-note-item">${escapeHtml(n.texte)}<small>${escapeHtml(n.inspecteurNom)} — ${escapeHtml(n.date)}</small></div>
-      `).join('') : `<p class="esp-empty">Aucune note pour le moment.</p>`}
-    </div>
+    ${subHtml}
   `;
+
+  if(sub === 'etablissements'){
+    espEleveEtabPopulateVilles();
+    espEleveSearchEtablissements();
+  }
+}
+
+// ---------------- Recherche d'établissement (région, ville, quartier, filière combinables) ----------------
+function espEleveEtabPopulateVilles(){
+  const db = espDB();
+  const villeSelect = document.getElementById('esp-eleve-etab-ville');
+  if(!villeSelect) return;
+  const villes = [...new Set((db.etablissements||[]).filter(e => e.statut === 'valide' && e.ville).map(e => e.ville))].sort((a,b) => a.localeCompare(b,'fr'));
+  villeSelect.innerHTML = '<option value="">Toutes les villes</option>' + villes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+}
+function espEleveSearchEtablissements(){
+  const db = espDB();
+  const resultsEl = document.getElementById('esp-eleve-etab-results');
+  if(!resultsEl) return;
+  const region = document.getElementById('esp-eleve-etab-region').value;
+  const ville = document.getElementById('esp-eleve-etab-ville').value;
+  const quartier = document.getElementById('esp-eleve-etab-quartier').value.trim().toLowerCase();
+  const filiere = document.getElementById('esp-eleve-etab-filiere').value.trim().toLowerCase();
+
+  const resultats = (db.etablissements||[]).filter(e => e.statut === 'valide').filter(e => {
+    if(region && e.region !== region) return false;
+    if(ville && e.ville !== ville) return false;
+    if(quartier && !(e.quartier||'').toLowerCase().includes(quartier)) return false;
+    if(filiere){
+      const filieresValidees = (e.filieresProposees||[]).filter(f => f.statut === 'valide');
+      if(!filieresValidees.some(f => f.nom.toLowerCase().includes(filiere))) return false;
+    }
+    return true;
+  });
+
+  resultsEl.innerHTML = resultats.length ? resultats.map(e => {
+    const filieresValidees = (e.filieresProposees||[]).filter(f => f.statut === 'valide');
+    return `
+      <div class="esp-note-item" style="border-left-color:var(--green-dark);">
+        <b>${escapeHtml(e.nom)}</b> — ${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}<br>
+        <span class="esp-sub">${escapeHtml(e.type)} · ${escapeHtml(e.tel)} · ${escapeHtml(e.email)}</span>
+        ${filieresValidees.length ? `
+          <div style="margin-top:6px;">
+            ${filieresValidees.map(f => `<span class="esp-badge valide" style="margin:2px 4px 2px 0;">${escapeHtml(f.nom)} (${escapeHtml(f.diplome)})</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('') : `<p class="esp-empty">Aucun établissement ne correspond à ces critères.</p>`;
 }
 
 // ---------------- ÉTABLISSEMENT ----------------

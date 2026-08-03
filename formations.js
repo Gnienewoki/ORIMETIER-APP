@@ -1,0 +1,136 @@
+// ---------------- Annuaire des formations (page index.html) ----------------
+let tbody, countEl, emptyMsg, inputs;
+
+// --- Fiches métiers : index par formation associée ---
+const ficheByFormation = {};
+FICHES.forEach((f, i) => { ficheByFormation[normalize(f.formation)] = i; });
+
+function findFiche(filiere){
+  const n = normalize(filiere);
+  if(n in ficheByFormation) return FICHES[ficheByFormation[n]];
+  if(filiere in ALIASES){
+    const aliasNorm = normalize(ALIASES[filiere]);
+    if(aliasNorm in ficheByFormation) return FICHES[ficheByFormation[aliasNorm]];
+  }
+  return null;
+}
+
+function listBlock(items){
+  if(!items || !items.length) return '';
+  return '<ul>' + items.map(it => `<li>${escapeHtml(it)}</li>`).join('') + '</ul>';
+}
+
+function conditionsAccesBlock(formation){
+  const cond = CONDITIONS_ACCES[formation];
+  if(!cond || !cond.variants || !cond.variants.length){
+    return `<p class="ca-indispo">Fiche des conditions d'accès non disponible pour cette filière pour le moment.</p>`;
+  }
+  const variantsHtml = cond.variants.map(v => `
+    <div class="ca-variant">
+      <div class="ca-variant-head">
+        <span class="ca-diplome">${escapeHtml(v.diplome)}</span>
+        ${cond.approx ? `<span class="ca-proche" title="Filière la plus proche dans le référentiel officiel">≈ ${escapeHtml(v.specialite)}</span>` : ''}
+      </div>
+      <div class="ca-row"><b>Niveau &amp; âge requis :</b> ${escapeHtml(v.niveau_age).replace(/\n/g,'<br>')}</div>
+      <div class="ca-row"><b>Moyennes minimales exigées :</b> ${escapeHtml(v.moyennes)}</div>
+      <div class="ca-row"><b>Établissements d'accueil :</b> ${escapeHtml(v.etablissements)}</div>
+    </div>
+  `).join('');
+  return `
+    <div class="ca-commun">${escapeHtml(CONDITIONS_COMMUNES)}</div>
+    ${variantsHtml}
+  `;
+}
+
+function openFiche(filiere){
+  const fiche = findFiche(filiere);
+  if(!fiche){
+    openModal(filiere || 'Filière', '', `<p class="modal-no-fiche">Aucune fiche métier détaillée n'est disponible pour cette filière pour le moment.</p>`);
+    return;
+  }
+  const tagsHtml = [fiche.secteur, fiche.niveau].filter(Boolean)
+    .map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  const isFiliere = fiche.type === 'filiere';
+  const bodyHtml = `
+    <h3>${isFiliere ? 'Présentation de la filière' : 'Description du métier'}</h3>
+    <p>${escapeHtml(fiche.description)}</p>
+    <h3>${isFiliere ? 'Programme et matières clés' : 'Missions principales'}</h3>
+    ${listBlock(fiche.missions)}
+    <h3>${isFiliere ? 'Compétences développées' : 'Compétences requises'}</h3>
+    ${listBlock(fiche.competences)}
+    <h3>${isFiliere ? 'Profil recommandé' : 'Qualités personnelles'}</h3>
+    ${listBlock(fiche.qualites)}
+    <h3>${isFiliere ? 'Cadre de formation' : 'Environnement de travail'}</h3>
+    <p>${escapeHtml(fiche.environnement)}</p>
+    <h3>${isFiliere ? 'Débouchés après le Bac' : 'Débouchés et employeurs potentiels'}</h3>
+    ${listBlock(fiche.debouches)}
+    <h3>${isFiliere ? 'Poursuite d\'études' : 'Évolution de carrière'}</h3>
+    <p>${escapeHtml(fiche.evolution)}</p>
+    <h3>Conditions d'accès à la filière</h3>
+    ${conditionsAccesBlock(fiche.formation)}
+  `;
+  openModal(fiche.titre, tagsHtml, bodyHtml);
+}
+
+function highlight(text, query){
+  if(!query || !text) return text || '';
+  const idx = normalize(text).indexOf(normalize(query));
+  if(idx === -1) return text;
+  return text.slice(0,idx) + '<mark>' + text.slice(idx, idx+query.length) + '</mark>' + text.slice(idx+query.length);
+}
+
+function render(){
+  const qf = inputs.filiere.value.trim();
+  const qd = inputs.diplome.value.trim();
+  const qe = inputs.etablissement.value.trim();
+
+  const filtered = DATA.filter(([filiere, diplome, etab]) =>
+    normalize(filiere).includes(normalize(qf)) &&
+    normalize(diplome).includes(normalize(qd)) &&
+    normalize(etab).includes(normalize(qe))
+  );
+
+  tbody.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  filtered.forEach(([filiere, diplome, etab]) => {
+    const tr = document.createElement('tr');
+    const hasFiche = !!findFiche(filiere);
+    const btn = filiere
+      ? `<button class="fiche-btn" ${hasFiche ? '' : 'disabled'} data-filiere="${escapeHtml(filiere)}">${hasFiche ? '📄 Voir' : 'Indisponible'}</button>`
+      : '';
+    tr.innerHTML = `<td>${highlight(filiere, qf)}</td><td>${highlight(diplome, qd)}</td><td>${highlight(etab, qe)}</td><td>${btn}</td>`;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+
+  countEl.textContent = filtered.length + ' résultat' + (filtered.length>1?'s':'') + ' sur ' + DATA.length;
+  emptyMsg.style.display = filtered.length === 0 ? 'block' : 'none';
+}
+
+function resetFilters(){
+  inputs.filiere.value = '';
+  inputs.diplome.value = '';
+  inputs.etablissement.value = '';
+  render();
+}
+
+function initFormations(){
+  tbody = document.getElementById('results');
+  countEl = document.getElementById('count');
+  emptyMsg = document.getElementById('empty-msg');
+  inputs = {
+    filiere: document.getElementById('f-filiere'),
+    diplome: document.getElementById('f-diplome'),
+    etablissement: document.getElementById('f-etablissement'),
+  };
+  tbody.addEventListener('click', e => {
+    const btn = e.target.closest('.fiche-btn');
+    if(!btn || btn.disabled) return;
+    openFiche(btn.dataset.filiere);
+  });
+  Object.values(inputs).forEach(inp => inp.addEventListener('input', render));
+  const totalCountEl = document.getElementById('total-formations-count');
+  if(totalCountEl) totalCountEl.textContent = DATA.length;
+  render();
+}
+window.pageInit = initFormations;

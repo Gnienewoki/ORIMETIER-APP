@@ -107,7 +107,7 @@ function espRenderAdminDashboard(sub){
         ${db.etablissements.length ? db.etablissements.map(e => `
           <tr>
             <td><b>${escapeHtml(e.nom)}</b></td>
-            <td>${escapeHtml(e.ville)}</td>
+            <td>${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</td>
             <td>${escapeHtml(e.type)}</td>
             <td>${escapeHtml(e.responsable)}</td>
             <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
@@ -121,7 +121,7 @@ function espRenderAdminDashboard(sub){
             <b style="font-size:12px;">Filières proposées par cet établissement :</b>
             ${e.filieresProposees.map(f => `
               <div style="margin:6px 0;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
-                <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)}) — ${escapeHtml(f.conditions)}
+                <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)})${f.conditions ? ' — ' + escapeHtml(f.conditions) : ''}
                 <span class="esp-badge ${f.statut}" style="margin-left:8px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span>
                 ${f.statut === 'en_attente' ? `
                   <button class="esp-btn" style="padding:3px 8px;font-size:11px;margin-left:8px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','valide')">✔ Valider</button>
@@ -134,24 +134,6 @@ function espRenderAdminDashboard(sub){
         </tbody>
       </table>
     `;
-  } else if(sub === 'eleves'){
-    subHtml = `
-      <table class="esp-table">
-        <thead><tr><th>Nom</th><th>Classe</th><th>Établissement</th><th>Contact</th><th>Test RIASEC</th><th>Inscrit le</th></tr></thead>
-        <tbody>
-        ${db.eleves.length ? db.eleves.map(e => `
-          <tr>
-            <td><b>${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</b></td>
-            <td>${escapeHtml(e.classe)}</td>
-            <td>${escapeHtml(e.etablissement)}</td>
-            <td>${escapeHtml(e.tel)}</td>
-            <td>${e.riasec ? `<span class="esp-badge valide">${e.riasec.hollandCode}</span>` : `<span class="esp-badge en_attente">Non passé</span>`}</td>
-            <td>${escapeHtml(e.dateInscription)}</td>
-          </tr>
-        `).join('') : `<tr><td colspan="6" class="esp-empty">Aucun élève inscrit pour le moment.</td></tr>`}
-        </tbody>
-      </table>
-    `;
   } else if(sub === 'inspecteurs'){
     subHtml = `
       <table class="esp-table">
@@ -159,7 +141,7 @@ function espRenderAdminDashboard(sub){
         <tbody>
         ${db.inspecteurs.length ? db.inspecteurs.map(i => `
           <tr>
-            <td><b>${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}</b>${i.certifie ? ' <span class="esp-badge-certifie" title="Compte certifié">✅</span>' : ''}</td>
+            <td><b>${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}</b>${i.certifie ? ' <span class="esp-badge-certifie" title="Compte certifié">✅</span>' : ''}${(!i.certifie && i.certificationDemandee) ? ' <span class="esp-badge en_attente" title="A demandé la certification">🎓 Demande</span>' : ''}</td>
             <td>${escapeHtml(i.fonction)}</td>
             <td>${escapeHtml(i.cio)}</td>
             <td>${escapeHtml(i.tel)}</td>
@@ -173,6 +155,17 @@ function espRenderAdminDashboard(sub){
         `).join('') : `<tr><td colspan="7" class="esp-empty">Aucun inspecteur inscrit pour le moment.</td></tr>`}
         </tbody>
       </table>
+    `;
+  } else if(sub === 'ban-eleve'){
+    subHtml = `
+      <div class="esp-card">
+        <div class="esp-title" style="font-size:16px;">🔍 Rechercher un élève à bannir</div>
+        <p class="esp-sub">Recherche par nom ou numéro de téléphone. Les résultats ne s'affichent qu'après une recherche.</p>
+        <div class="esp-field" style="max-width:420px;">
+          <input type="text" id="esp-ban-eleve-search" placeholder="Nom ou téléphone..." oninput="espAdminSearchEleve(this.value)">
+        </div>
+        <div id="esp-ban-eleve-results" style="margin-top:14px;"></div>
+      </div>
     `;
   } else if(sub === 'chat'){
     const messages = db.messages || [];
@@ -198,7 +191,12 @@ function espRenderAdminDashboard(sub){
             </select>
           </div>
         </div>
-        <button class="esp-btn esp-btn-primary" onclick="espAdminSendChatMessage()">Publier</button>
+        <div style="margin:6px 0 10px;">
+          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">📎 Joindre une photo ou un PDF</label><br>
+          <input type="file" id="esp-chat-file-input" accept="image/*,application/pdf" onchange="espChatPreviewAttachment(this)">
+          <div id="esp-chat-file-preview"></div>
+        </div>
+        <button class="esp-btn esp-btn-primary" id="esp-chat-send-btn" onclick="espAdminSendChatMessage()">Publier</button>
       </div>
     `;
   }
@@ -216,13 +214,44 @@ function espRenderAdminDashboard(sub){
     <div class="esp-subtabs">
       <button class="esp-subtab-btn ${sub==='overview'?'active':''}" onclick="espRenderAdminDashboard('overview')">Vue d'ensemble</button>
       <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderAdminDashboard('etablissements')">Établissements${enAttente ? ' ('+enAttente+')' : ''}</button>
-      <button class="esp-subtab-btn ${sub==='eleves'?'active':''}" onclick="espRenderAdminDashboard('eleves')">Comptes élèves</button>
       <button class="esp-subtab-btn ${sub==='inspecteurs'?'active':''}" onclick="espRenderAdminDashboard('inspecteurs')">Comptes inspecteurs</button>
+      <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">🔍 Bannir un élève</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">💬 Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
   espUpdateReplyPreview();
+  if(sub === 'ban-eleve') document.getElementById('esp-ban-eleve-search').focus();
+}
+function espAdminSearchEleve(query){
+  const resultsEl = document.getElementById('esp-ban-eleve-results');
+  const q = (query||'').trim();
+  if(!q){ resultsEl.innerHTML = ''; return; }
+  const db = espDB();
+  const norm = s => (s||'').toString().toLowerCase();
+  const nq = norm(q);
+  const matches = db.eleves.filter(e => norm(e.nom + ' ' + (e.prenoms||'')).includes(nq) || (e.tel||'').includes(q));
+  if(!matches.length){ resultsEl.innerHTML = '<p class="esp-empty">Aucun élève trouvé.</p>'; return; }
+  resultsEl.innerHTML = matches.map(e => `
+    <div class="esp-note-item" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span><b>${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</b> — ${escapeHtml(e.classe)} · ${escapeHtml(e.etablissement)} · ${escapeHtml(e.tel)} ${e.banni ? '<span class="esp-badge refuse">Banni</span>' : '<span class="esp-badge valide">Actif</span>'}</span>
+      <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleEleveBanni('${e.id}', ${!e.banni})">${e.banni ? '✅ Réactiver' : '🚫 Bannir'}</button>
+    </div>
+  `).join('');
+}
+async function espAdminToggleEleveBanni(eleveId, nouvelEtat){
+  const session = espSession();
+  const db = espDB();
+  const e = db.eleves.find(x => x.id === eleveId);
+  if(!e) return;
+  if(nouvelEtat && !confirm(`Bannir ${e.nom} ${e.prenoms||''} ? Cette personne ne pourra plus se connecter.`)) return;
+  let ok;
+  try { ok = await espAdminSetEleveBanniRPC(session.password, eleveId, nouvelEtat); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  e.banni = nouvelEtat; espSaveDB(db);
+  const searchInput = document.getElementById('esp-ban-eleve-search');
+  if(searchInput) espAdminSearchEleve(searchInput.value);
 }
 async function espAdminToggleCertifie(inspecteurId, nouvelEtat){
   const session = espSession();
@@ -233,7 +262,9 @@ async function espAdminToggleCertifie(inspecteurId, nouvelEtat){
   try { ok = await espAdminSetInspecteurCertifieRPC(session.password, inspecteurId, nouvelEtat); }
   catch(e){ alert('Erreur : ' + e.message); return; }
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  i.certifie = nouvelEtat; espSaveDB(db); espRenderAdminDashboard('inspecteurs');
+  i.certifie = nouvelEtat;
+  if(nouvelEtat) i.certificationDemandee = false;
+  espSaveDB(db); espRenderAdminDashboard('inspecteurs');
 }
 async function espAdminToggleBanni(inspecteurId, nouvelEtat){
   const session = espSession();
@@ -255,15 +286,21 @@ async function espAdminSendChatMessage(){
   const type = typeSelect ? typeSelect.value : 'O';
   const replyTo = _espReplyTarget ? _espReplyTarget.id : null;
   const errEl = document.getElementById('esp-chat-error');
-  if(!texte) return;
+  const sendBtn = document.getElementById('esp-chat-send-btn');
+  if(!texte && !_espChatPendingFile) return;
+  if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Envoi en cours...'; }
   try {
-    const ok = await espAdminPostMessageRPC(session.password, texte, type, replyTo);
+    const attachment = await espChatUploadPendingAttachment();
+    const ok = await espAdminPostMessageRPC(session.password, texte, type, replyTo, attachment);
     if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible de publier le message. Session expirée ?</p>'; return; }
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
+  } finally {
+    if(sendBtn){ sendBtn.disabled = false; sendBtn.textContent = 'Publier'; }
   }
   input.value = '';
+  espChatClearAttachment('esp-chat-file-input');
   _espReplyTarget = null;
   await espLoadFromSupabase();
   espRenderAdminDashboard('chat');

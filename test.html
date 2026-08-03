@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>ORIMETIER — Test d'orientation</title>
+
+<!-- PWA : application installable sur téléphone/PC -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff7a1a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ORIMETIER">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div id="splash-screen" class="splash-screen">
+  <div class="splash-content" id="splash-logo-content">
+    <h1 class="splash-logo">ORIMETIER</h1>
+    <p class="splash-powered">powered by GNIENEWOKI</p>
+  </div>
+  <div class="splash-content splash-hidden" id="splash-slogan-content">
+    <p class="splash-slogan">Orimetier, choisissez votre avenir</p>
+  </div>
+  <button class="splash-skip" id="splash-skip-btn" onclick="splashSkip()">Passer →</button>
+</div>
+
+<div id="auth-gate" class="gate-overlay">
+  <div class="gate-inner">
+    <div class="gate-brand">
+      <div class="dot"></div>
+      <h1>ORIMETIER</h1>
+    </div>
+    <p class="gate-powered">powered by GNIENEWOKI</p>
+    <p class="gate-tagline">Orimetier, choisissez votre avenir</p>
+    <p class="gate-intro">Connecte-toi ou crée un compte pour accéder à l'annuaire des formations, aux concours, au test d'orientation RIASEC et à ton espace personnel.</p>
+    <div id="gate-storage-warning" class="gate-storage-warning" style="display:none"></div>
+    <div id="gate-content">
+      <div id="esp-loading" style="text-align:center;padding:40px 10px;color:#6b7d70;font-size:14px;">⏳ Connexion à la base de données…</div>
+      <div id="esp-role-select" style="display:none"></div>
+      <div id="esp-admin" style="display:none"></div>
+      <div id="esp-inspecteur" style="display:none"></div>
+      <div id="esp-eleve" style="display:none"></div>
+      <div id="esp-etablissement" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application">📲</button>
+<button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application">🔗</button>
+
+<div class="wrap" id="platform-wrap" style="display:none">
+  <div class="brand">
+    <div class="dot"></div>
+    <h1>ORIMETIER</h1>
+    <div id="auth-bar" class="auth-bar"></div>
+  </div>
+  <p class="sub">Explore les formations professionnelles et universitaires disponibles, ou découvre ton profil d'orientation grâce au test de personnalité.</p>
+
+  <div class="tab-nav">
+    <a class="tab-btn" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
+    <a class="tab-btn" href="superieur.html">🏛️ Enseignement supérieur</a>
+    <a class="tab-btn" href="concours.html">📋 Concours & Grandes Écoles</a>
+    <a class="tab-btn active" href="test.html">🧭 Test d'orientation</a>
+    <a class="tab-btn" id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
+    <a class="tab-btn" href="espaces.html">🔐 Espaces</a>
+  </div>
+
+  <div id="page-content">
+    <div class="pt-inner">
+
+      <div class="pt-masthead">
+        <svg id="pt-compass" width="46" height="46" viewBox="0 0 56 56">
+          <circle cx="28" cy="28" r="26" fill="none" stroke="var(--green-dark)" stroke-width="1.5"/>
+          <circle cx="28" cy="28" r="21" fill="none" stroke="var(--border)" stroke-width="1"/>
+          <g id="pt-needle" style="transform-origin:28px 28px; transform:rotate(0deg); transition:transform 0.6s cubic-bezier(.4,0,.2,1);">
+            <polygon points="28,9 32,28 28,25 24,28" fill="var(--orange)"/>
+            <polygon points="28,47 32,28 28,31 24,28" fill="var(--green-dark)"/>
+          </g>
+          <circle cx="28" cy="28" r="2.5" fill="var(--orange-dark)"/>
+        </svg>
+        <div>
+          <p class="pt-eyebrow">Orientation scolaire et professionnelle</p>
+          <h2 class="pt-h1">Carnet de personnalité</h2>
+        </div>
+      </div>
+
+      <div id="pt-screen-intro" class="pt-screen">
+        <div class="pt-card">
+          <h2 class="pt-section-title">Avant de commencer</h2>
+          <p class="pt-section-sub">Ces informations personnalisent votre profil — elles restent sur cet appareil.</p>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Nom et prénoms</label><input id="pt-f-nom" type="text" placeholder="Votre nom"></div>
+            <div class="pt-field"><label>Genre</label>
+              <select id="pt-f-genre"><option value="">—</option><option>Féminin</option><option>Masculin</option></select>
+            </div>
+          </div>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Âge</label><input id="pt-f-age" type="number" min="8" max="99" placeholder="Ex : 16"></div>
+            <div class="pt-field"><label>Numéro de téléphone</label><input id="pt-f-tel" type="tel" placeholder="Ex : 07 00 00 00 00"></div>
+          </div>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Lieu d'habitation</label><input id="pt-f-lieu" type="text" placeholder="Ex : Abidjan, Yopougon"></div>
+            <div class="pt-field"><label>Classe</label><input id="pt-f-classe" type="text" placeholder="Ex : Terminale D"></div>
+          </div>
+          <div class="pt-field-row">
+            <div class="pt-field"><label>Établissement</label><input id="pt-f-etab" type="text" placeholder="Nom de l'établissement"></div>
+            <div class="pt-field"></div>
+          </div>
+          <p class="pt-intro-text">Ce carnet explore <strong>6 dimensions</strong> de votre personnalité professionnelle selon le modèle RIASEC de John Holland : Réaliste, Investigateur, Artistique, Social, Entreprenant et Conventionnel. Pour chaque dimension, cochez toutes les activités qui vous attirent — il n'y a pas de bonne ou de mauvaise réponse. Vos trois dimensions les plus fortes formeront votre <strong>code d'orientation personnel</strong>.</p>
+          <div class="pt-nav-row">
+            <span></span>
+            <button class="pt-btn pt-primary" onclick="ptGoTo(1)">Commencer le test →</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="pt-quiz-container"></div>
+
+      <div id="pt-screen-results" class="pt-screen pt-hidden"></div>
+
+      <p class="pt-footer-note">Carnet d'orientation — inspiré du modèle RIASEC (Holland Codes) de John L. Holland</p>
+    </div>
+  </div>
+
+</div>
+
+<script src="utils.js"></script>
+<script src="data-riasec.js"></script>
+<script src="supabase-client.js"></script>
+<script src="auth.js"></script>
+<script src="admin.js"></script>
+<script src="inspecteur.js"></script>
+<script src="eleve.js"></script>
+<script src="etablissement.js"></script>
+<script src="riasec-test.js"></script>
+<script src="bootstrap.js"></script>
+</body>
+</html>
