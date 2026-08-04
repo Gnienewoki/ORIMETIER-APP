@@ -125,6 +125,8 @@ function espRenderInspecteurDashboard(sub){
         <button class="esp-btn esp-btn-primary" id="esp-chat-send-btn" onclick="espSendChatMessage()">Envoyer</button>
       </div>
     `;
+  } else if(sub === 'prive'){
+    subHtml = `<div id="esp-priv-tab-container">${espRenderPrivateTab()}</div>`;
   }
 
   document.getElementById('esp-inspecteur').innerHTML = `
@@ -174,6 +176,7 @@ function espRenderInspecteurDashboard(sub){
     </div>
     <div class="esp-subtabs">
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderInspecteurDashboard('chat')">💬 Discussion (${(db.messages||[]).length})</button>
+      <button class="esp-subtab-btn ${sub==='prive'?'active':''}" onclick="espRenderInspecteurDashboard('prive')">✉️ Messages privés${espPrivateUnreadTotal() ? ' (' + espPrivateUnreadTotal() + ')' : ''}</button>
     </div>
     ${subHtml}
   `;
@@ -182,6 +185,10 @@ function espRenderInspecteurDashboard(sub){
     const list = document.getElementById('esp-chat-list');
     if(list) list.scrollTop = list.scrollHeight;
     espUpdateReplyPreview();
+  }
+  if(sub === 'prive'){
+    const list = document.getElementById('esp-priv-list');
+    if(list) list.scrollTop = list.scrollHeight;
   }
 }
 
