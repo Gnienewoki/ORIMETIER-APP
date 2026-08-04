@@ -94,7 +94,16 @@ function platformUnlock(){
   gate.style.display = 'none';
   wrap.style.display = '';
   updateAuthBar();
-  if(typeof window.pageInit === 'function') window.pageInit();
+  const session = espSession();
+  if(session && session.role === 'inspecteur'){
+    // Charge les messages privés de l'inspecteur avant d'initialiser la page,
+    // pour que le compteur de messages non-lus soit correct dès l'affichage.
+    espLoadPrivateMessages().catch(e => console.error('[esp] échec du chargement des messages privés', e)).finally(() => {
+      if(typeof window.pageInit === 'function') window.pageInit();
+    });
+  } else {
+    if(typeof window.pageInit === 'function') window.pageInit();
+  }
 }
 
 function platformLock(){
@@ -206,7 +215,7 @@ function espChatMessageHtml(m, opts){
   `;
 }
 
-// ---------------- Pièce jointe du chat (photo ou PDF, réutilisée par Inspecteur et Admin) ----------------
+// ---------------- Pièce jointe du chat (photo ou PDF, réutilisée par Inspecteur, Admin et messagerie privée) ----------------
 let _espChatPendingFile = null;
 function espChatPreviewAttachment(input){
   const file = input.files && input.files[0];
@@ -264,6 +273,212 @@ function espUpdateReplyPreview(){
       <span class="esp-chat-cancel-reply" onclick="espCancelReply()" title="Annuler">✕</span>
     </div>
   `;
+}
+
+// ============================================================
+// ---- Messagerie privée entre inspecteurs (façon WhatsApp) ----
+// ============================================================
+let _espPrivateActiveContact = null; // id de l'inspecteur avec qui la conversation est ouverte
+let _espPrivateSearchQuery = '';
+
+// Nombre total de messages privés non lus, pour le badge sur l'onglet.
+function espPrivateUnreadTotal(){
+  const session = espSession();
+  if(!session) return 0;
+  return espPrivateMessages().filter(m => m.destinataireId === session.id && !m.lu).length;
+}
+
+// Regroupe tous les messages privés par contact, pour la liste de conversations.
+function espPrivateConversationsList(){
+  const session = espSession();
+  const db = espDB();
+  const all = espPrivateMessages(); // déjà trié par date croissante (created_at) via la RPC
+  const byContact = {};
+  all.forEach((m, idx) => {
+    const contactId = m.expediteurId === session.id ? m.destinataireId : m.expediteurId;
+    if(!byContact[contactId]) byContact[contactId] = { contactId, messages: [], lastIndex: 0 };
+    byContact[contactId].messages.push(m);
+    byContact[contactId].lastIndex = idx; // position dans l'ordre chronologique global
+  });
+  return Object.values(byContact).map(c => {
+    const insp = db.inspecteurs.find(i => i.id === c.contactId);
+    const last = c.messages[c.messages.length - 1];
+    const unread = c.messages.filter(m => m.destinataireId === session.id && !m.lu).length;
+    return { contact: insp, contactId: c.contactId, lastMessage: last, unread, lastIndex: c.lastIndex };
+  }).filter(c => c.contact).sort((a,b) => b.lastIndex - a.lastIndex);
+}
+
+// Bulle de message privé (plus simple que celle du chat de groupe : pas de nom répété,
+// pas de badge de certification puisqu'on sait déjà avec qui on parle).
+function espPrivateMessageHtml(m, opts){
+  opts = opts || {};
+  const attachmentHtml = !m.attachmentUrl ? '' : m.attachmentType === 'pdf'
+    ? `<div class="esp-chat-attachment"><a class="esp-chat-attachment-pdf" href="${escapeHtml(m.attachmentUrl)}" target="_blank" rel="noopener">📄 ${escapeHtml(m.attachmentName || 'Document PDF')}</a></div>`
+    : `<div class="esp-chat-attachment"><img src="${escapeHtml(m.attachmentUrl)}" onclick="window.open('${escapeHtml(m.attachmentUrl)}','_blank')" alt="Pièce jointe"></div>`;
+  return `
+    <div class="esp-chat-msg ${opts.mine ? 'esp-chat-msg-mine' : ''}">
+      ${m.texte ? `<div class="esp-chat-msg-text">${escapeHtml(m.texte)}</div>` : ''}
+      ${attachmentHtml}
+      <div class="esp-chat-msg-date" style="margin-top:4px;">${escapeHtml(m.date)}</div>
+    </div>
+  `;
+}
+
+// ---------------- Pièce jointe de la messagerie privée (état séparé du chat de groupe, ----------------
+// pour éviter qu'un fichier sélectionné dans un onglet ne s'attache par erreur à l'autre)
+let _espPrivPendingFile = null;
+function espPrivPreviewAttachment(input){
+  const file = input.files && input.files[0];
+  const previewEl = document.getElementById(input.id.replace('-input','-preview'));
+  _espPrivPendingFile = file || null;
+  if(!previewEl) return;
+  if(!file){ previewEl.innerHTML = ''; return; }
+  const isPdf = file.type === 'application/pdf';
+  const isImage = file.type.startsWith('image/');
+  if(!isPdf && !isImage){
+    previewEl.innerHTML = '<p class="esp-error">Seules les images et les PDF sont acceptés.</p>';
+    _espPrivPendingFile = null;
+    input.value = '';
+    return;
+  }
+  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">📎 ${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espPrivClearAttachment('${input.id}')">Retirer</span></p>`;
+}
+function espPrivClearAttachment(inputId){
+  _espPrivPendingFile = null;
+  const input = document.getElementById(inputId);
+  if(input) input.value = '';
+  const previewEl = document.getElementById(inputId.replace('-input','-preview'));
+  if(previewEl) previewEl.innerHTML = '';
+}
+async function espPrivUploadPendingAttachment(){
+  if(!_espPrivPendingFile) return null;
+  const file = _espPrivPendingFile;
+  const url = await espUploadChatFile(file);
+  const type = file.type === 'application/pdf' ? 'pdf' : 'image';
+  _espPrivPendingFile = null;
+  return { url, type, name: file.name };
+}
+
+// Rendu principal de l'onglet "Messages privés" : recherche + liste de conversations,
+// ou fenêtre de discussion si une conversation est ouverte.
+function espRenderPrivateTab(){
+  const session = espSession();
+  const db = espDB();
+
+  if(_espPrivateActiveContact){
+    const contact = db.inspecteurs.find(i => i.id === _espPrivateActiveContact);
+    if(!contact){ _espPrivateActiveContact = null; return espRenderPrivateTab(); }
+    const messages = espPrivateMessages().filter(m => m.expediteurId === _espPrivateActiveContact || m.destinataireId === _espPrivateActiveContact);
+    return `
+      <div class="esp-card">
+        <button class="esp-back" onclick="espCloseConversationPrivee()">← Toutes les conversations</button>
+        <div class="esp-title" style="font-size:16px;">💬 ${escapeHtml(contact.nom)} ${escapeHtml(contact.prenoms||'')}</div>
+        <p class="esp-sub">${escapeHtml(contact.fonction||'Inspecteur')} — ${escapeHtml(contact.cio||'')}</p>
+        <div id="esp-priv-list" class="esp-chat-list">
+          ${messages.length ? messages.map(m => espPrivateMessageHtml(m, { mine: m.expediteurId === session.id })).join('') : `<p class="esp-empty">Aucun message. Écris le premier !</p>`}
+        </div>
+        <div id="esp-priv-error"></div>
+        <div class="esp-field-row" style="margin-top:10px;align-items:flex-end;">
+          <div class="esp-field" style="flex:1;">
+            <label>Message</label>
+            <input type="text" id="esp-priv-input" placeholder="Écrire un message..." onkeydown="if(event.key==='Enter')espSendPrivateMessage()">
+          </div>
+        </div>
+        <div style="margin:6px 0 10px;">
+          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">📎 Joindre une photo ou un PDF</label><br>
+          <input type="file" id="esp-priv-file-input" accept="image/*,application/pdf" onchange="espPrivPreviewAttachment(this)">
+          <div id="esp-priv-file-preview"></div>
+        </div>
+        <button class="esp-btn esp-btn-primary" id="esp-priv-send-btn" onclick="espSendPrivateMessage()">Envoyer</button>
+      </div>
+    `;
+  }
+
+  const query = _espPrivateSearchQuery;
+  const results = query ? db.inspecteurs.filter(i => i.id !== session.id && !i.banni && normalize(i.nom + ' ' + (i.prenoms||'')).includes(normalize(query))) : [];
+  const conversations = espPrivateConversationsList();
+
+  return `
+    <div class="esp-card">
+      <div class="esp-title" style="font-size:16px;">✉️ Messages privés</div>
+      <p class="esp-sub">Recherche un inspecteur pour lui écrire directement, comme sur WhatsApp.</p>
+      <div class="esp-field" style="margin-bottom:10px;">
+        <input type="text" id="esp-priv-search" placeholder="🔎 Rechercher un inspecteur par son nom..." value="${escapeHtml(query)}" oninput="espPrivateSearchInput(this.value)">
+      </div>
+      ${query ? `
+        <div class="esp-priv-search-results">
+          ${results.length ? results.map(i => `
+            <div class="esp-priv-conv-item" onclick="espOpenConversationPrivee('${i.id}')">
+              ${i.avatarUrl ? `<img src="${escapeHtml(i.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((i.nom||'?').charAt(0).toUpperCase())}</span>`}
+              <div class="esp-priv-conv-info">
+                <div class="esp-priv-conv-name">${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}${i.certifie ? ' <span class="esp-badge-certifie">✅</span>' : ''}</div>
+                <div class="esp-priv-conv-preview">${escapeHtml(i.fonction||'Inspecteur')} — ${escapeHtml(i.cio||'')}</div>
+              </div>
+            </div>
+          `).join('') : `<p class="esp-empty">Aucun inspecteur trouvé pour « ${escapeHtml(query)} ».</p>`}
+        </div>
+      ` : `
+        <div class="esp-priv-conv-list">
+          ${conversations.length ? conversations.map(c => `
+            <div class="esp-priv-conv-item" onclick="espOpenConversationPrivee('${c.contactId}')">
+              ${c.contact.avatarUrl ? `<img src="${escapeHtml(c.contact.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((c.contact.nom||'?').charAt(0).toUpperCase())}</span>`}
+              <div class="esp-priv-conv-info">
+                <div class="esp-priv-conv-name">${escapeHtml(c.contact.nom)} ${escapeHtml(c.contact.prenoms||'')}</div>
+                <div class="esp-priv-conv-preview">${escapeHtml((c.lastMessage.texte||'📎 Pièce jointe').slice(0,40))}</div>
+              </div>
+              ${c.unread ? `<span class="esp-priv-conv-unread">${c.unread}</span>` : ''}
+            </div>
+          `).join('') : `<p class="esp-empty">Aucune conversation pour le moment. Utilise la recherche ci-dessus pour écrire à un inspecteur.</p>`}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function espPrivateSearchInput(value){
+  _espPrivateSearchQuery = value;
+  const container = document.getElementById('esp-priv-tab-container');
+  if(container) container.innerHTML = espRenderPrivateTab();
+  // Remet le focus dans le champ après le rafraîchissement du HTML.
+  const input = document.getElementById('esp-priv-search');
+  if(input){ input.focus(); const v = input.value; input.value = ''; input.value = v; }
+}
+
+async function espOpenConversationPrivee(contactId){
+  _espPrivateActiveContact = contactId;
+  _espPrivateSearchQuery = '';
+  const session = espSession();
+  try { await espMarkPrivateReadRPC(session.id, session.password, contactId); await espLoadPrivateMessages(); } catch(e){}
+  espRenderInspecteurDashboard('prive');
+}
+
+function espCloseConversationPrivee(){
+  _espPrivateActiveContact = null;
+  espRenderInspecteurDashboard('prive');
+}
+
+async function espSendPrivateMessage(){
+  const session = espSession();
+  const input = document.getElementById('esp-priv-input');
+  const texte = input.value.trim();
+  const errEl = document.getElementById('esp-priv-error');
+  const sendBtn = document.getElementById('esp-priv-send-btn');
+  if(!texte && !_espPrivPendingFile) return;
+  if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Envoi en cours...'; }
+  try {
+    const attachment = await espPrivUploadPendingAttachment();
+    const ok = await espPostPrivateMessageRPC(session.id, session.password, _espPrivateActiveContact, texte, attachment);
+    if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible d\'envoyer le message (session expirée). Merci de te reconnecter.</p>'; return; }
+  } catch(e){
+    errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  } finally {
+    if(sendBtn){ sendBtn.disabled = false; sendBtn.textContent = 'Envoyer'; }
+  }
+  input.value = '';
+  espPrivClearAttachment('esp-priv-file-input');
+  await espLoadPrivateMessages();
+  espRenderInspecteurDashboard('prive');
 }
 
 // ---------------- Renseigner/modifier son e-mail (comptes créés avant l'ajout de cette fonctionnalité) ----------------
