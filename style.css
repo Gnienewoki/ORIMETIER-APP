@@ -699,8 +699,9 @@
   box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 .esp-chat-msg-mine{
-  align-self:flex-end; background:linear-gradient(90deg,var(--orange),var(--green)); color:#fff; border:none;
+  align-self:flex-end; background:linear-gradient(90deg,var(--orange-dark),var(--green-dark)); color:#fff; border:none;
   border-radius:18px 18px 4px 18px;
+  text-shadow:0 1px 2px rgba(0,0,0,0.3);
 }
 .esp-chat-msg-author{ display:flex; align-items:center; gap:6px; font-weight:700; font-size:12px; margin-bottom:3px; opacity:0.85; }
 .esp-chat-msg-date{ font-weight:400; opacity:0.7; font-size:11px; }
