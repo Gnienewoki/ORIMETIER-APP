@@ -699,9 +699,8 @@
   box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 .esp-chat-msg-mine{
-  align-self:flex-end; background:linear-gradient(90deg,var(--orange-dark),var(--green-dark)); color:#fff; border:none;
+  align-self:flex-end; background:linear-gradient(90deg,#ffe4c9,#d7f2df); color:var(--text); border:1.5px solid var(--orange);
   border-radius:18px 18px 4px 18px;
-  text-shadow:0 1px 2px rgba(0,0,0,0.3);
 }
 .esp-chat-msg-author{ display:flex; align-items:center; gap:6px; font-weight:700; font-size:12px; margin-bottom:3px; opacity:0.85; }
 .esp-chat-msg-date{ font-weight:400; opacity:0.7; font-size:11px; }
@@ -723,7 +722,7 @@
   display:inline-flex; align-items:center; gap:8px; background:rgba(0,0,0,0.05);
   border-radius:12px; padding:8px 12px; font-size:12.5px; font-weight:600; text-decoration:none; color:inherit;
 }
-.esp-chat-msg-mine .esp-chat-attachment-pdf{ background:rgba(255,255,255,0.22); }
+.esp-chat-msg-mine .esp-chat-attachment-pdf{ background:rgba(0,0,0,0.06); }
 .esp-chat-attachment-pdf:hover{ opacity:0.85; }
 
 /* Badges et modération du chat */
@@ -735,7 +734,7 @@
   font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px;
   background:rgba(0,0,0,0.08); margin-left:6px;
 }
-.esp-chat-msg-mine .esp-chat-type-label{ background:rgba(255,255,255,0.25); }
+.esp-chat-msg-mine .esp-chat-type-label{ background:rgba(0,0,0,0.08); }
 .esp-chat-delete{
   float:right; cursor:pointer; opacity:0.6; font-size:13px;
 }
@@ -746,7 +745,7 @@
   font-size:11.5px; opacity:0.85; padding:5px 8px; margin:4px 0 6px;
   border-left:3px solid rgba(0,0,0,0.2); background:rgba(0,0,0,0.04); border-radius:4px;
 }
-.esp-chat-msg-mine .esp-chat-cited{ background:rgba(255,255,255,0.18); border-left-color:rgba(255,255,255,0.5); }
+.esp-chat-msg-mine .esp-chat-cited{ background:rgba(0,0,0,0.06); border-left-color:rgba(0,0,0,0.2); }
 .esp-chat-cited-deleted{ font-style:italic; opacity:0.6; }
 .esp-chat-reply-link{
   font-size:11px; opacity:0.65; cursor:pointer; margin-top:4px; display:inline-block;
