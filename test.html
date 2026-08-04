@@ -32,6 +32,17 @@
   </div>
   <button class="splash-skip" id="splash-skip-btn" onclick="splashSkip()">Passer →</button>
 </div>
+<script>
+(function(){
+  var path = window.location.pathname;
+  var isHome = path === '/' || path === '' || /\/index\.html$/.test(path);
+  var already = sessionStorage.getItem('orimetier_splash_shown');
+  if(!isHome || already){
+    var s = document.getElementById('splash-screen');
+    if(s) s.style.display = 'none';
+  }
+})();
+</script>
 
 <div id="auth-gate" class="gate-overlay">
   <div class="gate-inner">
