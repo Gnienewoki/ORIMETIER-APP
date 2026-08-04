@@ -108,6 +108,25 @@ function runSplashSequence(){
   window.__splashTimers = timers;
 }
 
+// ---------------- Décision immédiate : faut-il jouer l'animation ? ----------------
+// Cette vérification se fait AVANT tout appel réseau (Supabase), pour que
+// l'écran de démarrage soit masqué instantanément sur les pages qui n'en
+// ont pas besoin — sans ce court flash du logo pendant le chargement.
+const _espResetToken = new URLSearchParams(window.location.search).get('reset');
+const _espPath = window.location.pathname;
+const _espEstPageAccueil = _espPath === '/' || _espPath === '' || /\/index\.html$/.test(_espPath);
+const _espDejaLancee = sessionStorage.getItem('orimetier_splash_shown');
+const _espDoitJouerAnimation = !_espResetToken && _espEstPageAccueil && !_espDejaLancee;
+
+if(!_espDoitJouerAnimation && !_espResetToken){
+  // Pas la page d'accueil, ou animation déjà jouée dans cette session :
+  // on masque l'écran de démarrage tout de suite, sans attendre Supabase.
+  finishSplash();
+}
+if(_espDoitJouerAnimation){
+  sessionStorage.setItem('orimetier_splash_shown', '1');
+}
+
 (async function espBootstrap(){
   try {
     await espLoadFromSupabase();
@@ -118,28 +137,14 @@ function runSplashSequence(){
   const loader = document.getElementById('esp-loading');
   if(loader) loader.style.display = 'none';
 
-  const resetToken = new URLSearchParams(window.location.search).get('reset');
-  // L'animation d'ouverture ne doit JAMAIS se jouer en passant d'une page de
-  // l'app à une autre — uniquement au lancement de l'application, sur sa
-  // page d'entrée (index.html, cf. start_url dans manifest.json). Double
-  // garde-fou, volontairement indépendant l'un de l'autre :
-  // 1) la page courante doit être index.html (toute autre page = jamais
-  //    d'animation, quel que soit l'état de la session) ;
-  // 2) même sur index.html, on ne la rejoue pas si elle a déjà tourné dans
-  //    cette session du navigateur (retour en arrière, nouvel onglet lié...).
-  const path = window.location.pathname;
-  const estPageAccueil = path === '/' || path === '' || /\/index\.html$/.test(path);
-  const dejaLancee = sessionStorage.getItem('orimetier_splash_shown');
-  if(resetToken){
-    espRenderResetPasswordScreen(resetToken);
+  if(_espResetToken){
+    espRenderResetPasswordScreen(_espResetToken);
     finishSplash();
-  } else if(!estPageAccueil || dejaLancee){
-    platformInit();
-    finishSplash();
-  } else {
+  } else if(_espDoitJouerAnimation){
     platformInit();
     runSplashSequence();
-    sessionStorage.setItem('orimetier_splash_shown', '1');
+  } else {
+    platformInit();
   }
   espSetupRealtime();
 })();
