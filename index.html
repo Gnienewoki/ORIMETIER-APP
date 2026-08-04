@@ -62,6 +62,22 @@
     </div>
   </div>
 </div>
+<script>
+(function(){
+  try {
+    var hasResetToken = new URLSearchParams(window.location.search).get('reset');
+    if(hasResetToken) return;
+    var sessionRaw = localStorage.getItem('GNK_ESPACES_SESSION');
+    if(!sessionRaw) return;
+    var session = JSON.parse(sessionRaw);
+    if(!session || !session.role) return;
+    var gate = document.getElementById('auth-gate');
+    var wrap = document.getElementById('platform-wrap');
+    if(gate) gate.style.display = 'none';
+    if(wrap) wrap.style.display = '';
+  } catch(e){}
+})();
+</script>
 
 <button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application">📲</button>
 <button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application">🔗</button>
