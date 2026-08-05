@@ -136,6 +136,18 @@ function ptRenderResults(){
       <p class="riasec-intro-note">Le modèle RIASEC, élaboré par le psychologue John L. Holland, part d'une idée simple : nos intérêts professionnels s'organisent autour de six grandes orientations qui, ensemble, dessinent une sorte d'empreinte digitale de notre personnalité au travail. Votre code <strong>${hollandCode}</strong> représente vos trois orientations les plus marquées, classées par ordre d'intensité. Ce n'est pas une étiquette figée mais une boussole : elle indique une direction, pas une destination unique, et elle gagne toujours à être confrontée à vos propres expériences et aux conseils d'un professionnel de l'orientation.</p>
     </div>
 
+    <div class="pt-card" style="border-left:4px solid var(--orange-dark); background:var(--bg);">
+      <p style="margin:0 0 8px; font-weight:800; color:var(--green-dark); font-size:14.5px;">🧭 Et maintenant ?</p>
+      <p style="margin:0; font-size:13.5px; line-height:1.65; color:var(--text);">
+        Ce test donne une première piste, mais un code RIASEC seul ne suffit pas à décider d'une orientation :
+        <strong>seul un inspecteur d'orientation peut t'aider à l'interpréter en profondeur</strong> et le relier à ta réalité
+        (tes notes, tes contraintes, les filières réellement accessibles près de chez toi...).
+        Nous t'encourageons vivement à prendre rendez-vous avec un inspecteur <strong>certifié</strong>
+        <span class="esp-badge-certifie" title="Compte certifié par l'administration">✅</span> de la plateforme pour en discuter,
+        plutôt que de t'arrêter à ce résultat seul.
+      </p>
+    </div>
+
     ${top3.map((s,i) => rankCard(i, s)).join('')}
 
     <div class="pt-card">
