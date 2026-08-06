@@ -189,7 +189,12 @@ async function espEtabRegister(){
   const quartier = document.getElementById('esp-etab-quartier').value.trim();
   const categorie = document.getElementById('esp-etab-categorie').value;
   const souscategorieField = document.getElementById('esp-etab-souscategorie-field');
-  const sousCategorie = (souscategorieField && souscategorieField.style.display !== 'none') ? document.getElementById('esp-etab-sous-categorie').value : null;
+  // Pour l'enseignement supérieur, l'établissement choisit Université ou Grande école.
+  // Pour les autres catégories (technique, général), la sous-catégorie "Secondaire" est
+  // attribuée automatiquement : un seul choix logique, inutile de le demander.
+  const sousCategorie = (souscategorieField && souscategorieField.style.display !== 'none')
+    ? document.getElementById('esp-etab-sous-categorie').value
+    : 'secondaire';
   const secteur = document.getElementById('esp-etab-secteur').value;
   // "Type" reste rempli automatiquement pour la compatibilité avec le reste de l'application
   // (tableau de bord établissement, vue admin) tant que ces écrans n'ont pas été mis à jour.
