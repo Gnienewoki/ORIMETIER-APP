@@ -183,8 +183,10 @@ function espEtabPrivesTechnique(){
 }
 
 function renderEtabPrivesList(){
-  const container = document.getElementById('etab-prive-list');
-  if(!container) return;
+  const tbodyPrive = document.getElementById('etab-prive-results');
+  const countEl = document.getElementById('etab-prive-count');
+  const emptyEl = document.getElementById('etab-prive-empty-msg');
+  if(!tbodyPrive) return;
   espFillPriveDatalists();
   const villeInput = document.getElementById('f-etab-prive-ville');
   const filiereInput = document.getElementById('f-etab-prive-filiere');
@@ -193,28 +195,38 @@ function renderEtabPrivesList(){
   const nVille = normalize(qVille);
   const nFiliere = normalize(qFiliere);
 
-  const list = espEtabPrivesTechnique().filter(e => {
+  const etabs = espEtabPrivesTechnique().filter(e => {
     const villeOk = !nVille || normalize(e.ville||'').includes(nVille);
     const filiereOk = !nFiliere || (e.filieresProposees||[]).some(f => normalize(f.nom||'').includes(nFiliere));
     return villeOk && filiereOk;
   });
 
-  if(!list.length){
-    const details = [qVille, qFiliere].filter(Boolean).join(' · ');
-    container.innerHTML = `<p class="empty" style="padding:30px;">Aucun établissement privé référencé pour le moment${details ? ' pour « ' + escapeHtml(details) + ' »' : ''}.</p>`;
-    return;
-  }
+  // Une ligne par filière proposée, comme pour le tableau public (une ligne par filière/diplôme/établissement).
+  // Se remplit automatiquement dès qu'un établissement est validé par l'admin — aucune saisie manuelle.
+  const rows = [];
+  etabs.forEach(e => {
+    const contact = [e.tel, e.email].filter(Boolean).join(' · ') || '—';
+    const filieres = e.filieresProposees || [];
+    if(!filieres.length){
+      rows.push({ nom: e.nom, ville: e.ville, filiere: '—', contact });
+    } else {
+      filieres.forEach(f => {
+        if(!nFiliere || normalize(f.nom||'').includes(nFiliere)){
+          rows.push({ nom: e.nom, ville: e.ville, filiere: f.diplome ? `${f.nom} (${f.diplome})` : f.nom, contact });
+        }
+      });
+    }
+  });
 
-  container.innerHTML = list.map(e => `
-    <div class="esp-card" style="margin-bottom:14px;">
-      <div class="esp-title" style="font-size:16px;">🏢 ${escapeHtml(e.nom)}</div>
-      <p class="esp-sub">${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</p>
-      ${(e.photos||[]).length ? `<div class="esp-etab-photos-grid" style="margin-bottom:12px;">${e.photos.map(u => `<div class="esp-etab-photo-thumb"><img src="${escapeHtml(u)}" alt="Photo établissement"></div>`).join('')}</div>` : ''}
-      ${(e.filieresProposees||[]).length ? `
-        <p style="font-size:12.5px;font-weight:700;color:var(--green-dark);margin:10px 0 6px;">Filières proposées :</p>
-        <div>${e.filieresProposees.map(f => `<span class="riasec-chip" style="margin:0 6px 6px 0;display:inline-block;">${escapeHtml(f.nom)} (${escapeHtml(f.diplome)})</span>`).join('')}</div>
-      ` : `<p class="esp-empty">Aucune filière renseignée pour le moment.</p>`}
-      <p class="esp-sub" style="margin-top:10px;">📞 ${escapeHtml(e.tel||'—')} · ✉️ ${escapeHtml(e.email||'—')}</p>
-    </div>
-  `).join('');
+  tbodyPrive.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${escapeHtml(r.contact)}</td>`;
+    frag.appendChild(tr);
+  });
+  tbodyPrive.appendChild(frag);
+
+  if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
+  if(emptyEl) emptyEl.style.display = rows.length === 0 ? 'block' : 'none';
 }
