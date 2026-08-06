@@ -132,5 +132,56 @@ function initFormations(){
   const totalCountEl = document.getElementById('total-formations-count');
   if(totalCountEl) totalCountEl.textContent = DATA.length;
   render();
+
+  const searchPrive = document.getElementById('f-etab-prive-search');
+  if(searchPrive) searchPrive.addEventListener('input', renderEtabPrivesList);
 }
 window.pageInit = initFormations;
+
+// ---------------- Sous-onglets Établissements publics / privés ----------------
+function espShowEtabSubTab(tab){
+  const pub = document.getElementById('etab-tab-publics');
+  const priv = document.getElementById('etab-tab-prive');
+  const btnPub = document.getElementById('etab-subtab-btn-publics');
+  const btnPriv = document.getElementById('etab-subtab-btn-prive');
+  if(!pub || !priv) return;
+  pub.style.display = tab === 'publics' ? '' : 'none';
+  priv.style.display = tab === 'prive' ? '' : 'none';
+  if(btnPub) btnPub.classList.toggle('active', tab === 'publics');
+  if(btnPriv) btnPriv.classList.toggle('active', tab === 'prive');
+  if(tab === 'prive') renderEtabPrivesList();
+}
+
+// Établissements privés d'enseignement technique et de formation professionnelle,
+// validés par l'administration : seuls ceux-là sont visibles des visiteurs.
+function espEtabPrivesTechnique(){
+  const db = espDB();
+  return (db.etablissements || []).filter(e => e.categorie === 'technique' && e.secteur === 'prive' && e.statut === 'valide');
+}
+
+function renderEtabPrivesList(){
+  const container = document.getElementById('etab-prive-list');
+  if(!container) return;
+  const searchInput = document.getElementById('f-etab-prive-search');
+  const query = (searchInput ? searchInput.value : '').trim();
+  const nq = normalize(query);
+  const list = espEtabPrivesTechnique().filter(e => !nq || normalize((e.nom||'') + ' ' + (e.ville||'')).includes(nq));
+
+  if(!list.length){
+    container.innerHTML = `<p class="empty" style="padding:30px;">Aucun établissement privé référencé pour le moment${query ? ' pour « ' + escapeHtml(query) + ' »' : ''}.</p>`;
+    return;
+  }
+
+  container.innerHTML = list.map(e => `
+    <div class="esp-card" style="margin-bottom:14px;">
+      <div class="esp-title" style="font-size:16px;">🏢 ${escapeHtml(e.nom)}</div>
+      <p class="esp-sub">${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</p>
+      ${(e.photos||[]).length ? `<div class="esp-etab-photos-grid" style="margin-bottom:12px;">${e.photos.map(u => `<div class="esp-etab-photo-thumb"><img src="${escapeHtml(u)}" alt="Photo établissement"></div>`).join('')}</div>` : ''}
+      ${(e.filieresProposees||[]).length ? `
+        <p style="font-size:12.5px;font-weight:700;color:var(--green-dark);margin:10px 0 6px;">Filières proposées :</p>
+        <div>${e.filieresProposees.map(f => `<span class="riasec-chip" style="margin:0 6px 6px 0;display:inline-block;">${escapeHtml(f.nom)} (${escapeHtml(f.diplome)})</span>`).join('')}</div>
+      ` : `<p class="esp-empty">Aucune filière renseignée pour le moment.</p>`}
+      <p class="esp-sub" style="margin-top:10px;">📞 ${escapeHtml(e.tel||'—')} · ✉️ ${escapeHtml(e.email||'—')}</p>
+    </div>
+  `).join('');
+}
