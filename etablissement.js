@@ -52,6 +52,13 @@ function espRenderEtabAuth(mode){
         <p style="margin:6px 0 14px;">
           <button type="button" class="esp-btn" id="esp-etab-add-filiere-btn" onclick="espEtabAddFiliereRow()">+ Ajouter une filière</button>
         </p>
+        <div class="esp-field" style="margin-bottom:8px;">
+          <label id="esp-etab-photos-label">Photos de l'établissement (0/10)</label>
+        </div>
+        <div id="esp-etab-photos-preview" class="esp-etab-photos-grid"></div>
+        <input type="file" id="esp-etab-photos-input" accept="image/*" multiple onchange="espEtabRegisterPhotosChange(this)">
+        <div id="esp-etab-photos-msg"></div>
+        <p style="margin:14px 0 14px;"></p>
         <button class="esp-btn esp-btn-primary" onclick="espEtabRegister()">Soumettre l'inscription</button>
         <p style="margin-top:14px;font-size:13px;">Déjà inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('login')">Se connecter</span></p>
       `}
@@ -59,6 +66,7 @@ function espRenderEtabAuth(mode){
   `;
   if(!isLogin){
     _espEtabFiliereRowCount = 0;
+    _espEtabRegisterPhotos = [];
     document.getElementById('esp-etab-filieres-rows').innerHTML = '';
     espEtabAddFiliereRow();
     espEtabAddFiliereRow();
@@ -109,6 +117,46 @@ function espEtabRemoveFiliereRow(idx){
   const addBtn = document.getElementById('esp-etab-add-filiere-btn');
   if(addBtn) addBtn.style.display = '';
 }
+
+// ---------------- Photos de l'établissement (jusqu'à 10, à l'inscription) ----------------
+let _espEtabRegisterPhotos = [];
+async function espEtabRegisterPhotosChange(input){
+  const files = Array.from(input.files || []);
+  const remaining = 10 - _espEtabRegisterPhotos.length;
+  if(remaining <= 0){ input.value = ''; return; }
+  const toUpload = files.slice(0, remaining);
+  const msgEl = document.getElementById('esp-etab-photos-msg');
+  if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
+  for(const file of toUpload){
+    try {
+      const url = await espUploadEtabPhoto(file);
+      _espEtabRegisterPhotos.push(url);
+    } catch(e){
+      if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi d\'une photo : ' + escapeHtml(e.message) + '</p>';
+    }
+  }
+  if(msgEl && !msgEl.querySelector('.esp-error')) msgEl.innerHTML = '';
+  input.value = '';
+  espEtabRenderRegisterPhotos();
+}
+function espEtabRemoveRegisterPhoto(idx){
+  _espEtabRegisterPhotos.splice(idx, 1);
+  espEtabRenderRegisterPhotos();
+}
+function espEtabRenderRegisterPhotos(){
+  const el = document.getElementById('esp-etab-photos-preview');
+  if(!el) return;
+  el.innerHTML = _espEtabRegisterPhotos.map((u,i) => `
+    <div class="esp-etab-photo-thumb">
+      <img src="${escapeHtml(u)}" alt="Photo établissement">
+      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterPhoto(${i})" title="Retirer">✕</span>
+    </div>
+  `).join('');
+  const label = document.getElementById('esp-etab-photos-label');
+  if(label) label.textContent = `Photos de l'établissement (${_espEtabRegisterPhotos.length}/10)`;
+  const input = document.getElementById('esp-etab-photos-input');
+  if(input) input.style.display = _espEtabRegisterPhotos.length >= 10 ? 'none' : '';
+}
 async function espEtabRegister(){
   const nom = document.getElementById('esp-etab-nom').value.trim();
   const region = document.getElementById('esp-etab-region').value;
@@ -138,7 +186,7 @@ async function espEtabRegister(){
     }
   });
   const id = espUid();
-  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees };
+  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10) };
   try {
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
@@ -188,9 +236,48 @@ function espRenderEtabDashboard(){
       <button class="esp-btn" onclick="espEtabLogout()">Déconnexion</button>
     </div>
     <div class="esp-card">
-      <p><span class="esp-badge ${etab.statut}">${statutLabel}</span></p>
-      <p class="esp-sub">${statutMsg}</p>
-      <p class="esp-sub" style="margin-top:10px;">${[etab.ville, etab.quartier, etab.region].filter(Boolean).map(escapeHtml).join(' · ')} · ${escapeHtml(etab.type)} · Responsable : ${escapeHtml(etab.responsable)} · ${escapeHtml(etab.tel)} · ${escapeHtml(etab.email)}</p>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div>
+          <p><span class="esp-badge ${etab.statut}">${statutLabel}</span></p>
+          <p class="esp-sub">${statutMsg}</p>
+          <p class="esp-sub" style="margin-top:10px;">${[etab.ville, etab.quartier, etab.region].filter(Boolean).map(escapeHtml).join(' · ')} · ${escapeHtml(etab.type)} · Responsable : ${escapeHtml(etab.responsable)} · ${escapeHtml(etab.tel)} · ${escapeHtml(etab.email)}</p>
+        </div>
+        <button class="esp-btn" onclick="espEtabToggleEditInfo()">✏️ Modifier</button>
+      </div>
+      <div id="esp-etab-info-form" style="display:none;margin-top:16px;border-top:1px dashed var(--border);padding-top:16px;">
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Nom de l'établissement</label><input type="text" id="esp-etab-edit-nom" value="${escapeHtml(etab.nom)}"></div>
+          <div class="esp-field"><label>Type d'établissement</label>
+            <select id="esp-etab-edit-type">
+              <option>Secondaire générale</option>
+              <option>Secondaire formation professionnelle et technique</option>
+              <option>Supérieure</option>
+            </select>
+          </div>
+        </div>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Nom du responsable</label><input type="text" id="esp-etab-edit-resp" value="${escapeHtml(etab.responsable||'')}"></div>
+          <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-edit-tel" value="${escapeHtml(etab.tel||'')}"></div>
+        </div>
+        <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-etab-edit-email" value="${escapeHtml(etab.email||'')}"></div>
+        <button class="esp-btn esp-btn-primary" onclick="espEtabSaveInfo()">Enregistrer</button>
+        <div id="esp-etab-info-msg"></div>
+      </div>
+    </div>
+
+    <div class="esp-card">
+      <div class="esp-title" style="font-size:15px;">Mes photos (${(etab.photos||[]).length}/10)</div>
+      <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
+      <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
+        ${(etab.photos||[]).map((u,i) => `
+          <div class="esp-etab-photo-thumb">
+            <img src="${escapeHtml(u)}" alt="Photo établissement">
+            <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">✕</span>
+          </div>
+        `).join('')}
+      </div>
+      ${(etab.photos||[]).length < 10 ? `<input type="file" id="esp-etab-photos-dash-input" accept="image/*" multiple onchange="espEtabDashboardPhotosChange(this)">` : `<p class="esp-sub">Maximum de 10 photos atteint.</p>`}
+      <div id="esp-etab-photos-dash-msg"></div>
     </div>
 
     <div class="esp-card">
@@ -236,6 +323,85 @@ function espRenderEtabDashboard(){
     document.getElementById('esp-etab-edit-ville-autre').value = etab.ville;
     espEtabEditToggleVilleAutre();
   }
+  const typeSelect = document.getElementById('esp-etab-edit-type');
+  if(typeSelect) typeSelect.value = etab.type;
+}
+
+// ---------------- Modifier les informations générales ----------------
+function espEtabToggleEditInfo(){
+  const form = document.getElementById('esp-etab-info-form');
+  if(!form) return;
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+}
+async function espEtabSaveInfo(){
+  const session = espSession();
+  const msgEl = document.getElementById('esp-etab-info-msg');
+  const nom = document.getElementById('esp-etab-edit-nom').value.trim();
+  const type = document.getElementById('esp-etab-edit-type').value;
+  const responsable = document.getElementById('esp-etab-edit-resp').value.trim();
+  const tel = document.getElementById('esp-etab-edit-tel').value.trim();
+  const email = document.getElementById('esp-etab-edit-email').value.trim();
+  if(!nom || !email){
+    msgEl.innerHTML = '<p class="esp-error">Le nom et l\'e-mail sont obligatoires.</p>';
+    return;
+  }
+  msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
+  try {
+    const ok = await espEtabUpdateInfoRPC(session.id, session.password, nom, type, responsable, tel, email);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const db = espDB();
+    const etab = db.etablissements.find(e => e.id === session.id);
+    if(etab){ etab.nom = nom; etab.type = type; etab.responsable = responsable; etab.tel = tel; etab.email = email; }
+    espSaveDB(db);
+    espRenderEtabDashboard();
+  } catch(e){
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+  }
+}
+
+// ---------------- Photos (modifiables après inscription) ----------------
+async function espEtabDashboardPhotosChange(input){
+  const session = espSession();
+  const db = espDB();
+  const etab = db.etablissements.find(e => e.id === session.id);
+  if(!etab) return;
+  const current = etab.photos || [];
+  const files = Array.from(input.files || []);
+  const remaining = 10 - current.length;
+  if(remaining <= 0){ input.value = ''; return; }
+  const toUpload = files.slice(0, remaining);
+  const msgEl = document.getElementById('esp-etab-photos-dash-msg');
+  if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
+  const newUrls = [];
+  for(const file of toUpload){
+    try { newUrls.push(await espUploadEtabPhoto(file)); }
+    catch(e){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>'; }
+  }
+  const updated = [...current, ...newUrls];
+  try {
+    const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    etab.photos = updated;
+    espSaveDB(db);
+    espRenderEtabDashboard();
+  } catch(e){
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+  }
+}
+async function espEtabRemovePhoto(idx){
+  const session = espSession();
+  const db = espDB();
+  const etab = db.etablissements.find(e => e.id === session.id);
+  if(!etab) return;
+  const updated = (etab.photos || []).slice();
+  updated.splice(idx, 1);
+  try {
+    const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
+    if(!ok) return;
+    etab.photos = updated;
+    espSaveDB(db);
+    espRenderEtabDashboard();
+  } catch(e){}
 }
 
 // ---------------- Localisation (modifiable après inscription, pour compléter les fiches existantes) ----------------
