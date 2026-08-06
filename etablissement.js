@@ -15,11 +15,26 @@ function espRenderEtabAuth(mode){
       ` : `
         <div class="esp-field-row">
           <div class="esp-field"><label>Nom de l'établissement</label><input type="text" id="esp-etab-nom"></div>
-          <div class="esp-field"><label>Type d'établissement</label>
-            <select id="esp-etab-type">
-              <option>Secondaire générale</option>
-              <option>Secondaire formation professionnelle et technique</option>
-              <option>Supérieure</option>
+          <div class="esp-field"><label>Catégorie d'enseignement</label>
+            <select id="esp-etab-categorie" onchange="espEtabToggleSousCategorie()">
+              <option value="technique">Enseignement technique et formation professionnelle</option>
+              <option value="superieur">Enseignement supérieur</option>
+              <option value="general">Enseignement général</option>
+            </select>
+          </div>
+        </div>
+        <div class="esp-field-row">
+          <div class="esp-field" id="esp-etab-souscategorie-field" style="display:none;">
+            <label>Sous-catégorie</label>
+            <select id="esp-etab-sous-categorie">
+              <option value="universite">Université</option>
+              <option value="grande_ecole">Grande école</option>
+            </select>
+          </div>
+          <div class="esp-field"><label>Secteur</label>
+            <select id="esp-etab-secteur">
+              <option value="public">Public</option>
+              <option value="prive">Privé</option>
             </select>
           </div>
         </div>
@@ -72,7 +87,16 @@ function espRenderEtabAuth(mode){
     espEtabAddFiliereRow();
     espEtabAddFiliereRow();
     espEtabUpdateVilleOptions();
+    espEtabToggleSousCategorie();
   }
+}
+
+// ---------------- Catégorie / Sous-catégorie (Sous-catégorie visible seulement si Enseignement supérieur) ----------------
+function espEtabToggleSousCategorie(){
+  const catSelect = document.getElementById('esp-etab-categorie');
+  const field = document.getElementById('esp-etab-souscategorie-field');
+  if(!catSelect || !field) return;
+  field.style.display = catSelect.value === 'superieur' ? '' : 'none';
 }
 
 // ---------------- Région / Ville (Ville dépend de la Région choisie, + option "Autre") ----------------
@@ -163,7 +187,14 @@ async function espEtabRegister(){
   const villeSelect = document.getElementById('esp-etab-ville');
   const ville = villeSelect.value === '__autre__' ? document.getElementById('esp-etab-ville-autre').value.trim() : villeSelect.value;
   const quartier = document.getElementById('esp-etab-quartier').value.trim();
-  const type = document.getElementById('esp-etab-type').value;
+  const categorie = document.getElementById('esp-etab-categorie').value;
+  const souscategorieField = document.getElementById('esp-etab-souscategorie-field');
+  const sousCategorie = (souscategorieField && souscategorieField.style.display !== 'none') ? document.getElementById('esp-etab-sous-categorie').value : null;
+  const secteur = document.getElementById('esp-etab-secteur').value;
+  // "Type" reste rempli automatiquement pour la compatibilité avec le reste de l'application
+  // (tableau de bord établissement, vue admin) tant que ces écrans n'ont pas été mis à jour.
+  const typeParCategorie = { technique: 'Secondaire formation professionnelle et technique', general: 'Secondaire générale', superieur: 'Supérieure' };
+  const type = typeParCategorie[categorie] || '';
   const responsable = document.getElementById('esp-etab-resp').value.trim();
   const tel = document.getElementById('esp-etab-tel').value.trim();
   const email = document.getElementById('esp-etab-email2').value.trim();
@@ -186,7 +217,7 @@ async function espEtabRegister(){
     }
   });
   const id = espUid();
-  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10) };
+  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), categorie, sousCategorie, secteur };
   try {
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
