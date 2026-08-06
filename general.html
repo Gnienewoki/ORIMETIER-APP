@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>ORIMETIER — Enseignement Général</title>
+
+<!-- PWA : application installable sur téléphone/PC -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff7a1a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ORIMETIER">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="splash-screen" class="splash-screen">
+  <div class="splash-content" id="splash-logo-content">
+    <h1 class="splash-logo">ORIMETIER</h1>
+    <p class="splash-powered">powered by GNIENEWOKI</p>
+  </div>
+  <div class="splash-content splash-hidden" id="splash-slogan-content">
+    <p class="splash-slogan">Orimetier, choisissez votre avenir</p>
+  </div>
+  <button class="splash-skip" id="splash-skip-btn" onclick="splashSkip()">Passer →</button>
+</div>
+<script>
+(function(){
+  var path = window.location.pathname;
+  var isHome = path === '/' || path === '' || /\/index\.html$/.test(path);
+  var already = sessionStorage.getItem('orimetier_splash_shown');
+  if(!isHome || already){
+    var s = document.getElementById('splash-screen');
+    if(s) s.style.display = 'none';
+  }
+})();
+</script>
+
+<div id="auth-gate" class="gate-overlay">
+  <div class="gate-inner">
+    <div class="gate-brand">
+      <div class="dot"></div>
+      <h1>ORIMETIER</h1>
+    </div>
+    <p class="gate-powered">powered by GNIENEWOKI</p>
+    <p class="gate-tagline">Orimetier, choisissez votre avenir</p>
+    <p class="gate-intro">Connecte-toi ou crée un compte pour accéder à l'annuaire des formations, aux concours, au test d'orientation RIASEC et à ton espace personnel.</p>
+    <div id="gate-storage-warning" class="gate-storage-warning" style="display:none"></div>
+    <div id="gate-content">
+      <div id="esp-loading" style="text-align:center;padding:40px 10px;color:#6b7d70;font-size:14px;">⏳ Connexion à la base de données…</div>
+      <div id="esp-role-select" style="display:none"></div>
+      <div id="esp-admin" style="display:none"></div>
+      <div id="esp-inspecteur" style="display:none"></div>
+      <div id="esp-eleve" style="display:none"></div>
+      <div id="esp-etablissement" style="display:none"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  try {
+    var hasResetToken = new URLSearchParams(window.location.search).get('reset');
+    if(hasResetToken) return;
+    var sessionRaw = localStorage.getItem('GNK_ESPACES_SESSION');
+    if(!sessionRaw) return;
+    var session = JSON.parse(sessionRaw);
+    if(!session || !session.role) return;
+    var gate = document.getElementById('auth-gate');
+    var wrap = document.getElementById('platform-wrap');
+    if(gate) gate.style.display = 'none';
+    if(wrap) wrap.style.display = '';
+  } catch(e){}
+})();
+</script>
+
+<button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application">📲</button>
+<button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application">🔗</button>
+
+<div class="wrap" id="platform-wrap" style="display:none">
+  <div class="brand">
+    <div class="dot"></div>
+    <h1>ORIMETIER</h1>
+    <div id="auth-bar" class="auth-bar"></div>
+  </div>
+  <p class="sub">Établissements d'enseignement général inscrits sur la plateforme et validés par l'administration.</p>
+
+  <button class="esp-back" onclick="history.back()">← Retour</button>
+
+  <div id="page-content">
+    <div class="tab-nav" id="general-subtabs" style="margin-bottom:18px;">
+      <button class="tab-btn active" id="general-subtab-btn-public" onclick="espShowGeneralSubTab('public')">🏫 Enseignement général public</button>
+      <button class="tab-btn" id="general-subtab-btn-prive" onclick="espShowGeneralSubTab('prive')">🏢 Enseignement général privé</button>
+    </div>
+
+    <div id="general-tab-public">
+      <p class="sub" style="margin-top:-8px">Établissements publics d'enseignement général inscrits sur la plateforme et validés par l'administration.</p>
+      <div class="filters">
+        <div class="filter-box">
+          <label for="f-general-public-ville">Ville</label>
+          <input id="f-general-public-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-general-public-ville">
+          <datalist id="dl-general-public-ville"></datalist>
+        </div>
+        <div class="filter-box">
+          <label for="f-general-public-filiere">Filière</label>
+          <input id="f-general-public-filiere" type="text" placeholder="Ex : Série A, Série C..." list="dl-general-public-filiere">
+          <datalist id="dl-general-public-filiere"></datalist>
+        </div>
+      </div>
+      <div class="meta">
+        <span class="count" id="general-public-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
+          </thead>
+          <tbody id="general-public-results"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="general-public-empty-msg" style="display:none;">Aucun établissement public d'enseignement général référencé pour le moment.</div>
+    </div>
+
+    <div id="general-tab-prive" style="display:none;">
+      <p class="sub" style="margin-top:-8px">Établissements privés d'enseignement général inscrits sur la plateforme et validés par l'administration.</p>
+      <div class="filters">
+        <div class="filter-box">
+          <label for="f-general-prive-ville">Ville</label>
+          <input id="f-general-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-general-prive-ville">
+          <datalist id="dl-general-prive-ville"></datalist>
+        </div>
+        <div class="filter-box">
+          <label for="f-general-prive-filiere">Filière</label>
+          <input id="f-general-prive-filiere" type="text" placeholder="Ex : Série A, Série C..." list="dl-general-prive-filiere">
+          <datalist id="dl-general-prive-filiere"></datalist>
+        </div>
+      </div>
+      <div class="meta">
+        <span class="count" id="general-prive-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
+          </thead>
+          <tbody id="general-prive-results"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="general-prive-empty-msg" style="display:none;">Aucun établissement privé d'enseignement général référencé pour le moment.</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="utils.js"></script>
+<script src="data-riasec.js"></script>
+<script src="data-formations.js"></script>
+<script src="data-regions.js"></script>
+<script src="supabase-client.js"></script>
+<script src="auth.js"></script>
+<script src="admin.js"></script>
+<script src="inspecteur.js"></script>
+<script src="eleve.js"></script>
+<script src="etablissement.js"></script>
+<script src="general.js"></script>
+<script src="bootstrap.js"></script>
+</body>
+</html>
