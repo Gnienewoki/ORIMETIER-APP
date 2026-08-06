@@ -132,11 +132,34 @@ function initFormations(){
   const totalCountEl = document.getElementById('total-formations-count');
   if(totalCountEl) totalCountEl.textContent = DATA.length;
   render();
+  espFillPublicDatalists();
 
-  const searchPrive = document.getElementById('f-etab-prive-search');
-  if(searchPrive) searchPrive.addEventListener('input', renderEtabPrivesList);
+  const searchVille = document.getElementById('f-etab-prive-ville');
+  const searchFiliere = document.getElementById('f-etab-prive-filiere');
+  if(searchVille) searchVille.addEventListener('input', renderEtabPrivesList);
+  if(searchFiliere) searchFiliere.addEventListener('input', renderEtabPrivesList);
 }
 window.pageInit = initFormations;
+
+// ---------------- Assistant de saisie (suggestions natives du navigateur) ----------------
+function espFillDatalist(id, values){
+  const dl = document.getElementById(id);
+  if(!dl) return;
+  const unique = Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'fr'));
+  dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
+}
+function espFillPublicDatalists(){
+  espFillDatalist('dl-filiere-publique', DATA.map(d => d[0]));
+  espFillDatalist('dl-diplome-publique', DATA.map(d => d[1]));
+  espFillDatalist('dl-etablissement-publique', DATA.map(d => d[2]));
+}
+function espFillPriveDatalists(){
+  const list = espEtabPrivesTechnique();
+  espFillDatalist('dl-ville-privee', list.map(e => e.ville));
+  const filieres = [];
+  list.forEach(e => (e.filieresProposees||[]).forEach(f => filieres.push(f.nom)));
+  espFillDatalist('dl-filiere-privee', filieres);
+}
 
 // ---------------- Sous-onglets Établissements publics / privés ----------------
 function espShowEtabSubTab(tab){
@@ -162,13 +185,23 @@ function espEtabPrivesTechnique(){
 function renderEtabPrivesList(){
   const container = document.getElementById('etab-prive-list');
   if(!container) return;
-  const searchInput = document.getElementById('f-etab-prive-search');
-  const query = (searchInput ? searchInput.value : '').trim();
-  const nq = normalize(query);
-  const list = espEtabPrivesTechnique().filter(e => !nq || normalize((e.nom||'') + ' ' + (e.ville||'')).includes(nq));
+  espFillPriveDatalists();
+  const villeInput = document.getElementById('f-etab-prive-ville');
+  const filiereInput = document.getElementById('f-etab-prive-filiere');
+  const qVille = (villeInput ? villeInput.value : '').trim();
+  const qFiliere = (filiereInput ? filiereInput.value : '').trim();
+  const nVille = normalize(qVille);
+  const nFiliere = normalize(qFiliere);
+
+  const list = espEtabPrivesTechnique().filter(e => {
+    const villeOk = !nVille || normalize(e.ville||'').includes(nVille);
+    const filiereOk = !nFiliere || (e.filieresProposees||[]).some(f => normalize(f.nom||'').includes(nFiliere));
+    return villeOk && filiereOk;
+  });
 
   if(!list.length){
-    container.innerHTML = `<p class="empty" style="padding:30px;">Aucun établissement privé référencé pour le moment${query ? ' pour « ' + escapeHtml(query) + ' »' : ''}.</p>`;
+    const details = [qVille, qFiliere].filter(Boolean).join(' · ');
+    container.innerHTML = `<p class="empty" style="padding:30px;">Aucun établissement privé référencé pour le moment${details ? ' pour « ' + escapeHtml(details) + ' »' : ''}.</p>`;
     return;
   }
 
