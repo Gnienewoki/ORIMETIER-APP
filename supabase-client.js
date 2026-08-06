@@ -26,8 +26,8 @@ function espRowToEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, class
 function espEleveToRow(e){ return { id:e.id, nom:e.nom, prenoms:e.prenoms, classe:e.classe, etablissement:e.etablissement, tel:e.tel, email:e.email, password:e.password, riasec:e.riasec, active:!!e.active, date_inscription:e.dateInscription, banni:!!e.banni }; }
 function espRowToInspecteur(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, fonction:r.fonction, cio:r.cio, tel:r.tel, email:r.email, password:r.password, active:r.active, dateInscription:r.date_inscription, certifie:!!r.certifie, banni:!!r.banni, avatarUrl:r.avatar_url||null, certificationDemandee:!!r.certification_demandee, messageAccueil:r.message_accueil||'' }; }
 function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, fonction:i.fonction, cio:i.cio, tel:i.tel, email:i.email, password:i.password, active:!!i.active, date_inscription:i.dateInscription }; }
-function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[] }; }
-function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[] }; }
+function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[] }; }
+function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[] }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
@@ -118,7 +118,7 @@ async function espInsertEtablissement(row){
   const { data, error } = await supabaseClient.rpc('etablissement_register', {
     p_id: row.id, p_nom: row.nom, p_region: row.region, p_ville: row.ville, p_quartier: row.quartier,
     p_type: row.type, p_responsable: row.responsable, p_tel: row.tel, p_email: row.email, p_password: row.password,
-    p_date_inscription: row.date_inscription, p_filieres_proposees: row.filieres_proposees,
+    p_date_inscription: row.date_inscription, p_filieres_proposees: row.filieres_proposees, p_photos: row.photos || [],
   });
   if(error){ throw error; }
   if(!data){ throw new Error("Inscription refusée (e-mail déjà utilisé, ou champ obligatoire manquant)."); }
@@ -288,3 +288,62 @@ async function espSendResetEmail(toEmail, resetLink){
 
 function espUid(){ return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function espDate(){ return new Date().toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}); }
+
+// ---------------- Conversion des lignes LYCAM (snake_case) <-> camelCase ----------------
+function espRowToLycamSession(r){ return { id:r.id, inspecteurId:r.inspecteur_id, nom:r.nom, createdAt:r.created_at }; }
+function espRowToLycamResultat(r){ return { id:r.id, sessionId:r.session_id, inspecteurId:r.inspecteur_id, nom:r.nom, prenom:r.prenom, naissance:r.naissance, classe:r.classe, scoreTotal:r.score_total, band:r.band, scores:r.scores, createdAt:r.created_at }; }
+
+// ---------------- Test LYCAM : sessions et résultats (espace inspecteur) ----------------
+async function espLycamCreateSessionRPC(inspecteurId, password, nom){
+  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_create_session', { p_inspecteur_id: inspecteurId, p_password: password, p_nom: nom });
+  if(error) throw error;
+  return data || null; // id de la session créée, ou null si échec
+}
+async function espLycamSaveResultRPC(inspecteurId, password, sessionId, eleve, scoreTotal, band, scores){
+  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_save_result', {
+    p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId,
+    p_nom: eleve.nom, p_prenom: eleve.prenom, p_naissance: eleve.naissance, p_classe: eleve.classe,
+    p_score_total: scoreTotal, p_band: band, p_scores: scores,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espLycamListSessionsRPC(inspecteurId, password){
+  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_list_sessions', { p_inspecteur_id: inspecteurId, p_password: password });
+  if(error) throw error;
+  return (data || []).map(espRowToLycamSession);
+}
+async function espLycamListResultsRPC(inspecteurId, password, sessionId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_list_results', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
+  if(error) throw error;
+  return (data || []).map(espRowToLycamResultat);
+}
+async function espLycamDeleteSessionRPC(inspecteurId, password, sessionId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_delete_session', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
+  if(error) throw error;
+  return !!data;
+}
+
+// ---------------- Établissement : photos et modification des informations générales ----------------
+async function espUploadEtabPhoto(file){
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = 'etablissements/' + Date.now().toString(36) + Math.random().toString(36).slice(2,8) + '.' + ext;
+  const { error } = await supabaseClient.storage.from('orimetier-chat').upload(path, file);
+  if(error) throw error;
+  const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
+  return data.publicUrl;
+}
+async function espEtabUpdateInfoRPC(etabId, password, nom, type, responsable, tel, email){
+  const { data, error } = await supabaseClient.rpc('etablissement_update_info', {
+    p_etab_id: etabId, p_password: password, p_nom: nom, p_type: type, p_responsable: responsable, p_tel: tel, p_email: email,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espEtabUpdatePhotosRPC(etabId, password, photos){
+  const { data, error } = await supabaseClient.rpc('etablissement_update_photos', {
+    p_etab_id: etabId, p_password: password, p_photos: photos,
+  });
+  if(error) throw error;
+  return !!data;
+}
