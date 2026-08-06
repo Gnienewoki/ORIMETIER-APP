@@ -121,6 +121,7 @@ function espRenderAdminDashboard(sub){
                 <option value="">— Sous-cat. —</option>
                 <option value="universite" ${e.sousCategorie==='universite'?'selected':''}>Université</option>
                 <option value="grande_ecole" ${e.sousCategorie==='grande_ecole'?'selected':''}>Grande école</option>
+                <option value="secondaire" ${e.sousCategorie==='secondaire'?'selected':''}>Secondaire</option>
               </select>
               <select id="esp-admin-etab-sect-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:4px;">
                 <option value="">— Secteur —</option>
