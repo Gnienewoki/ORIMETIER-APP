@@ -102,13 +102,14 @@ function espRenderAdminDashboard(sub){
   } else if(sub === 'etablissements'){
     subHtml = `
       <table class="esp-table">
-        <thead><tr><th>Établissement</th><th>Ville</th><th>Type</th><th>Responsable</th><th>Contact</th><th>Statut</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Établissement</th><th>Ville</th><th>Type</th><th>Catégorie</th><th>Responsable</th><th>Contact</th><th>Statut</th><th>Actions</th></tr></thead>
         <tbody>
         ${db.etablissements.length ? db.etablissements.map(e => `
           <tr>
             <td><b>${escapeHtml(e.nom)}</b></td>
             <td>${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</td>
             <td>${escapeHtml(e.type)}</td>
+            <td>${espEtabCategorieLabel(e)}</td>
             <td>${escapeHtml(e.responsable)}</td>
             <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
             <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span></td>
@@ -117,7 +118,7 @@ function espRenderAdminDashboard(sub){
               ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
             </td>
           </tr>
-          ${(e.filieresProposees||[]).length ? `<tr><td colspan="7" style="background:#fffaf3;">
+          ${(e.filieresProposees||[]).length ? `<tr><td colspan="8" style="background:#fffaf3;">
             <b style="font-size:12px;">Filières proposées par cet établissement :</b>
             ${e.filieresProposees.map(f => `
               <div style="margin:6px 0;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
@@ -130,7 +131,7 @@ function espRenderAdminDashboard(sub){
               </div>
             `).join('')}
           </td></tr>` : ''}
-        `).join('') : `<tr><td colspan="7" class="esp-empty">Aucun établissement inscrit pour le moment.</td></tr>`}
+        `).join('') : `<tr><td colspan="8" class="esp-empty">Aucun établissement inscrit pour le moment.</td></tr>`}
         </tbody>
       </table>
     `;
