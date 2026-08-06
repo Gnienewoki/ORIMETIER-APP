@@ -53,7 +53,7 @@ function espHideAll(){
 // Annuaire des métiers, enseignement supérieur, concours & grandes écoles, test RIASEC :
 // consultables par n'importe quel visiteur. Tout le reste (espaces.html, eleves.html)
 // continue d'exiger une connexion, comme avant.
-const ESP_PUBLIC_PAGES = ['index.html', 'superieur.html', 'concours.html', 'test.html', ''];
+const ESP_PUBLIC_PAGES = ['index.html', 'superieur.html', 'concours.html', 'test.html', 'general.html', ''];
 function espCurrentPageIsPublic(){
   const path = window.location.pathname;
   const file = path.substring(path.lastIndexOf('/') + 1);
