@@ -848,3 +848,18 @@
   .esp-guest-bar{ width:100%; justify-content:space-between; margin-left:0; }
   .esp-guest-menu{ right:auto; left:0; min-width:200px; }
 }
+
+/* Photos d'établissement (inscription + tableau de bord) */
+.esp-etab-photos-grid{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:10px; margin-bottom:10px;
+}
+.esp-etab-photo-thumb{
+  position:relative; aspect-ratio:1/1; border-radius:10px; overflow:hidden; border:1.5px solid var(--border);
+}
+.esp-etab-photo-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.esp-etab-photo-remove{
+  position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%;
+  background:rgba(0,0,0,0.55); color:#fff; display:flex; align-items:center; justify-content:center;
+  font-size:12px; cursor:pointer; line-height:1;
+}
+.esp-etab-photo-remove:hover{ background:rgba(192,57,43,0.9); }
