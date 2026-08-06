@@ -49,6 +49,17 @@ function espHideAll(){
   });
 }
 
+// ---------------- Pages en libre accès (aucun compte requis) ----------------
+// Annuaire des métiers, enseignement supérieur, concours & grandes écoles, test RIASEC :
+// consultables par n'importe quel visiteur. Tout le reste (espaces.html, eleves.html)
+// continue d'exiger une connexion, comme avant.
+const ESP_PUBLIC_PAGES = ['index.html', 'superieur.html', 'concours.html', 'test.html', ''];
+function espCurrentPageIsPublic(){
+  const path = window.location.pathname;
+  const file = path.substring(path.lastIndexOf('/') + 1);
+  return ESP_PUBLIC_PAGES.includes(file);
+}
+
 // ---------------- Verrou d'accès à la plateforme (inscription/connexion obligatoire) ----------------
 function espAccountStillExists(session){
   if(!session) return false;
@@ -75,13 +86,43 @@ function updateAuthBar(){
   const session = espSession();
   const tabEleves = document.getElementById('tab-eleves');
   if(tabEleves) tabEleves.style.display = (session && session.role === 'inspecteur') ? '' : 'none';
-  if(!bar || !session){ if(bar) bar.innerHTML = ''; return; }
+  if(!bar) return;
+  if(!session){
+    bar.innerHTML = `
+      <div class="esp-guest-bar">
+        <div class="esp-guest-dropdown">
+          <button class="esp-btn esp-btn-primary" onclick="espToggleGuestMenu(event)">➕ Ouvrir un compte</button>
+          <div class="esp-guest-menu" id="esp-guest-menu">
+            <a href="espaces.html?role=inspecteur&amp;action=register">🧭 Inspecteur d'orientation</a>
+            <a href="espaces.html?role=eleve&amp;action=register">🎓 Élève / Étudiant</a>
+            <a href="espaces.html?role=etablissement&amp;action=register">🏫 Établissement</a>
+          </div>
+        </div>
+        <a href="espaces.html" class="esp-btn">🔐 Déjà inscrit ? Se connecter</a>
+      </div>
+    `;
+    return;
+  }
   const u = espCurrentUserLabel(session);
   bar.innerHTML = `
     <span>Connecté(e) : <span class="auth-bar-name">${escapeHtml(u.nom || u.role)}</span> · ${escapeHtml(u.role)}</span>
     <button class="auth-bar-logout" onclick="platformLogout()">Déconnexion</button>
   `;
 }
+
+function espToggleGuestMenu(e){
+  if(e) e.stopPropagation();
+  const menu = document.getElementById('esp-guest-menu');
+  if(!menu) return;
+  const isOpen = menu.classList.contains('open');
+  menu.classList.toggle('open', !isOpen);
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('esp-guest-menu');
+  if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'esp-guest-menu'){
+    menu.classList.remove('open');
+  }
+});
 
 // ---------------- Portail (déverrouillage / verrouillage de la page courante) ----------------
 // window.onBeforeUnlock / window.onBeforeLock : points d'extension optionnels utilisés
@@ -106,6 +147,21 @@ function platformUnlock(){
   }
 }
 
+// ---------------- Déverrouillage "visiteur" (pages en libre accès, sans compte) ----------------
+// Même comportement que platformUnlock(), mais sans session : pas de chargement des
+// messages privés (réservés aux inspecteurs connectés). Les fonctionnalités qui exigent
+// un compte (ex : sauvegarder son profil RIASEC) continuent de demander une connexion
+// au moment où le visiteur clique dessus, comme c'est déjà le cas ailleurs dans l'app.
+function platformUnlockGuest(){
+  const gate = document.getElementById('auth-gate');
+  const wrap = document.getElementById('platform-wrap');
+  if(typeof window.onBeforeUnlock === 'function') window.onBeforeUnlock();
+  gate.style.display = 'none';
+  wrap.style.display = '';
+  updateAuthBar();
+  if(typeof window.pageInit === 'function') window.pageInit();
+}
+
 function platformLock(){
   const gate = document.getElementById('auth-gate');
   const wrap = document.getElementById('platform-wrap');
@@ -115,9 +171,10 @@ function platformLock(){
   if(bar) bar.innerHTML = '';
   if(typeof window.onBeforeLock === 'function') window.onBeforeLock();
   espShowRoleSelect();
-  // Lien direct vers un rôle précis (ex : espaces.html?role=eleve depuis le test RIASEC).
+  // Lien direct vers un rôle précis (ex : espaces.html?role=eleve&action=register depuis les boutons "Ouvrir un compte").
   const role = new URLSearchParams(window.location.search).get('role');
-  if(role && ['admin','inspecteur','eleve','etablissement'].includes(role)) espSelectRole(role);
+  const action = new URLSearchParams(window.location.search).get('action');
+  if(role && ['admin','inspecteur','eleve','etablissement'].includes(role)) espSelectRole(role, action);
 }
 
 function platformLogout(){
@@ -130,6 +187,9 @@ function platformInit(){
   const session = espSession();
   if(session && espAccountStillExists(session)){
     platformUnlock(); // accès libre, sans code d'activation (à réactiver plus tard si besoin)
+  } else if(espCurrentPageIsPublic()){
+    espClearSession();
+    platformUnlockGuest();
   } else {
     espClearSession();
     platformLock();
@@ -155,7 +215,7 @@ function espShowRoleSelect(){
       </div>
       <div class="esp-role-card" onclick="espSelectRole('eleve')">
         <div class="esp-role-icon">🎓</div>
-        <div class="esp-role-title">Élève</div>
+        <div class="esp-role-title">Élève / Étudiant</div>
         <div class="esp-role-desc">Mon compte, mon test d'orientation, mes recommandations</div>
       </div>
       <div class="esp-role-card" onclick="espSelectRole('etablissement')">
@@ -167,13 +227,14 @@ function espShowRoleSelect(){
   `;
 }
 
-function espSelectRole(role){
+function espSelectRole(role, mode){
+  mode = mode === 'register' ? 'register' : 'login';
   espHideAll();
   document.getElementById('esp-' + role).style.display = '';
   if(role === 'admin') espRenderAdminLogin();
-  if(role === 'inspecteur') espRenderInspecteurAuth('login');
-  if(role === 'eleve') espRenderEleveAuth('login');
-  if(role === 'etablissement') espRenderEtabAuth('login');
+  if(role === 'inspecteur') espRenderInspecteurAuth(mode);
+  if(role === 'eleve') espRenderEleveAuth(mode);
+  if(role === 'etablissement') espRenderEtabAuth(mode);
 }
 
 function espBackToRoleSelect(){ espShowRoleSelect(); }
