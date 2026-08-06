@@ -149,7 +149,18 @@
           <datalist id="dl-filiere-privee"></datalist>
         </div>
       </div>
-      <div id="etab-prive-list"></div>
+      <div class="meta">
+        <span class="count" id="etab-prive-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
+          </thead>
+          <tbody id="etab-prive-results"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="etab-prive-empty-msg" style="display:none;">Aucun établissement privé ne correspond à votre recherche.</div>
     </div>
   </div>
 
