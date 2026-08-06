@@ -90,14 +90,7 @@
   </div>
   <p class="sub">Explore les formations professionnelles et universitaires disponibles, ou découvre ton profil d'orientation grâce au test de personnalité.</p>
 
-  <div class="tab-nav">
-    <a class="tab-btn active" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
-    <a class="tab-btn" href="superieur.html">🏛️ Enseignement supérieur</a>
-    <a class="tab-btn" href="concours.html">📋 Concours & Grandes Écoles</a>
-    <a class="tab-btn" href="test.html">🧭 Test d'orientation</a>
-    <a class="tab-btn" id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
-    <a class="tab-btn" href="espaces.html">🔐 Espaces</a>
-  </div>
+  <button class="esp-back" onclick="history.back()">← Retour</button>
 
   <div id="page-content">
     <div class="tab-nav" id="etab-subtabs" style="margin-bottom:18px;">
@@ -111,15 +104,18 @@
       <div class="filters">
         <div class="filter-box">
           <label for="f-filiere">Filière de formation</label>
-          <input id="f-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure...">
+          <input id="f-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure..." list="dl-filiere-publique">
+          <datalist id="dl-filiere-publique"></datalist>
         </div>
         <div class="filter-box">
           <label for="f-diplome">Diplôme</label>
-          <input id="f-diplome" type="text" placeholder="Ex : CAP, BT, BTS...">
+          <input id="f-diplome" type="text" placeholder="Ex : CAP, BT, BTS..." list="dl-diplome-publique">
+          <datalist id="dl-diplome-publique"></datalist>
         </div>
         <div class="filter-box">
           <label for="f-etablissement">Établissement</label>
-          <input id="f-etablissement" type="text" placeholder="Ex : LPC Bouaké, LTP...">
+          <input id="f-etablissement" type="text" placeholder="Ex : LPC Bouaké, LTP..." list="dl-etablissement-publique">
+          <datalist id="dl-etablissement-publique"></datalist>
         </div>
       </div>
 
@@ -141,9 +137,17 @@
 
     <div id="etab-tab-prive" style="display:none;">
       <p class="sub" style="margin-top:-8px">Établissements privés d'enseignement technique et de formation professionnelle inscrits sur la plateforme et validés par l'administration.</p>
-      <div class="filter-box" style="max-width:360px;margin-bottom:16px;">
-        <label for="f-etab-prive-search">Rechercher</label>
-        <input id="f-etab-prive-search" type="text" placeholder="Nom, ville...">
+      <div class="filters">
+        <div class="filter-box">
+          <label for="f-etab-prive-ville">Ville</label>
+          <input id="f-etab-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-ville-privee">
+          <datalist id="dl-ville-privee"></datalist>
+        </div>
+        <div class="filter-box">
+          <label for="f-etab-prive-filiere">Filière de formation</label>
+          <input id="f-etab-prive-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure..." list="dl-filiere-privee">
+          <datalist id="dl-filiere-privee"></datalist>
+        </div>
       </div>
       <div id="etab-prive-list"></div>
     </div>
