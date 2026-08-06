@@ -348,3 +348,17 @@ async function espEtabUpdatePhotosRPC(etabId, password, photos){
   if(error) throw error;
   return !!data;
 }
+
+// ---------------- Admin : suppression et classification d'un établissement ----------------
+async function espAdminDeleteEtabRPC(adminPassword, etabId){
+  const { data, error } = await supabaseClient.rpc('admin_delete_etablissement', { p_admin_password: adminPassword, p_etab_id: etabId });
+  if(error) throw error;
+  return !!data;
+}
+async function espAdminUpdateEtabClassificationRPC(adminPassword, etabId, categorie, sousCategorie, secteur){
+  const { data, error } = await supabaseClient.rpc('admin_update_etab_classification', {
+    p_admin_password: adminPassword, p_etab_id: etabId, p_categorie: categorie, p_sous_categorie: sousCategorie, p_secteur: secteur,
+  });
+  if(error) throw error;
+  return !!data;
+}
