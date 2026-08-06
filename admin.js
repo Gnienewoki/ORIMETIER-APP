@@ -109,13 +109,33 @@ function espRenderAdminDashboard(sub){
             <td><b>${escapeHtml(e.nom)}</b></td>
             <td>${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</td>
             <td>${escapeHtml(e.type)}</td>
-            <td>${espEtabCategorieLabel(e)}</td>
+            <td>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${espEtabCategorieLabel(e)}</div>
+              <select id="esp-admin-etab-cat-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:2px;">
+                <option value="">— Catégorie —</option>
+                <option value="technique" ${e.categorie==='technique'?'selected':''}>Technique</option>
+                <option value="superieur" ${e.categorie==='superieur'?'selected':''}>Supérieur</option>
+                <option value="general" ${e.categorie==='general'?'selected':''}>Général</option>
+              </select>
+              <select id="esp-admin-etab-sous-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:2px;">
+                <option value="">— Sous-cat. —</option>
+                <option value="universite" ${e.sousCategorie==='universite'?'selected':''}>Université</option>
+                <option value="grande_ecole" ${e.sousCategorie==='grande_ecole'?'selected':''}>Grande école</option>
+              </select>
+              <select id="esp-admin-etab-sect-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:4px;">
+                <option value="">— Secteur —</option>
+                <option value="public" ${e.secteur==='public'?'selected':''}>Public</option>
+                <option value="prive" ${e.secteur==='prive'?'selected':''}>Privé</option>
+              </select>
+              <button class="esp-btn" style="padding:3px 8px;font-size:11px;width:100%;" onclick="espAdminSaveEtabClassification('${e.id}')">✔ Enregistrer</button>
+            </td>
             <td>${escapeHtml(e.responsable)}</td>
             <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
             <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span></td>
             <td>
               ${e.statut !== 'valide' ? `<button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','valide')">✔ Valider</button>` : ''}
-              ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
+              ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
+              <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminDeleteEtab('${e.id}')">🗑 Supprimer</button>
             </td>
           </tr>
           ${(e.filieresProposees||[]).length ? `<tr><td colspan="8" style="background:#fffaf3;">
@@ -343,6 +363,40 @@ async function espAdminSetPropositionStatut(etabId, filiereId, statut){
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
   f.statut = statut; espSaveDB(db); espRenderAdminDashboard('etablissements');
+}
+
+async function espAdminDeleteEtab(etabId){
+  const session = espSession();
+  const db = espDB();
+  const e = db.etablissements.find(x => x.id === etabId);
+  if(!e) return;
+  if(!confirm(`Supprimer définitivement "${e.nom}" ? Cette action est irréversible et supprimera aussi ses filières et photos. Continuer ?`)) return;
+  let ok;
+  try { ok = await espAdminDeleteEtabRPC(session.password, etabId); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  db.etablissements = db.etablissements.filter(x => x.id !== etabId);
+  espSaveDB(db);
+  espRenderAdminDashboard('etablissements');
+}
+
+async function espAdminSaveEtabClassification(etabId){
+  const session = espSession();
+  const catSelect = document.getElementById('esp-admin-etab-cat-' + etabId);
+  const sousSelect = document.getElementById('esp-admin-etab-sous-' + etabId);
+  const sectSelect = document.getElementById('esp-admin-etab-sect-' + etabId);
+  const categorie = catSelect.value || null;
+  const sousCategorie = sousSelect.value || null;
+  const secteur = sectSelect.value || null;
+  let ok;
+  try { ok = await espAdminUpdateEtabClassificationRPC(session.password, etabId, categorie, sousCategorie, secteur); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  const db = espDB();
+  const e = db.etablissements.find(x => x.id === etabId);
+  if(e){ e.categorie = categorie; e.sousCategorie = sousCategorie; e.secteur = secteur; }
+  espSaveDB(db);
+  espRenderAdminDashboard('etablissements');
 }
 
 // ---------------- INSPECTEUR D'ORIENTATION ----------------
