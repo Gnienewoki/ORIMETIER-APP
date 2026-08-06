@@ -72,6 +72,20 @@ function espAccountStillExists(session){
   return false;
 }
 
+// ---------------- Libellé lisible de la classification établissement (catégorie / sous-catégorie / secteur) ----------------
+// Utilisé par l'espace admin et, plus tard, par les pages publiques de consultation par catégorie.
+// Renvoie "—" pour les établissements inscrits avant l'ajout de cette classification.
+const ESP_ETAB_CATEGORIE_LABELS = { technique: "Enseignement technique et formation professionnelle", superieur: "Enseignement supérieur", general: "Enseignement général" };
+const ESP_ETAB_SOUS_CATEGORIE_LABELS = { universite: "Université", grande_ecole: "Grande école" };
+const ESP_ETAB_SECTEUR_LABELS = { public: "Public", prive: "Privé" };
+function espEtabCategorieLabel(etab){
+  if(!etab || !etab.categorie) return '—';
+  const parts = [ESP_ETAB_CATEGORIE_LABELS[etab.categorie] || etab.categorie];
+  if(etab.sousCategorie) parts.push(ESP_ETAB_SOUS_CATEGORIE_LABELS[etab.sousCategorie] || etab.sousCategorie);
+  if(etab.secteur) parts.push(ESP_ETAB_SECTEUR_LABELS[etab.secteur] || etab.secteur);
+  return escapeHtml(parts.join(' · '));
+}
+
 function espCurrentUserLabel(session){
   const db = espDB();
   if(session.role === 'admin') return { nom:'Administrateur', role:'Administrateur' };
