@@ -90,13 +90,20 @@
   </div>
   <p class="sub">Explore les formations professionnelles et universitaires disponibles, ou découvre ton profil d'orientation grâce au test de personnalité.</p>
 
-  <div class="tab-nav">
-    <a class="tab-btn" href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
-    <a class="tab-btn" href="superieur.html">🏛️ Enseignement supérieur</a>
-    <a class="tab-btn" href="concours.html">📋 Concours & Grandes Écoles</a>
-    <a class="tab-btn" href="test.html">🧭 Test d'orientation</a>
-    <a class="tab-btn active" id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
-    <a class="tab-btn" href="espaces.html">🔐 Espaces</a>
+  <div class="esp-site-menu-row">
+    <button class="esp-back" onclick="history.back()" style="margin-bottom:0;">← Retour</button>
+    <div class="esp-site-menu-wrap">
+      <button class="esp-btn" onclick="espToggleSiteMenu(event)">☰ Menu</button>
+      <div class="esp-site-menu" id="esp-site-menu">
+        <a href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
+        <a href="superieur.html">🏛️ Enseignement supérieur</a>
+        <a href="concours.html">📋 Concours et Écoles de formation initiale</a>
+        <a href="general.html">🏫 Enseignement Général</a>
+        <a href="test.html">🧭 Test d'orientation</a>
+        <a id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
+        <a href="espaces.html">🔐 Espaces</a>
+      </div>
+    </div>
   </div>
 
   <div id="page-content"></div>
