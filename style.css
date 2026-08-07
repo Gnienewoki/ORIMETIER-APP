@@ -863,3 +863,21 @@
   font-size:12px; cursor:pointer; line-height:1;
 }
 .esp-etab-photo-remove:hover{ background:rgba(192,57,43,0.9); }
+
+/* Menu compact de navigation entre pages (index.html, general.html...) */
+.esp-site-menu-row{ display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.esp-site-menu-wrap{ position:relative; }
+.esp-site-menu{
+  display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:60;
+  background:var(--panel); border:1.5px solid var(--border); border-radius:12px;
+  box-shadow:0 10px 28px rgba(0,0,0,0.12); padding:8px; min-width:260px;
+}
+.esp-site-menu.open{ display:block; }
+.esp-site-menu a{
+  display:block; padding:10px 12px; border-radius:8px; font-size:13.5px; font-weight:600;
+  color:var(--text); text-decoration:none; transition:background .15s;
+}
+.esp-site-menu a:hover{ background:var(--bg); color:var(--orange-dark); }
+@media (max-width:640px){
+  .esp-site-menu{ left:0; right:auto; min-width:220px; }
+}
