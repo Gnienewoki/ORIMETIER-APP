@@ -7,6 +7,8 @@ function initSuperieur(){
       document.querySelectorAll('.es-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab === 'univ-prive') renderSuperieurPriveTable('universite');
+      if(btn.dataset.tab === 'ecole-prive') renderSuperieurPriveTable('grande_ecole');
     });
   });
 
@@ -123,5 +125,83 @@ function initSuperieur(){
     `;
     container.appendChild(card);
   });
+
+  // ---- Panels 4 et 5 : Universités privées / Grandes écoles privées ----
+  ['f-univ-prive-ville','f-univ-prive-filiere'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', () => renderSuperieurPriveTable('universite'));
+  });
+  ['f-ecole-prive-ville','f-ecole-prive-filiere'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', () => renderSuperieurPriveTable('grande_ecole'));
+  });
 }
 window.pageInit = initSuperieur;
+
+// ---------------- Universités / Grandes écoles privées (comptes établissements inscrits) ----------------
+// Contrairement aux panels 1-3 (données statiques du document officiel), ces deux
+// tableaux sont entièrement alimentés par les établissements inscrits sur la
+// plateforme (catégorie = 'superieur', secteur = 'prive'), une fois validés par l'admin.
+function espEtabSuperieurPrive(sousCategorie){
+  const db = espDB();
+  return (db.etablissements || []).filter(e => e.categorie === 'superieur' && e.sousCategorie === sousCategorie && e.secteur === 'prive' && e.statut === 'valide');
+}
+
+function espFillSupDatalist(id, values){
+  const dl = document.getElementById(id);
+  if(!dl) return;
+  const unique = Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'fr'));
+  dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
+}
+
+function renderSuperieurPriveTable(sousCategorie){
+  const prefix = sousCategorie === 'universite' ? 'univ-prive' : 'ecole-prive';
+  const tbody = document.getElementById(prefix + '-results');
+  const countEl = document.getElementById(prefix + '-count');
+  const emptyEl = document.getElementById(prefix + '-empty-msg');
+  if(!tbody) return;
+
+  const allForSector = espEtabSuperieurPrive(sousCategorie);
+  espFillSupDatalist('dl-' + prefix + '-ville', allForSector.map(e => e.ville));
+  const allFilieres = [];
+  allForSector.forEach(e => (e.filieresProposees||[]).forEach(f => allFilieres.push(f.nom)));
+  espFillSupDatalist('dl-' + prefix + '-filiere', allFilieres);
+
+  const villeInput = document.getElementById('f-' + prefix + '-ville');
+  const filiereInput = document.getElementById('f-' + prefix + '-filiere');
+  const nVille = normalize((villeInput ? villeInput.value : '').trim());
+  const nFiliere = normalize((filiereInput ? filiereInput.value : '').trim());
+
+  const etabs = allForSector.filter(e => {
+    const villeOk = !nVille || normalize(e.ville||'').includes(nVille);
+    const filiereOk = !nFiliere || (e.filieresProposees||[]).some(f => normalize(f.nom||'').includes(nFiliere));
+    return villeOk && filiereOk;
+  });
+
+  const rows = [];
+  etabs.forEach(e => {
+    const contact = [e.tel, e.email].filter(Boolean).join(' · ') || '—';
+    const filieres = e.filieresProposees || [];
+    if(!filieres.length){
+      rows.push({ nom: e.nom, ville: e.ville, filiere: '—', contact });
+    } else {
+      filieres.forEach(f => {
+        if(!nFiliere || normalize(f.nom||'').includes(nFiliere)){
+          rows.push({ nom: e.nom, ville: e.ville, filiere: f.diplome ? `${f.nom} (${f.diplome})` : f.nom, contact });
+        }
+      });
+    }
+  });
+
+  tbody.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${escapeHtml(r.contact)}</td>`;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+
+  if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
+  if(emptyEl) emptyEl.style.display = rows.length === 0 ? 'block' : 'none';
+}
