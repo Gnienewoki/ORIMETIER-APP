@@ -942,3 +942,84 @@
   .gate-overlay{ left:0; padding:64px 12px 24px; }
   .esp-page-title{ font-size:21px; }
 }
+
+/* Espace inspecteur : rectangle profil compact + boutons futurs */
+.esp-insp-top-row{ display:flex; gap:14px; align-items:stretch; margin-bottom:16px; flex-wrap:wrap; }
+.esp-insp-profile-card{
+  flex:1; min-width:260px; background:var(--panel); border:1px solid var(--border); border-radius:18px;
+  padding:16px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.04);
+}
+.esp-insp-profile-head{ display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+.esp-insp-profile-info{ flex:1; min-width:0; }
+.esp-insp-profile-name{ font-weight:800; font-size:15px; color:var(--text); }
+.esp-insp-profile-fonction{ font-size:12px; color:var(--muted); margin-top:2px; }
+.esp-insp-profile-msg{ font-size:13px; color:var(--text); line-height:1.5; margin:8px 0 6px; }
+.esp-insp-future-btns{ display:flex; flex-direction:column; gap:8px; justify-content:center; min-width:170px; }
+.esp-insp-future-btns .esp-btn{ width:100%; text-align:left; }
+.esp-insp-future-btns .esp-btn[disabled]{ opacity:0.5; cursor:not-allowed; }
+@media (max-width:640px){
+  .esp-insp-top-row{ flex-direction:column; }
+  .esp-insp-future-btns{ flex-direction:row; flex-wrap:wrap; min-width:0; }
+  .esp-insp-future-btns .esp-btn{ width:auto; flex:1; min-width:120px; }
+}
+
+/* ============================================================
+   ==== Espace inspecteur — version aérée et conviviale ====
+   ============================================================ */
+
+/* Plus d'air entre les grandes zones */
+.esp-insp-top-row{ margin-bottom:20px; }
+.esp-subtabs{ margin-bottom:18px; }
+
+/* Boutons LYCAM/MBTI/Formations : plus spacieux */
+.esp-insp-future-btns{ gap:10px; }
+.esp-insp-future-btns .esp-btn{ padding:12px 16px; font-size:13.5px; border-radius:12px; }
+
+/* Carte de discussion : coins plus doux, moins "encadrée" */
+.esp-chat-card{ padding:22px 24px; border-radius:22px; }
+.esp-chat-intro{
+  font-size:13px; color:var(--muted); background:var(--bg); border-radius:14px;
+  padding:10px 14px; margin-bottom:16px; line-height:1.5;
+}
+
+/* Fil de discussion : plus respirant */
+.esp-chat-list{
+  max-height:440px; padding:18px; gap:14px; border-radius:16px; border-color:var(--border);
+}
+
+/* Bulles : plus confortables, tons plus doux */
+.esp-chat-msg{
+  max-width:76%; padding:11px 15px; border-radius:20px 20px 20px 5px; font-size:14px; line-height:1.55;
+  box-shadow:0 1px 4px rgba(0,0,0,0.04);
+}
+.esp-chat-msg-mine{
+  border-radius:20px 20px 5px 20px;
+  background:linear-gradient(90deg,#fff0dd,#e2f6e8);
+}
+.esp-chat-msg-author{ gap:8px; margin-bottom:4px; }
+.esp-chat-avatar, .esp-chat-avatar-placeholder{ width:24px; height:24px; }
+.esp-chat-avatar-placeholder{ font-size:12px; }
+
+/* Séparateur de jour (Aujourd'hui / Hier / date) */
+.esp-chat-day-sep{ display:flex; align-items:center; justify-content:center; margin:6px 0 2px; }
+.esp-chat-day-sep span{
+  font-size:11px; font-weight:700; color:var(--muted); background:var(--panel);
+  border:1px solid var(--border); border-radius:999px; padding:4px 14px;
+}
+
+/* Zone de saisie regroupée, plus confortable */
+.esp-chat-compose{ margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+.esp-chat-compose-actions{
+  display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; flex-wrap:wrap;
+}
+.esp-chat-attach-label{
+  font-size:12.5px; font-weight:700; color:var(--green-dark); cursor:pointer;
+  background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 12px;
+}
+.esp-chat-attach-label:hover{ border-color:var(--orange); }
+.esp-chat-compose-actions #esp-chat-send-btn{ margin-left:auto; }
+@media (max-width:640px){
+  .esp-chat-compose-actions{ flex-direction:column; align-items:stretch; }
+  .esp-chat-compose-actions #esp-chat-send-btn{ margin-left:0; }
+  .esp-chat-msg{ max-width:88%; }
+}
