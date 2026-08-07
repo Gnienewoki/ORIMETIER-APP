@@ -131,6 +131,24 @@ function espToggleGuestMenu(e){
   const isOpen = menu.classList.contains('open');
   menu.classList.toggle('open', !isOpen);
 }
+
+// ---------------- Menu compact de navigation entre pages ----------------
+// Remplace le gros menu à 6 boutons sur les pages qui ont leurs propres sous-onglets
+// (index.html, general.html...), pour ne pas surcharger l'écran tout en gardant
+// un vrai moyen d'atteindre les autres pages.
+function espToggleSiteMenu(e){
+  if(e) e.stopPropagation();
+  const menu = document.getElementById('esp-site-menu');
+  if(!menu) return;
+  const isOpen = menu.classList.contains('open');
+  menu.classList.toggle('open', !isOpen);
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('esp-site-menu');
+  if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'esp-site-menu'){
+    menu.classList.remove('open');
+  }
+});
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('esp-guest-menu');
   if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'esp-guest-menu'){
