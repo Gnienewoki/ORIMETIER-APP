@@ -42,6 +42,24 @@
 })();
 </script>
 
+<aside class="esp-sidebar" id="esp-sidebar">
+  <div class="esp-sidebar-brand">
+    <div class="dot"></div>
+    <span>ORIMETIER</span>
+  </div>
+  <nav class="esp-sidebar-nav">
+    <a href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
+    <a href="superieur.html">🏛️ Enseignement supérieur</a>
+    <a href="concours.html">📋 Concours et Écoles de formation initiale</a>
+    <a href="general.html">🏫 Enseignement Général</a>
+    <a href="test.html">🧭 Test d'orientation</a>
+    <a id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
+    <a href="espaces.html">🔐 Espaces</a>
+  </nav>
+</aside>
+<div class="esp-sidebar-backdrop" id="esp-sidebar-backdrop" onclick="espCloseSidebar()"></div>
+<button class="esp-sidebar-toggle" id="esp-sidebar-toggle" onclick="espToggleSidebar(event)" aria-label="Ouvrir le menu">☰</button>
+
 <div id="auth-gate" class="gate-overlay">
   <div class="gate-inner">
     <div class="gate-brand">
@@ -82,27 +100,8 @@
 <button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application">📲</button>
 <button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application">🔗</button>
 
-<div class="esp-app-layout" id="platform-wrap" style="display:none">
-  <aside class="esp-sidebar" id="esp-sidebar">
-    <div class="esp-sidebar-brand">
-      <div class="dot"></div>
-      <span>ORIMETIER</span>
-    </div>
-    <nav class="esp-sidebar-nav">
-      <a href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
-      <a href="superieur.html">🏛️ Enseignement supérieur</a>
-      <a href="concours.html">📋 Concours et Écoles de formation initiale</a>
-      <a href="general.html">🏫 Enseignement Général</a>
-      <a href="test.html">🧭 Test d'orientation</a>
-      <a id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
-      <a href="espaces.html">🔐 Espaces</a>
-    </nav>
-  </aside>
-  <div class="esp-sidebar-backdrop" id="esp-sidebar-backdrop" onclick="espCloseSidebar()"></div>
-
-  <main class="esp-main">
-    <button class="esp-sidebar-toggle" onclick="espToggleSidebar(event)" aria-label="Ouvrir le menu">☰</button>
-    <div class="esp-main-topbar"><div id="auth-bar" class="auth-bar"></div></div>
+<div class="esp-main" id="platform-wrap" style="display:none">
+  <div class="esp-main-topbar"><div id="auth-bar" class="auth-bar"></div></div>
     <h1 class="esp-page-title">🎓 Enseignement Technique et Formation Professionnelle</h1>
 
     <div id="page-content">
@@ -177,7 +176,6 @@
     </div>
   </div>
 
-  </main>
 </div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
