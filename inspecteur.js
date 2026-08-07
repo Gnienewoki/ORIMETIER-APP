@@ -85,6 +85,12 @@ async function espInspecteurLogin(){
 }
 function espInspecteurLogout(){ platformLogout(); }
 
+function espInspecteurToggleProfileEdit(){
+  const panel = document.getElementById('esp-insp-profile-edit');
+  if(!panel) return;
+  panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+
 function espRenderInspecteurDashboard(sub){
   sub = sub || 'chat';
   const session = espSession();
@@ -96,37 +102,40 @@ function espRenderInspecteurDashboard(sub){
   if(sub === 'chat'){
     const messages = db.messages || [];
     subHtml = `
-      <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">💬 Discussion entre inspecteurs</div>
-        <p class="esp-sub">Espace d'échange partagé entre tous les inspecteurs d'orientation de la plateforme. Utilise « Important » pour signaler un problème qui nécessite une attention particulière.</p>
+      <div class="esp-card esp-chat-card">
+        <div class="esp-chat-intro">💬 Échange libre entre inspecteurs d'orientation de toute la Côte d'Ivoire. Utilise « Important » pour signaler un point qui mérite une attention particulière.</div>
         <div id="esp-chat-list" class="esp-chat-list">
-          ${messages.length ? messages.map(m => espChatMessageHtml(m, { mine: m.inspecteurId === insp.id, inspecteursCache: db.inspecteurs, allMessages: messages, replyHandler: 'espSetReplyTarget' })).join('') : `<p class="esp-empty">Aucun message pour le moment. Sois le premier à écrire !</p>`}
+          ${messages.length ? espChatListWithDaySeparators(messages, m => espChatMessageHtml(m, { mine: m.inspecteurId === insp.id, inspecteursCache: db.inspecteurs, allMessages: messages, replyHandler: 'espSetReplyTarget', hideDate: true })) : `<p class="esp-empty">Aucun message pour le moment. Sois le premier à écrire !</p>`}
         </div>
         <div id="esp-chat-reply-preview"></div>
         <div id="esp-chat-error"></div>
-        <div class="esp-field-row" style="margin-top:10px;align-items:flex-end;">
-          <div class="esp-field" style="flex:2;">
-            <label>Message</label>
-            <input type="text" id="esp-chat-input" placeholder="Écrire un message..." onkeydown="if(event.key==='Enter')espSendChatMessage()">
+        <div class="esp-chat-compose">
+          <div class="esp-field-row" style="align-items:flex-end;">
+            <div class="esp-field" style="flex:2;">
+              <label>Message</label>
+              <input type="text" id="esp-chat-input" placeholder="Écrire un message..." onkeydown="if(event.key==='Enter')espSendChatMessage()">
+            </div>
+            <div class="esp-field" style="flex:1;">
+              <label>Type</label>
+              <select id="esp-chat-type">
+                <option value="C">💬 Ordinaire</option>
+                <option value="A">📌 Important</option>
+              </select>
+            </div>
           </div>
-          <div class="esp-field" style="flex:1;">
-            <label>Type</label>
-            <select id="esp-chat-type">
-              <option value="C">💬 Ordinaire</option>
-              <option value="A">📌 Important</option>
-            </select>
+          <div class="esp-chat-compose-actions">
+            <label class="esp-chat-attach-label" for="esp-chat-file-input">📎 Joindre une photo ou un PDF</label>
+            <input type="file" id="esp-chat-file-input" accept="image/*,application/pdf" onchange="espChatPreviewAttachment(this)" style="display:none;">
+            <div id="esp-chat-file-preview"></div>
+            <button class="esp-btn esp-btn-primary" id="esp-chat-send-btn" onclick="espSendChatMessage()">Envoyer</button>
           </div>
         </div>
-        <div style="margin:6px 0 10px;">
-          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">📎 Joindre une photo ou un PDF</label><br>
-          <input type="file" id="esp-chat-file-input" accept="image/*,application/pdf" onchange="espChatPreviewAttachment(this)">
-          <div id="esp-chat-file-preview"></div>
-        </div>
-        <button class="esp-btn esp-btn-primary" id="esp-chat-send-btn" onclick="espSendChatMessage()">Envoyer</button>
       </div>
     `;
   } else if(sub === 'prive'){
     subHtml = `<div id="esp-priv-tab-container">${espRenderPrivateTab()}</div>`;
+  } else if(sub === 'lycam'){
+    subHtml = `<div id="esp-lycam-tab-container"><p class="esp-empty">Chargement...</p></div>`;
   }
 
   document.getElementById('esp-inspecteur').innerHTML = `
@@ -134,46 +143,50 @@ function espRenderInspecteurDashboard(sub){
       <span class="esp-user-name">🧭 ${escapeHtml(insp.nom)} ${escapeHtml(insp.prenoms||'')} — ${escapeHtml(insp.fonction||'Inspecteur')}</span>
       <button class="esp-btn" onclick="espInspecteurLogout()">Déconnexion</button>
     </div>
-    <div class="esp-card" id="esp-insp-email-card">
-      ${insp.email ? `
-        <p class="esp-sub" style="margin:0;">📧 E-mail de récupération : <b>${escapeHtml(insp.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')">Modifier</span></p>
-      ` : `
-        <p class="esp-sub" style="margin:0 0 8px;">⚠️ Aucun e-mail enregistré — en cas de mot de passe oublié, tu ne pourras pas le réinitialiser toi-même. <span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')">Ajouter mon e-mail</span></p>
-      `}
-      <div id="esp-insp-email-form"></div>
-    </div>
-    <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">Photo de profil</div>
-      <p class="esp-sub" style="margin-bottom:10px;">Visible à côté de ton nom dans la discussion.</p>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        ${insp.avatarUrl ? `<img src="${escapeHtml(insp.avatarUrl)}" class="esp-chat-avatar" style="width:56px;height:56px;">` : `<div class="esp-chat-avatar-placeholder" style="width:56px;height:56px;font-size:22px;">${escapeHtml((insp.nom||'?').charAt(0).toUpperCase())}</div>`}
-        <div>
-          <input type="file" id="esp-insp-avatar-input" accept="image/*" onchange="espInspecteurUploadAvatar(this)">
-          <div id="esp-insp-avatar-msg"></div>
+
+    <div class="esp-insp-top-row">
+      <div class="esp-insp-profile-card">
+        <div class="esp-insp-profile-head">
+          ${insp.avatarUrl ? `<img src="${escapeHtml(insp.avatarUrl)}" class="esp-chat-avatar" style="width:52px;height:52px;">` : `<div class="esp-chat-avatar-placeholder" style="width:52px;height:52px;font-size:20px;">${escapeHtml((insp.nom||'?').charAt(0).toUpperCase())}</div>`}
+          <div class="esp-insp-profile-info">
+            <div class="esp-insp-profile-name">${escapeHtml(insp.nom)} ${escapeHtml(insp.prenoms||'')}${insp.certifie ? ' <span class="esp-badge-certifie" title="Compte certifié">✅</span>' : ''}</div>
+            <div class="esp-insp-profile-fonction">${escapeHtml(insp.fonction||'Inspecteur')}${insp.cio ? ' · ' + escapeHtml(insp.cio) : ''}</div>
+          </div>
+        </div>
+        <p class="esp-insp-profile-msg">${insp.messageAccueil ? escapeHtml(insp.messageAccueil) : '<i>Aucun message d\'accueil défini.</i>'}</p>
+        <span class="esp-toggle-link" onclick="espInspecteurToggleProfileEdit()">✏️ Modifier</span>
+        <div id="esp-insp-profile-edit" style="display:none;margin-top:12px;border-top:1px dashed var(--border);padding-top:12px;">
+          <div class="esp-field">
+            <label>Photo de profil</label>
+            <input type="file" id="esp-insp-avatar-input" accept="image/*" onchange="espInspecteurUploadAvatar(this)">
+            <div id="esp-insp-avatar-msg"></div>
+          </div>
+          <div class="esp-field" style="margin-top:10px;">
+            <label>Message d'accueil</label>
+            <textarea id="esp-insp-message-accueil" rows="2" maxlength="200" placeholder="Ex : Bonjour, je suis à votre écoute pour toute question d'orientation.">${escapeHtml(insp.messageAccueil||'')}</textarea>
+          </div>
+          <button class="esp-btn esp-btn-primary" style="margin-top:8px;" onclick="espInspecteurSaveMessageAccueil()">Enregistrer le message</button>
+          <div id="esp-insp-message-accueil-msg"></div>
+          <div class="esp-field" style="margin-top:14px;" id="esp-insp-email-card">
+            <label>E-mail de récupération</label>
+            ${insp.email ? `<p class="esp-sub" style="margin:0;">📧 <b>${escapeHtml(insp.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')">Modifier</span></p>` : `<p class="esp-sub" style="margin:0;">⚠️ Aucun e-mail enregistré. <span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')">Ajouter</span></p>`}
+            <div id="esp-insp-email-form"></div>
+          </div>
+          <div style="margin-top:14px;">
+            ${insp.certifie ? `<p class="esp-sub" style="margin:0;">🛡️ Compte certifié <span class="esp-badge-certifie">✅</span></p>`
+              : insp.certificationDemandee ? `<p class="esp-sub" style="margin:0;">🛡️ Demande de certification en attente.</p>`
+              : `<button class="esp-btn" onclick="espInspecteurRequestCertification()">🛡️ Demander la certification</button>`}
+            <div id="esp-insp-certif-msg"></div>
+          </div>
         </div>
       </div>
-      <div class="esp-field" style="margin-top:14px;">
-        <label>Message d'accueil</label>
-        <textarea id="esp-insp-message-accueil" rows="2" maxlength="200" placeholder="Ex : Bonjour, je suis à votre écoute pour toute question d'orientation.">${escapeHtml(insp.messageAccueil||'')}</textarea>
+      <div class="esp-insp-future-btns">
+        <button class="esp-btn" onclick="espRenderInspecteurDashboard('lycam')">🧪 Test LYCAM</button>
+        <button class="esp-btn" disabled title="Bientôt disponible">🧭 MBTI</button>
+        <button class="esp-btn" disabled title="Bientôt disponible">📚 Formations</button>
       </div>
-      <button class="esp-btn esp-btn-primary" style="margin-top:8px;" onclick="espInspecteurSaveMessageAccueil()">Enregistrer</button>
-      <div id="esp-insp-message-accueil-msg"></div>
     </div>
-    <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">🛡️ Certification</div>
-      ${insp.certifie ? `
-        <p class="esp-sub" style="margin:0;">Ton compte est certifié <span class="esp-badge-certifie">✅</span></p>
-      ` : insp.certificationDemandee ? `
-        <p class="esp-sub" style="margin:0;">Demande envoyée, en attente de validation par l'administrateur.</p>
-      ` : `
-        <p class="esp-sub" style="margin:0 0 10px;">Un compte certifié affiche un badge ✅ visible par tous dans la discussion.</p>
-        <button class="esp-btn esp-btn-primary" onclick="espInspecteurRequestCertification()">Demander la certification</button>
-      `}
-      <div id="esp-insp-certif-msg"></div>
-    </div>
-    <div class="esp-card">
-      <a class="esp-btn esp-btn-primary" href="eleves.html">👥 Voir les élèves inscrits</a>
-    </div>
+
     <div class="esp-subtabs">
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderInspecteurDashboard('chat')">💬 Discussion (${(db.messages||[]).length})</button>
       <button class="esp-subtab-btn ${sub==='prive'?'active':''}" onclick="espRenderInspecteurDashboard('prive')">✉️ Messages privés${espPrivateUnreadTotal() ? ' (' + espPrivateUnreadTotal() + ')' : ''}</button>
@@ -189,6 +202,9 @@ function espRenderInspecteurDashboard(sub){
   if(sub === 'prive'){
     const list = document.getElementById('esp-priv-list');
     if(list) list.scrollTop = list.scrollHeight;
+  }
+  if(sub === 'lycam'){
+    espLycamInitTab();
   }
 }
 
