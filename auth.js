@@ -132,23 +132,34 @@ function espToggleGuestMenu(e){
   menu.classList.toggle('open', !isOpen);
 }
 
-// ---------------- Menu compact de navigation entre pages ----------------
-// Remplace le gros menu à 6 boutons sur les pages qui ont leurs propres sous-onglets
-// (index.html, general.html...), pour ne pas surcharger l'écran tout en gardant
-// un vrai moyen d'atteindre les autres pages.
-function espToggleSiteMenu(e){
+// ---------------- Menu latéral de navigation entre pages ----------------
+// Toujours visible et déplié sur ordinateur. Sur mobile, replié par défaut
+// (hors de l'écran) et ouvert/fermé via le bouton ☰ ou le fond assombri.
+function espToggleSidebar(e){
   if(e) e.stopPropagation();
-  const menu = document.getElementById('esp-site-menu');
-  if(!menu) return;
-  const isOpen = menu.classList.contains('open');
-  menu.classList.toggle('open', !isOpen);
+  const sidebar = document.getElementById('esp-sidebar');
+  const backdrop = document.getElementById('esp-sidebar-backdrop');
+  if(!sidebar) return;
+  const isOpen = sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', !isOpen);
+  if(backdrop) backdrop.classList.toggle('open', !isOpen);
 }
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('esp-site-menu');
-  if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'esp-site-menu'){
-    menu.classList.remove('open');
-  }
-});
+function espCloseSidebar(){
+  const sidebar = document.getElementById('esp-sidebar');
+  const backdrop = document.getElementById('esp-sidebar-backdrop');
+  if(sidebar) sidebar.classList.remove('open');
+  if(backdrop) backdrop.classList.remove('open');
+}
+// Marque le lien de la page courante comme actif dans le menu latéral.
+function espMarkActiveSidebarLink(){
+  const path = window.location.pathname;
+  const file = path.substring(path.lastIndexOf('/') + 1) || 'index.html';
+  document.querySelectorAll('.esp-sidebar-nav a').forEach(a => {
+    const href = a.getAttribute('href');
+    a.classList.toggle('active', href === file);
+  });
+}
+document.addEventListener('DOMContentLoaded', espMarkActiveSidebarLink);
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('esp-guest-menu');
   if(menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'esp-guest-menu'){
