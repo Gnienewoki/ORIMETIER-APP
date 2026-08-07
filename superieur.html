@@ -109,6 +109,8 @@
       <button class="es-tab-btn active" data-tab="univ">🏛️ Universités publiques</button>
       <button class="es-tab-btn" data-tab="ecole">🏫 Grandes écoles publiques</button>
       <button class="es-tab-btn" data-tab="filiere">🎯 Filière → Débouchés</button>
+      <button class="es-tab-btn" data-tab="univ-prive">🏛️ Universités privées</button>
+      <button class="es-tab-btn" data-tab="ecole-prive">🏫 Grandes écoles privées</button>
     </div>
 
     <div class="es-main">
@@ -152,6 +154,56 @@
         <div class="results" id="results-filiere">
           <div class="empty-state">Sélectionnez une filière pour afficher ses débouchés.</div>
         </div>
+      </section>
+
+      <!-- PANEL 4 : UNIVERSITES PRIVEES -->
+      <section class="es-panel" id="panel-univ-prive">
+        <p class="note" style="margin-bottom:14px;">Universités privées inscrites sur la plateforme et validées par l'administration.</p>
+        <div class="filters">
+          <div class="filter-box">
+            <label for="f-univ-prive-ville">Ville</label>
+            <input id="f-univ-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-univ-prive-ville">
+            <datalist id="dl-univ-prive-ville"></datalist>
+          </div>
+          <div class="filter-box">
+            <label for="f-univ-prive-filiere">Filière</label>
+            <input id="f-univ-prive-filiere" type="text" placeholder="Ex : Droit, Gestion..." list="dl-univ-prive-filiere">
+            <datalist id="dl-univ-prive-filiere"></datalist>
+          </div>
+        </div>
+        <div class="meta"><span class="count" id="univ-prive-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr></thead>
+            <tbody id="univ-prive-results"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="univ-prive-empty-msg" style="display:none;">Aucune université privée référencée pour le moment.</div>
+      </section>
+
+      <!-- PANEL 5 : GRANDES ECOLES PRIVEES -->
+      <section class="es-panel" id="panel-ecole-prive">
+        <p class="note" style="margin-bottom:14px;">Grandes écoles privées inscrites sur la plateforme et validées par l'administration.</p>
+        <div class="filters">
+          <div class="filter-box">
+            <label for="f-ecole-prive-ville">Ville</label>
+            <input id="f-ecole-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-ecole-prive-ville">
+            <datalist id="dl-ecole-prive-ville"></datalist>
+          </div>
+          <div class="filter-box">
+            <label for="f-ecole-prive-filiere">Filière</label>
+            <input id="f-ecole-prive-filiere" type="text" placeholder="Ex : Informatique, Commerce..." list="dl-ecole-prive-filiere">
+            <datalist id="dl-ecole-prive-filiere"></datalist>
+          </div>
+        </div>
+        <div class="meta"><span class="count" id="ecole-prive-count"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr></thead>
+            <tbody id="ecole-prive-results"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="ecole-prive-empty-msg" style="display:none;">Aucune grande école privée référencée pour le moment.</div>
       </section>
 
     </div>
