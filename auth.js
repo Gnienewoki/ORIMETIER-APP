@@ -283,6 +283,31 @@ function espSelectRole(role, mode){
 function espBackToRoleSelect(){ espShowRoleSelect(); }
 
 // ---------------- Bulle de message de discussion (réutilisée par Inspecteur et Admin) ----------------
+// ---------------- Repère de date pour les fils de discussion (Aujourd'hui / Hier / date) ----------------
+// Les messages stockent une date au format JJ/MM/AAAA (voir espDate()), sans heure.
+function espChatDateLabel(dateStr){
+  if(!dateStr) return '';
+  if(dateStr === espDate()) return "Aujourd'hui";
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  if(dateStr === yesterdayStr) return 'Hier';
+  return dateStr;
+}
+function espChatDaySeparatorHtml(dateStr){
+  return `<div class="esp-chat-day-sep"><span>${escapeHtml(espChatDateLabel(dateStr))}</span></div>`;
+}
+// Construit la liste HTML d'un fil de discussion en insérant un repère de date
+// à chaque changement de jour, et masque la date répétée sur chaque bulle.
+function espChatListWithDaySeparators(messages, bubbleFn){
+  let lastDate = null;
+  return messages.map(m => {
+    const sepHtml = m.date !== lastDate ? espChatDaySeparatorHtml(m.date) : '';
+    lastDate = m.date;
+    return sepHtml + bubbleFn(m);
+  }).join('');
+}
+
 function espChatMessageHtml(m, opts){
   opts = opts || {};
   const auteurInsp = opts.inspecteursCache ? opts.inspecteursCache.find(i => i.id === m.inspecteurId) : null;
@@ -308,7 +333,7 @@ function espChatMessageHtml(m, opts){
         ${avatarHtml}
         ${escapeHtml(m.inspecteurNom)}${certifie ? ' <span class="esp-badge-certifie" title="Compte certifié par l\'administration">✅</span>' : ''}
         ${typeLabel ? `<span class="esp-chat-type-label">${typeLabel}</span>` : ''}
-        <span class="esp-chat-msg-date">${escapeHtml(m.date)}</span>
+        <span class="esp-chat-msg-date">${opts.hideDate ? '' : escapeHtml(m.date)}</span>
         ${opts.canDelete ? `<span class="esp-chat-delete" onclick="${opts.deleteHandler}('${m.id}')" title="Supprimer ce message">🗑️</span>` : ''}
       </div>
       ${citedHtml}
@@ -423,7 +448,7 @@ function espPrivateMessageHtml(m, opts){
     <div class="esp-chat-msg ${opts.mine ? 'esp-chat-msg-mine' : ''}">
       ${m.texte ? `<div class="esp-chat-msg-text">${escapeHtml(m.texte)}</div>` : ''}
       ${attachmentHtml}
-      <div class="esp-chat-msg-date" style="margin-top:4px;">${escapeHtml(m.date)}</div>
+      <div class="esp-chat-msg-date" style="margin-top:4px;">${opts.hideDate ? '' : escapeHtml(m.date)}</div>
     </div>
   `;
 }
@@ -479,7 +504,7 @@ function espRenderPrivateTab(){
         <div class="esp-title" style="font-size:16px;">💬 ${escapeHtml(contact.nom)} ${escapeHtml(contact.prenoms||'')}</div>
         <p class="esp-sub">${escapeHtml(contact.fonction||'Inspecteur')} — ${escapeHtml(contact.cio||'')}</p>
         <div id="esp-priv-list" class="esp-chat-list">
-          ${messages.length ? messages.map(m => espPrivateMessageHtml(m, { mine: m.expediteurId === session.id })).join('') : `<p class="esp-empty">Aucun message. Écris le premier !</p>`}
+          ${messages.length ? espChatListWithDaySeparators(messages, m => espPrivateMessageHtml(m, { mine: m.expediteurId === session.id, hideDate: true })) : `<p class="esp-empty">Aucun message. Écris le premier !</p>`}
         </div>
         <div id="esp-priv-error"></div>
         <div class="esp-field-row" style="margin-top:10px;align-items:flex-end;">
