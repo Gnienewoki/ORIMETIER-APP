@@ -82,31 +82,30 @@
 <button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application">📲</button>
 <button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application">🔗</button>
 
-<div class="wrap" id="platform-wrap" style="display:none">
-  <div class="brand">
-    <div class="dot"></div>
-    <h1>ORIMETIER</h1>
-    <div id="auth-bar" class="auth-bar"></div>
-  </div>
-  <p class="sub">Établissements d'enseignement général inscrits sur la plateforme et validés par l'administration.</p>
-
-  <div class="esp-site-menu-row">
-    <button class="esp-back" onclick="history.back()" style="margin-bottom:0;">← Retour</button>
-    <div class="esp-site-menu-wrap">
-      <button class="esp-btn" onclick="espToggleSiteMenu(event)">☰ Menu</button>
-      <div class="esp-site-menu" id="esp-site-menu">
-        <a href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
-        <a href="superieur.html">🏛️ Enseignement supérieur</a>
-        <a href="concours.html">📋 Concours et Écoles de formation initiale</a>
-        <a href="general.html">🏫 Enseignement Général</a>
-        <a href="test.html">🧭 Test d'orientation</a>
-        <a id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
-        <a href="espaces.html">🔐 Espaces</a>
-      </div>
+<div class="esp-app-layout" id="platform-wrap" style="display:none">
+  <aside class="esp-sidebar" id="esp-sidebar">
+    <div class="esp-sidebar-brand">
+      <div class="dot"></div>
+      <span>ORIMETIER</span>
     </div>
-  </div>
+    <nav class="esp-sidebar-nav">
+      <a href="index.html">🎓 Enseignement Technique et Formation Professionnelle</a>
+      <a href="superieur.html">🏛️ Enseignement supérieur</a>
+      <a href="concours.html">📋 Concours et Écoles de formation initiale</a>
+      <a href="general.html">🏫 Enseignement Général</a>
+      <a href="test.html">🧭 Test d'orientation</a>
+      <a id="tab-eleves" href="eleves.html" style="display:none">👥 Élèves inscrits</a>
+      <a href="espaces.html">🔐 Espaces</a>
+    </nav>
+  </aside>
+  <div class="esp-sidebar-backdrop" id="esp-sidebar-backdrop" onclick="espCloseSidebar()"></div>
 
-  <div id="page-content">
+  <main class="esp-main">
+    <button class="esp-sidebar-toggle" onclick="espToggleSidebar(event)" aria-label="Ouvrir le menu">☰</button>
+    <div class="esp-main-topbar"><div id="auth-bar" class="auth-bar"></div></div>
+    <h1 class="esp-page-title">🏫 Enseignement Général</h1>
+
+    <div id="page-content">
     <div class="tab-nav" id="general-subtabs" style="margin-bottom:18px;">
       <button class="tab-btn active" id="general-subtab-btn-public" onclick="espShowGeneralSubTab('public')">🏫 Enseignement général public</button>
       <button class="tab-btn" id="general-subtab-btn-prive" onclick="espShowGeneralSubTab('prive')">🏢 Enseignement général privé</button>
@@ -169,6 +168,7 @@
     </div>
   </div>
 
+  </main>
 </div>
 
 <script src="utils.js"></script>
