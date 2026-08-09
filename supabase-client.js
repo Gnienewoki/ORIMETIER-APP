@@ -405,3 +405,12 @@ async function espAdminBulkImportEtabRPC(adminPassword, categorie, sousCategorie
   if(error) throw error;
   return data || [];
 }
+// Liste permanente des établissements pré-inscrits pas encore réclamés, avec leur code
+// (contrairement au résultat affiché juste après un import, disponible à tout moment).
+async function espAdminListUnclaimedCodesRPC(adminPassword){
+  const { data, error } = await supabaseClient.rpc('admin_list_unclaimed_codes', {
+    p_admin_password: adminPassword,
+  });
+  if(error) throw error;
+  return data || [];
+}
