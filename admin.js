@@ -108,6 +108,7 @@ function espRenderAdminDashboard(sub){
           <div class="esp-field"><label>Catégorie</label>
             <select id="esp-admin-import-categorie" onchange="espAdminImportToggleSousCategorie()">
               <option value="general">Enseignement Général</option>
+              <option value="technique">Enseignement Technique privé</option>
               <option value="superieur">Enseignement Supérieur privé</option>
             </select>
           </div>
@@ -121,7 +122,8 @@ function espRenderAdminDashboard(sub){
         </div>
         <textarea id="esp-admin-import-etab-textarea" rows="6" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid var(--border);" placeholder="Lycée Moderne 1 Bouaké;Vallée du Bandama;Bouaké;;public;;
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
-        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button></p>
+        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">🔑 Voir tous les codes non réclamés</button></p>
+        <div id="esp-admin-unclaimed-codes">${_espUnclaimedCodesResult ? espAdminUnclaimedCodesHtml(_espUnclaimedCodesResult) : ''}</div>
         <div id="esp-admin-import-etab-result">${_espLastEtabImportResult ? `
           <p class="sub"><b>${_espLastEtabImportResult.length}</b> établissement(s) importé(s). Transmets à chacun son code ci-dessous (courrier officiel) — il servira une seule fois à récupérer le compte. <span class="esp-toggle-link" onclick="_espLastEtabImportResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
           <div class="table-wrap"><table>
@@ -425,6 +427,37 @@ async function espAdminDeleteEtab(etabId){
 }
 
 let _espLastEtabImportResult = null;
+let _espUnclaimedCodesResult = null;
+
+function espAdminUnclaimedCodesHtml(rows){
+  if(!rows.length){
+    return '<p class="esp-sub" style="margin-top:10px;">Aucun code en attente pour le moment. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard(\'etablissements\')">Fermer</span></p>';
+  }
+  const catLabel = (categorie, sousCategorie) => {
+    if(categorie === 'general') return 'Général';
+    if(categorie === 'superieur') return sousCategorie === 'universite' ? 'Supérieur — Université' : 'Supérieur — Grande école';
+    return categorie || '—';
+  };
+  return `
+    <p class="esp-sub" style="margin-top:10px;"><b>${rows.length}</b> établissement(s) en attente de récupération. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Établissement</th><th>Catégorie</th><th>Ville</th><th>Secteur</th><th>Inscrit le</th><th>Code</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(catLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : 'Privé'}</td><td>${escapeHtml(r.date_inscription||'')}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td></tr>`).join('')}</tbody>
+    </table></div>
+  `;
+}
+async function espAdminShowUnclaimedCodes(){
+  const session = espSession();
+  const container = document.getElementById('esp-admin-unclaimed-codes');
+  container.innerHTML = '<p class="sub" style="margin-top:10px;">⏳ Chargement…</p>';
+  try {
+    const rows = await espAdminListUnclaimedCodesRPC(session.password);
+    _espUnclaimedCodesResult = rows;
+    container.innerHTML = espAdminUnclaimedCodesHtml(rows);
+  } catch(err){
+    container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
+  }
+}
 function espAdminImportToggleSousCategorie(){
   const cat = document.getElementById('esp-admin-import-categorie').value;
   const field = document.getElementById('esp-admin-import-souscat-field');
@@ -450,8 +483,8 @@ async function espAdminImportEtab(){
     resultEl.innerHTML = `<p class="esp-error">${invalides.length} ligne(s) invalide(s) (nom, ville et secteur "public"/"prive" obligatoires). Corrige-les avant d'importer.</p>`;
     return;
   }
-  if(categorie === 'superieur' && items.some(it => it.secteur !== 'prive')){
-    resultEl.innerHTML = '<p class="esp-error">Le Supérieur n\'a pas d\'onglet "public" basé sur les comptes établissement (uniquement des données statiques) : toutes les lignes doivent avoir secteur = prive.</p>';
+  if((categorie === 'superieur' || categorie === 'technique') && items.some(it => it.secteur !== 'prive')){
+    resultEl.innerHTML = '<p class="esp-error">Le Supérieur et le Technique n\'ont pas d\'onglet "public" basé sur les comptes établissement (uniquement des données statiques) : toutes les lignes doivent avoir secteur = prive.</p>';
     return;
   }
   resultEl.innerHTML = '<p class="sub">⏳ Import en cours…</p>';
