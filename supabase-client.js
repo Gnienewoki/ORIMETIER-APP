@@ -26,7 +26,7 @@ function espRowToEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, class
 function espEleveToRow(e){ return { id:e.id, nom:e.nom, prenoms:e.prenoms, classe:e.classe, etablissement:e.etablissement, tel:e.tel, email:e.email, password:e.password, riasec:e.riasec, active:!!e.active, date_inscription:e.dateInscription, banni:!!e.banni }; }
 function espRowToInspecteur(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, fonction:r.fonction, cio:r.cio, tel:r.tel, email:r.email, password:r.password, active:r.active, dateInscription:r.date_inscription, certifie:!!r.certifie, banni:!!r.banni, avatarUrl:r.avatar_url||null, certificationDemandee:!!r.certification_demandee, messageAccueil:r.message_accueil||'' }; }
 function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, fonction:i.fonction, cio:i.cio, tel:i.tel, email:i.email, password:i.password, active:!!i.active, date_inscription:i.dateInscription }; }
-function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'' }; }
+function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, contactEmail:r.contact_email||'', contactTel:r.contact_tel||'', siteWeb:r.site_web||'', premium:!!r.premium }; }
 function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
@@ -140,6 +140,14 @@ async function espEtabLoginRPC(email, password){
   const { data, error } = await supabaseClient.rpc('etablissement_login', { p_email: email, p_password: password });
   if(error) throw error;
   return (data && data[0]) || null;
+}
+// Récupération d'un compte établissement pré-inscrit (import en masse) via le
+// code unique remis hors-plateforme. L'établissement choisit à ce moment-là
+// son propre e-mail et mot de passe.
+async function espEtabClaimRPC(code, email, password){
+  const { data, error } = await supabaseClient.rpc('etablissement_claim_by_code', { p_code: code, p_email: email, p_password: password });
+  if(error) throw error;
+  return !!data;
 }
 async function espAdminLoginRPC(password){
   const { data, error } = await supabaseClient.rpc('admin_login', { p_password: password });
@@ -348,6 +356,28 @@ async function espEtabUpdatePhotosRPC(etabId, password, photos){
   if(error) throw error;
   return !!data;
 }
+// ---------------- Établissement Premium : contact direct, site web, filières libres ----------------
+async function espEtabUpdateContactExtrasRPC(etabId, password, contactEmail, contactTel, siteWeb){
+  const { data, error } = await supabaseClient.rpc('etablissement_update_contact_extras', {
+    p_etab_id: etabId, p_password: password, p_contact_email: contactEmail, p_contact_tel: contactTel, p_site_web: siteWeb,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espEtabAddFiliereRPC(etabId, password, nom, diplome){
+  const { data, error } = await supabaseClient.rpc('etablissement_add_filiere', {
+    p_etab_id: etabId, p_password: password, p_nom: nom, p_diplome: diplome,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espAdminSetEtabPremiumRPC(adminPassword, etabId, premium){
+  const { data, error } = await supabaseClient.rpc('admin_set_etab_premium', {
+    p_admin_password: adminPassword, p_etab_id: etabId, p_premium: premium,
+  });
+  if(error) throw error;
+  return !!data;
+}
 
 // ---------------- Admin : suppression et classification d'un établissement ----------------
 async function espAdminDeleteEtabRPC(adminPassword, etabId){
@@ -361,4 +391,15 @@ async function espAdminUpdateEtabClassificationRPC(adminPassword, etabId, catego
   });
   if(error) throw error;
   return !!data;
+}
+// Import en masse d'établissements Général (public/privé) pré-inscrits par
+// l'administrateur. items : tableau de { nom, region, ville, quartier, secteur,
+// responsable, tel }. Retourne, pour chaque ligne importée, le code de
+// récupération à transmettre hors-plateforme à l'établissement concerné.
+async function espAdminBulkImportEtabGeneralRPC(adminPassword, items){
+  const { data, error } = await supabaseClient.rpc('admin_bulk_import_etablissements_general', {
+    p_admin_password: adminPassword, p_items: items,
+  });
+  if(error) throw error;
+  return data || [];
 }
