@@ -12,6 +12,7 @@ function espRenderEtabAuth(mode){
         <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('etablissement','esp-etablissement', () => espRenderEtabAuth('login'))">Mot de passe oublié ?</span></p>
         <button class="esp-btn esp-btn-primary" onclick="espEtabLogin()">Se connecter</button>
         <p style="margin-top:14px;font-size:13px;">Pas encore inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('register')">Inscrire mon établissement</span></p>
+        <p style="margin-top:6px;font-size:13px;">Votre établissement a reçu un code de récupération ? <span class="esp-toggle-link" onclick="espRenderEtabClaim()">Récupérer mon compte</span></p>
       ` : `
         <div class="esp-field-row">
           <div class="esp-field"><label>Nom de l'établissement</label><input type="text" id="esp-etab-nom"></div>
@@ -253,6 +254,59 @@ async function espEtabLogin(){
 }
 function espEtabLogout(){ platformLogout(); }
 
+// ---------------- Récupération d'un compte pré-inscrit (import en masse) via code ----------------
+// Cas des établissements d'Enseignement Général inscrits d'office par l'administration :
+// ils apparaissent tout de suite dans l'annuaire, mais n'ont ni e-mail ni mot de passe tant
+// que l'établissement n'a pas utilisé le code reçu hors-plateforme (courrier officiel) pour
+// définir ses propres identifiants et prendre le contrôle de son compte.
+function espRenderEtabClaim(){
+  document.getElementById('esp-etablissement').innerHTML = `
+    <button class="esp-back" onclick="espRenderEtabAuth('login')">← Retour</button>
+    <div class="esp-card" style="max-width:560px;margin:0 auto;">
+      <div class="esp-title">🏫 Récupérer mon établissement</div>
+      <p class="esp-sub">Votre établissement a été inscrit d'office par l'administration et apparaît déjà dans l'annuaire. Saisissez le code de récupération reçu (courrier officiel) et choisissez votre e-mail et mot de passe pour prendre le contrôle du compte.</p>
+      <div id="esp-etab-claim-error"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Code de récupération</label><input type="text" id="esp-etab-claim-code" placeholder="Ex : A7K9QPX2" style="text-transform:uppercase;"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>E-mail de l'établissement</label><input type="email" id="esp-etab-claim-email" placeholder="contact@etablissement.ci"></div>
+      <div class="esp-field" style="margin-bottom:8px;"><label>Choisir un mot de passe</label><input type="password" id="esp-etab-claim-pass"></div>
+      <div class="esp-field" style="margin-bottom:14px;"><label>Confirmer le mot de passe</label><input type="password" id="esp-etab-claim-pass2" onkeydown="if(event.key==='Enter')espEtabClaim()"></div>
+      <button class="esp-btn esp-btn-primary" onclick="espEtabClaim()">Récupérer mon compte</button>
+    </div>
+  `;
+}
+async function espEtabClaim(){
+  const code = document.getElementById('esp-etab-claim-code').value.trim().toUpperCase();
+  const email = document.getElementById('esp-etab-claim-email').value.trim();
+  const pass = document.getElementById('esp-etab-claim-pass').value;
+  const pass2 = document.getElementById('esp-etab-claim-pass2').value;
+  const errEl = document.getElementById('esp-etab-claim-error');
+  if(!code || !email || !pass){
+    errEl.innerHTML = '<p class="esp-error">Code, e-mail et mot de passe sont obligatoires.</p>';
+    return;
+  }
+  if(pass !== pass2){
+    errEl.innerHTML = '<p class="esp-error">Les mots de passe ne correspondent pas.</p>';
+    return;
+  }
+  let ok;
+  try {
+    ok = await espEtabClaimRPC(code, email, pass);
+  } catch(e){
+    errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  if(!ok){
+    errEl.innerHTML = '<p class="esp-error">Code invalide, déjà utilisé, ou e-mail déjà associé à un autre établissement.</p>';
+    return;
+  }
+  try { await espLoadFromSupabase(); } catch(e){}
+  // Le compte vient d'être réclamé : on retrouve son id fraîchement mis à jour dans le cache.
+  const db = espDB();
+  const etab = (db.etablissements || []).find(e => e.email === email);
+  if(etab){ espSetSession('etablissement', etab.id, pass); platformUnlock(); }
+  else { espRenderEtabAuth('login'); }
+}
+
 function espRenderEtabDashboard(){
   const session = espSession();
   const db = espDB();
@@ -302,18 +356,33 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">Mes photos (${(etab.photos||[]).length}/10)</div>
-      <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
-      <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
-        ${(etab.photos||[]).map((u,i) => `
-          <div class="esp-etab-photo-thumb">
-            <img src="${escapeHtml(u)}" alt="Photo établissement">
-            <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">✕</span>
+      <div class="esp-title" style="font-size:15px;">⭐ Contact direct, site web & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
+      ${!etab.premium ? `
+        <p class="esp-sub">Ces fonctionnalités sont réservées aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
+      ` : `
+        <p class="esp-sub" style="margin-bottom:10px;">Contact direct de l'établissement, site web, et jusqu'à 10 photos.</p>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>E-mail de contact direct</label><input type="email" id="esp-etab-extra-contact-email" value="${escapeHtml(etab.contactEmail||'')}" placeholder="secretariat@etablissement.ci"></div>
+          <div class="esp-field"><label>Téléphone de contact direct</label><input type="tel" id="esp-etab-extra-contact-tel" value="${escapeHtml(etab.contactTel||'')}"></div>
+        </div>
+        <div class="esp-field" style="margin-bottom:10px;"><label>Site web</label><input type="url" id="esp-etab-extra-site-web" value="${escapeHtml(etab.siteWeb||'')}" placeholder="https://..."></div>
+        <button class="esp-btn esp-btn-primary" onclick="espEtabSaveContactExtras()">Enregistrer</button>
+        <div id="esp-etab-extras-msg"></div>
+        <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:16px;">
+          <div class="esp-title" style="font-size:14px;">Mes photos (${(etab.photos||[]).length}/10)</div>
+          <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
+          <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
+            ${(etab.photos||[]).map((u,i) => `
+              <div class="esp-etab-photo-thumb">
+                <img src="${escapeHtml(u)}" alt="Photo établissement">
+                <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">✕</span>
+              </div>
+            `).join('')}
           </div>
-        `).join('')}
-      </div>
-      ${(etab.photos||[]).length < 10 ? `<input type="file" id="esp-etab-photos-dash-input" accept="image/*" multiple onchange="espEtabDashboardPhotosChange(this)">` : `<p class="esp-sub">Maximum de 10 photos atteint.</p>`}
-      <div id="esp-etab-photos-dash-msg"></div>
+          ${(etab.photos||[]).length < 10 ? `<input type="file" id="esp-etab-photos-dash-input" accept="image/*" multiple onchange="espEtabDashboardPhotosChange(this)">` : `<p class="esp-sub">Maximum de 10 photos atteint.</p>`}
+          <div id="esp-etab-photos-dash-msg"></div>
+        </div>
+      `}
     </div>
 
     <div class="esp-card">
@@ -338,12 +407,22 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">Mes filières</div>
+      <div class="esp-title" style="font-size:15px;">Mes filières (${(etab.filieresProposees||[]).length}/10)</div>
       ${(etab.filieresProposees||[]).length ? etab.filieresProposees.map(f => `
         <div class="esp-note-item" style="border-left-color:var(--green-dark);">
           <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)}) <span class="esp-badge ${f.statut}" style="margin-left:6px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span>
         </div>
       `).join('') : `<p class="esp-empty">Aucune filière renseignée.</p>`}
+      ${(etab.filieresProposees||[]).length < 10 ? `
+        <div id="esp-etab-add-filiere-form" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:14px;">
+          <div class="esp-field-row">
+            <div class="esp-field"><input type="text" id="esp-etab-new-filiere-nom" placeholder="Nom de la filière"></div>
+            <div class="esp-field"><input type="text" id="esp-etab-new-filiere-diplome" placeholder="Diplôme préparé (Ex : CAP, BT, BTS, Licence...)"></div>
+          </div>
+          <button class="esp-btn esp-btn-primary" onclick="espEtabAddFiliereDashboard()">+ Ajouter cette filière</button>
+          <div id="esp-etab-add-filiere-msg"></div>
+        </div>
+      ` : `<p class="esp-sub" style="margin-top:10px;">Maximum de 10 filières atteint.</p>`}
     </div>
   `;
 
@@ -393,6 +472,51 @@ async function espEtabSaveInfo(){
   } catch(e){
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
+}
+
+// ---------------- Premium : contact direct + site web ----------------
+async function espEtabSaveContactExtras(){
+  const session = espSession();
+  const msgEl = document.getElementById('esp-etab-extras-msg');
+  const contactEmail = document.getElementById('esp-etab-extra-contact-email').value.trim();
+  const contactTel = document.getElementById('esp-etab-extra-contact-tel').value.trim();
+  const siteWeb = document.getElementById('esp-etab-extra-site-web').value.trim();
+  msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
+  try {
+    const ok = await espEtabUpdateContactExtrasRPC(session.id, session.password, contactEmail, contactTel, siteWeb);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Échec de l\'enregistrement (Premium requis, ou session expirée).</p>'; return; }
+    const db = espDB();
+    const etab = db.etablissements.find(e => e.id === session.id);
+    if(etab){ etab.contactEmail = contactEmail; etab.contactTel = contactTel; etab.siteWeb = siteWeb; }
+    espSaveDB(db);
+    espRenderEtabDashboard();
+  } catch(e){
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+  }
+}
+
+// ---------------- Ajout libre d'une filière (sans validation admin, jusqu'à 10) ----------------
+async function espEtabAddFiliereDashboard(){
+  const session = espSession();
+  const msgEl = document.getElementById('esp-etab-add-filiere-msg');
+  const nomEl = document.getElementById('esp-etab-new-filiere-nom');
+  const diplomeEl = document.getElementById('esp-etab-new-filiere-diplome');
+  const nom = nomEl.value.trim();
+  const diplome = diplomeEl.value.trim();
+  if(!nom || !diplome){
+    msgEl.innerHTML = '<p class="esp-error">Nom de la filière et diplôme préparé sont obligatoires.</p>';
+    return;
+  }
+  msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Ajout en cours...</p>';
+  try {
+    const ok = await espEtabAddFiliereRPC(session.id, session.password, nom, diplome);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Échec de l\'ajout (limite de 10 filières atteinte, ou session expirée).</p>'; return; }
+  } catch(e){
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  try { await espLoadFromSupabase(); } catch(e){}
+  espRenderEtabDashboard();
 }
 
 // ---------------- Photos (modifiables après inscription) ----------------
