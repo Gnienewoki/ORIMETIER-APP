@@ -392,13 +392,15 @@ async function espAdminUpdateEtabClassificationRPC(adminPassword, etabId, catego
   if(error) throw error;
   return !!data;
 }
-// Import en masse d'établissements Général (public/privé) pré-inscrits par
-// l'administrateur. items : tableau de { nom, region, ville, quartier, secteur,
-// responsable, tel }. Retourne, pour chaque ligne importée, le code de
-// récupération à transmettre hors-plateforme à l'établissement concerné.
-async function espAdminBulkImportEtabGeneralRPC(adminPassword, items){
-  const { data, error } = await supabaseClient.rpc('admin_bulk_import_etablissements_general', {
-    p_admin_password: adminPassword, p_items: items,
+// Import en masse d'établissements (Général ou Supérieur privé) pré-inscrits par
+// l'administrateur. categorie : 'general' | 'superieur'. sousCategorie : requis
+// seulement si categorie='superieur' ('universite' | 'grande_ecole'), sinon null.
+// items : tableau de { nom, region, ville, quartier, secteur, responsable, tel }.
+// Retourne, pour chaque ligne importée, le code de récupération à transmettre
+// hors-plateforme à l'établissement concerné.
+async function espAdminBulkImportEtabRPC(adminPassword, categorie, sousCategorie, items){
+  const { data, error } = await supabaseClient.rpc('admin_bulk_import_etablissements', {
+    p_admin_password: adminPassword, p_categorie: categorie, p_sous_categorie: sousCategorie || null, p_items: items,
   });
   if(error) throw error;
   return data || [];
