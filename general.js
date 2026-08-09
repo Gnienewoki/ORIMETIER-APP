@@ -11,13 +11,14 @@ function espEtabGeneral(secteur){
 function espGeneralRows(secteur){
   const rows = [];
   espEtabGeneral(secteur).forEach(e => {
-    const contact = [e.tel, e.email].filter(Boolean).join(' · ') || '—';
+    const contact = espEtabContactCellHtml(e);
+    const nom = espEtabNomCellHtml(e);
     const filieres = e.filieresProposees || [];
     if(!filieres.length){
-      rows.push({ nom: e.nom, ville: e.ville, filiere: '—', contact });
+      rows.push({ nom, ville: e.ville, filiere: '—', contact });
     } else {
       filieres.forEach(f => {
-        rows.push({ nom: e.nom, ville: e.ville, filiere: f.diplome ? `${f.nom} (${f.diplome})` : f.nom, contact });
+        rows.push({ nom, ville: e.ville, filiere: f.diplome ? `${f.nom} (${f.diplome})` : f.nom, contact });
       });
     }
   });
@@ -63,7 +64,7 @@ function renderGeneralTable(secteur){
   const frag = document.createDocumentFragment();
   rows.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${escapeHtml(r.contact)}</td>`;
+    tr.innerHTML = `<td>${r.nom}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${r.contact}</td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
