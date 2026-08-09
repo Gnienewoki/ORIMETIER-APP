@@ -101,6 +101,20 @@ function espRenderAdminDashboard(sub){
     `;
   } else if(sub === 'etablissements'){
     subHtml = `
+      <div class="esp-card" style="margin-bottom:18px;">
+        <div class="esp-title" style="font-size:16px;">📥 Pré-inscrire des établissements (Enseignement Général)</div>
+        <p class="esp-sub">Colle une ligne par établissement, au format <code>nom;region;ville;quartier;secteur;responsable;tel</code>. Seuls nom, ville et secteur sont obligatoires — mais laisse quand même le point-virgule à la place d'un champ facultatif vide (ex. <code>quartier</code> ou <code>tel</code> non connus), sinon les colonnes suivantes se décalent. secteur = <code>public</code> ou <code>prive</code>.</p>
+        <textarea id="esp-admin-import-etab-textarea" rows="6" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid var(--border);" placeholder="Lycée Moderne 1 Bouaké;Vallée du Bandama;Bouaké;;public;;
+Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
+        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtabGeneral()">Importer</button></p>
+        <div id="esp-admin-import-etab-result">${_espLastEtabImportResult ? `
+          <p class="sub"><b>${_espLastEtabImportResult.length}</b> établissement(s) importé(s). Transmets à chacun son code ci-dessous (courrier officiel) — il servira une seule fois à récupérer le compte. <span class="esp-toggle-link" onclick="_espLastEtabImportResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Établissement</th><th>Ville</th><th>Secteur</th><th>Code de récupération</th></tr></thead>
+            <tbody>${_espLastEtabImportResult.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : 'Privé'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td></tr>`).join('')}</tbody>
+          </table></div>
+        ` : ''}</div>
+      </div>
       <table class="esp-table">
         <thead><tr><th>Établissement</th><th>Ville</th><th>Type</th><th>Catégorie</th><th>Responsable</th><th>Contact</th><th>Statut</th><th>Actions</th></tr></thead>
         <tbody>
@@ -132,8 +146,9 @@ function espRenderAdminDashboard(sub){
             </td>
             <td>${escapeHtml(e.responsable)}</td>
             <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
-            <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span></td>
+            <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span>${e.preInscrit && !e.reclame ? '<br><span class="esp-badge non_reclame" style="margin-top:4px;">Non réclamé</span>' : ''}${e.premium ? '<br><span class="esp-badge valide" style="margin-top:4px;">⭐ Premium</span>' : ''}</td>
             <td>
+              <button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminToggleEtabPremium('${e.id}')">${e.premium ? '☆ Retirer Premium' : '⭐ Activer Premium'}</button><br>
               ${e.statut !== 'valide' ? `<button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','valide')">✔ Valider</button>` : ''}
               ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
               <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminDeleteEtab('${e.id}')">🗑 Supprimer</button>
@@ -341,6 +356,19 @@ async function espAdminDeleteMessage(messageId){
   espRenderAdminDashboard('chat');
 }
 
+async function espAdminToggleEtabPremium(id){
+  const session = espSession();
+  const db = espDB();
+  const e = db.etablissements.find(x => x.id === id);
+  if(!e) return;
+  const nextPremium = !e.premium;
+  if(nextPremium && !confirm(`Confirmer que "${e.nom}" a bien souscrit à l'offre premium avant d'activer cette fonctionnalité ?`)) return;
+  let ok;
+  try { ok = await espAdminSetEtabPremiumRPC(session.password, id, nextPremium); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  e.premium = nextPremium; espSaveDB(db); espRenderAdminDashboard('etablissements');
+}
 async function espAdminSetEtabStatut(id, statut){
   const session = espSession();
   const db = espDB();
@@ -378,6 +406,38 @@ async function espAdminDeleteEtab(etabId){
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
   db.etablissements = db.etablissements.filter(x => x.id !== etabId);
   espSaveDB(db);
+  espRenderAdminDashboard('etablissements');
+}
+
+let _espLastEtabImportResult = null;
+async function espAdminImportEtabGeneral(){
+  const session = espSession();
+  const textarea = document.getElementById('esp-admin-import-etab-textarea');
+  const resultEl = document.getElementById('esp-admin-import-etab-result');
+  const lines = (textarea.value || '').split('\n').map(l => l.trim()).filter(Boolean);
+  if(!lines.length){
+    resultEl.innerHTML = '<p class="esp-error">Colle au moins une ligne à importer.</p>';
+    return;
+  }
+  const items = lines.map(line => {
+    const [nom, region, ville, quartier, secteur, responsable, tel] = line.split(';').map(v => (v||'').trim());
+    return { nom, region, ville, quartier, secteur, responsable, tel };
+  });
+  const invalides = items.filter(it => !it.nom || !it.ville || (it.secteur !== 'public' && it.secteur !== 'prive'));
+  if(invalides.length){
+    resultEl.innerHTML = `<p class="esp-error">${invalides.length} ligne(s) invalide(s) (nom, ville et secteur "public"/"prive" obligatoires). Corrige-les avant d'importer.</p>`;
+    return;
+  }
+  resultEl.innerHTML = '<p class="sub">⏳ Import en cours…</p>';
+  let rows;
+  try {
+    rows = await espAdminBulkImportEtabGeneralRPC(session.password, items);
+  } catch(err){
+    resultEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
+    return;
+  }
+  await espLoadFromSupabase();
+  _espLastEtabImportResult = rows;
   espRenderAdminDashboard('etablissements');
 }
 
