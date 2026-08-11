@@ -138,6 +138,16 @@ function initFormations(){
   const searchFiliere = document.getElementById('f-etab-prive-filiere');
   if(searchVille) searchVille.addEventListener('input', renderEtabPrivesList);
   if(searchFiliere) searchFiliere.addEventListener('input', renderEtabPrivesList);
+
+  const techTbody = document.getElementById('etab-technique-results');
+  if(techTbody){
+    techTbody.addEventListener('click', e => {
+      const btn = e.target.closest('.fiche-btn');
+      if(!btn) return;
+      openTechniqueFiche(Number(btn.dataset.techIndex));
+    });
+    renderEtabTechniqueList();
+  }
 }
 window.pageInit = initFormations;
 
@@ -165,14 +175,65 @@ function espFillPriveDatalists(){
 function espShowEtabSubTab(tab){
   const pub = document.getElementById('etab-tab-publics');
   const priv = document.getElementById('etab-tab-prive');
+  const tech = document.getElementById('etab-tab-technique');
   const btnPub = document.getElementById('etab-subtab-btn-publics');
   const btnPriv = document.getElementById('etab-subtab-btn-prive');
+  const btnTech = document.getElementById('etab-subtab-btn-technique');
   if(!pub || !priv) return;
   pub.style.display = tab === 'publics' ? '' : 'none';
   priv.style.display = tab === 'prive' ? '' : 'none';
+  if(tech) tech.style.display = tab === 'technique' ? '' : 'none';
   if(btnPub) btnPub.classList.toggle('active', tab === 'publics');
   if(btnPriv) btnPriv.classList.toggle('active', tab === 'prive');
+  if(btnTech) btnTech.classList.toggle('active', tab === 'technique');
   if(tab === 'prive') renderEtabPrivesList();
+}
+
+// ---------------- Sous-onglet "Enseignement technique" : parcours Seconde → débouché (contenu statique, pas de Supabase) ----------------
+const ESP_TECH_PARCOURS = [
+  { seconde:'G1', premiere:'G1', terminale:'G1', bac:'BAC G1', metier:'Techniques administratives et bureautique', debouche:'Université / Grande école', ageMax:20 },
+  { seconde:'G2', premiere:'G2', terminale:'G2', bac:'BAC G2', metier:'Comptabilité', debouche:'Université / Grande école', ageMax:20 },
+  { seconde:'AB', premiere:'B', terminale:'B', bac:'BAC B', metier:'Économie et social', debouche:'Université / Grande école', ageMax:19 },
+  { seconde:'T1', premiere:'E', terminale:'E', bac:'BAC E', metier:'Mathématique et technologie', debouche:'Université / Grande école', ageMax:19 },
+  { seconde:'T1', premiere:'F1', terminale:'F1', bac:'BAC F1', metier:'Construction mécanique', debouche:'Université / Grande école', ageMax:19 },
+  { seconde:'T1', premiere:'F2', terminale:'F2', bac:'BAC F2', metier:'Électronique', debouche:'Université / Grande école', ageMax:19 },
+  { seconde:'T1', premiere:'F3', terminale:'F3', bac:'BAC F3', metier:'Électrotechnique', debouche:'Université / Grande école', ageMax:19 },
+  { seconde:'T2', premiere:'F4', terminale:'F4', bac:'BAC F4', metier:'Génie civil', debouche:'Université / Grande école', ageMax:20 },
+  { seconde:'T3', premiere:'F7', terminale:'F7', bac:'BAC F7', metier:'Biochimie', debouche:'Université / Grande école', ageMax:20 },
+];
+
+function renderEtabTechniqueList(){
+  const tbody = document.getElementById('etab-technique-results');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  ESP_TECH_PARCOURS.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(p.seconde)}</td><td>${escapeHtml(p.premiere)}</td><td>${escapeHtml(p.terminale)}</td><td>${escapeHtml(p.bac)}</td><td>${escapeHtml(p.metier)}</td><td>${escapeHtml(p.debouche)}</td><td><button class="fiche-btn" data-tech-index="${i}">🔎 Voir</button></td>`;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+function openTechniqueFiche(index){
+  const p = ESP_TECH_PARCOURS[index];
+  if(!p) return;
+  const tagsHtml = [p.bac, p.debouche].filter(Boolean).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  const ageLabel = p.ageMax === 19
+    ? `19 ans au plus (série ${escapeHtml(p.seconde)}, sans avoir redoublé la classe de 3e)`
+    : `20 ans au plus pour l'enseignement technique`;
+  const bodyHtml = `
+    <h3>Parcours</h3>
+    <p>Seconde ${escapeHtml(p.seconde)} → 1ère ${escapeHtml(p.premiere)} → Terminale ${escapeHtml(p.terminale)} → ${escapeHtml(p.bac)} → ${escapeHtml(p.debouche)}</p>
+    <h3>Conditions d'accès</h3>
+    <div class="ca-variant">
+      <div class="ca-row"><b>Nationalité :</b> être de nationalité ivoirienne.</div>
+      <div class="ca-row"><b>Scolarité :</b> être régulièrement inscrit(e) en classe de 3e.</div>
+      <div class="ca-row"><b>Limite d'âge :</b> ${ageLabel}.</div>
+      <div class="ca-row"><b>Diplôme :</b> le BEPC est une condition générale d'accès à l'enseignement technique (exigé notamment pour certaines filières spécifiques, comme les Sciences médico-sociales).</div>
+    </div>
+  `;
+  openModal(p.metier, tagsHtml, bodyHtml);
 }
 
 // Établissements privés d'enseignement technique et de formation professionnelle,

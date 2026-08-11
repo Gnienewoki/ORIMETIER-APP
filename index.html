@@ -108,6 +108,7 @@
     <div class="tab-nav" id="etab-subtabs" style="margin-bottom:18px;">
       <button class="tab-btn active" id="etab-subtab-btn-publics" onclick="espShowEtabSubTab('publics')">🏫 Établissements publics</button>
       <button class="tab-btn" id="etab-subtab-btn-prive" onclick="espShowEtabSubTab('prive')">🏢 Établissements privés</button>
+      <button class="tab-btn" id="etab-subtab-btn-technique" onclick="espShowEtabSubTab('technique')">🎓 Enseignement technique</button>
     </div>
 
     <div id="etab-tab-publics">
@@ -173,6 +174,18 @@
         </table>
       </div>
       <div class="empty" id="etab-prive-empty-msg" style="display:none;">Aucun établissement privé ne correspond à votre recherche.</div>
+    </div>
+
+    <div id="etab-tab-technique" style="display:none;">
+      <p class="sub" style="margin-top:-8px">Parcours de la classe de Seconde au débouché pour les principales filières de l'enseignement technique. Clique sur « Voir » pour la fiche détaillée (parcours complet et conditions d'accès).</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Seconde</th><th>1ère</th><th>Terminale</th><th>BAC</th><th>Métier / spécialité</th><th>Débouché</th><th>Fiche</th></tr>
+          </thead>
+          <tbody id="etab-technique-results"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
