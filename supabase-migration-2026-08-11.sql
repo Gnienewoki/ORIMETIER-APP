@@ -101,3 +101,26 @@ begin
   end loop;
 end;
 $function$;
+
+-- ============================================================
+-- 2) Nettoyage des surcharges (overloads) obsolètes
+-- Identifiées via l'audit de pg_proc (_db_audit.txt) : ces anciennes
+-- signatures sans les paramètres ajoutés depuis restent joignables par
+-- PostgreSQL (résolution de surcharge par arité) alors que le code
+-- appelant actuel n'utilise plus que la version complète. On les
+-- supprime pour éviter tout appel accidentel à une version qui écrit
+-- des lignes sans categorie/sous_categorie/secteur/photos (établissements)
+-- ou sans type/reply_to/pièce jointe (messages inspecteurs).
+-- ============================================================
+
+-- etablissement_register : surcharge sans p_photos/p_categorie/p_sous_categorie/p_secteur
+DROP FUNCTION IF EXISTS public.etablissement_register(
+  p_id text, p_nom text, p_region text, p_ville text, p_quartier text,
+  p_type text, p_responsable text, p_tel text, p_email text, p_password text,
+  p_date_inscription text, p_filieres_proposees jsonb
+);
+
+-- inspecteur_post_message : surcharge sans p_type/p_reply_to/p_attachment_*
+DROP FUNCTION IF EXISTS public.inspecteur_post_message(
+  p_inspecteur_id text, p_password text, p_texte text
+);
