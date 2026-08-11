@@ -106,17 +106,17 @@ function espRenderAdminDashboard(sub){
         <p class="esp-sub">Choisis la catégorie cible, puis colle une ligne par établissement au format <code>nom;region;ville;quartier;secteur;responsable;tel</code>. Seuls nom, ville et secteur sont obligatoires — mais laisse quand même le point-virgule à la place d'un champ facultatif vide (ex. <code>quartier</code> ou <code>tel</code> non connus), sinon les colonnes suivantes se décalent. secteur = <code>public</code> ou <code>prive</code>.</p>
         <div class="esp-field-row" style="margin-bottom:10px;">
           <div class="esp-field"><label>Catégorie</label>
-            <select id="esp-admin-import-categorie" onchange="espAdminImportToggleSousCategorie()">
-              <option value="general">Enseignement Général</option>
-              <option value="technique">Enseignement Technique privé</option>
-              <option value="superieur">Enseignement Supérieur privé</option>
+            <select id="esp-admin-import-categorie" onchange="espAdminImportOnCategorieChange()">
+              <option value="general" ${_espImportCategorie === 'general' ? 'selected' : ''}>Enseignement Général</option>
+              <option value="technique" ${_espImportCategorie === 'technique' ? 'selected' : ''}>Enseignement Technique privé</option>
+              <option value="superieur" ${_espImportCategorie === 'superieur' ? 'selected' : ''}>Enseignement Supérieur privé</option>
             </select>
           </div>
-          <div class="esp-field" id="esp-admin-import-souscat-field" style="display:none;">
+          <div class="esp-field" id="esp-admin-import-souscat-field" style="display:${_espImportCategorie === 'superieur' ? '' : 'none'};">
             <label>Sous-catégorie</label>
-            <select id="esp-admin-import-sous-categorie">
-              <option value="universite">Université</option>
-              <option value="grande_ecole">Grande école</option>
+            <select id="esp-admin-import-sous-categorie" onchange="espAdminImportOnSousCategorieChange()">
+              <option value="universite" ${_espImportSousCategorie === 'universite' ? 'selected' : ''}>Université</option>
+              <option value="grande_ecole" ${_espImportSousCategorie === 'grande_ecole' ? 'selected' : ''}>Grande école</option>
             </select>
           </div>
         </div>
@@ -124,8 +124,14 @@ function espRenderAdminDashboard(sub){
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">🔑 Voir tous les codes non réclamés</button></p>
         <div id="esp-admin-unclaimed-codes">${_espUnclaimedCodesResult ? espAdminUnclaimedCodesHtml(_espUnclaimedCodesResult) : ''}</div>
-        <div id="esp-admin-import-etab-result">${_espLastEtabImportResult ? `
-          <p class="sub"><b>${_espLastEtabImportResult.length}</b> établissement(s) importé(s). Transmets à chacun son code ci-dessous (courrier officiel) — il servira une seule fois à récupérer le compte. <span class="esp-toggle-link" onclick="_espLastEtabImportResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+        <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">⚠️ ${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
+          <p class="esp-error">⚠️ <b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nom</th><th>Ville</th><th>Secteur</th><th>Raison</th></tr></thead>
+            <tbody>${_espLastEtabSkipped.map(r => `<tr><td>${escapeHtml(r.nom||'')}</td><td>${escapeHtml(r.ville||'')}</td><td>${escapeHtml(r.secteur||'')}</td><td>${escapeHtml(r.raison||'')}</td></tr>`).join('')}</tbody>
+          </table></div>
+        ` : ''}${_espLastEtabImportResult ? `
+          <p class="sub"><b>${_espLastEtabImportResult.length}</b> établissement(s) importé(s). Transmets à chacun son code ci-dessous (courrier officiel) — il servira une seule fois à récupérer le compte. <span class="esp-toggle-link" onclick="_espLastEtabImportResult=null;_espLastEtabSkipped=null;_espLastEtabImportWarning=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
           <div class="table-wrap"><table>
             <thead><tr><th>Établissement</th><th>Ville</th><th>Secteur</th><th>Code de récupération</th></tr></thead>
             <tbody>${_espLastEtabImportResult.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : 'Privé'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td></tr>`).join('')}</tbody>
@@ -427,7 +433,11 @@ async function espAdminDeleteEtab(etabId){
 }
 
 let _espLastEtabImportResult = null;
+let _espLastEtabSkipped = null;
+let _espLastEtabImportWarning = null;
 let _espUnclaimedCodesResult = null;
+let _espImportCategorie = 'general';
+let _espImportSousCategorie = 'universite';
 
 function espAdminUnclaimedCodesHtml(rows){
   if(!rows.length){
@@ -458,15 +468,20 @@ async function espAdminShowUnclaimedCodes(){
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
 }
-function espAdminImportToggleSousCategorie(){
-  const cat = document.getElementById('esp-admin-import-categorie').value;
+function espAdminImportOnCategorieChange(){
+  _espImportCategorie = document.getElementById('esp-admin-import-categorie').value;
   const field = document.getElementById('esp-admin-import-souscat-field');
-  if(field) field.style.display = cat === 'superieur' ? '' : 'none';
+  if(field) field.style.display = _espImportCategorie === 'superieur' ? '' : 'none';
+}
+function espAdminImportOnSousCategorieChange(){
+  _espImportSousCategorie = document.getElementById('esp-admin-import-sous-categorie').value;
 }
 async function espAdminImportEtab(){
   const session = espSession();
   const categorie = document.getElementById('esp-admin-import-categorie').value;
   const sousCategorie = categorie === 'superieur' ? document.getElementById('esp-admin-import-sous-categorie').value : null;
+  _espImportCategorie = categorie;
+  if(sousCategorie) _espImportSousCategorie = sousCategorie;
   const textarea = document.getElementById('esp-admin-import-etab-textarea');
   const resultEl = document.getElementById('esp-admin-import-etab-result');
   const lines = (textarea.value || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -488,6 +503,7 @@ async function espAdminImportEtab(){
     return;
   }
   resultEl.innerHTML = '<p class="sub">⏳ Import en cours…</p>';
+  const countBefore = espDB().etablissements.length;
   let rows;
   try {
     rows = await espAdminBulkImportEtabRPC(session.password, categorie, sousCategorie, items);
@@ -496,7 +512,14 @@ async function espAdminImportEtab(){
     return;
   }
   await espLoadFromSupabase();
-  _espLastEtabImportResult = rows;
+  const importedRows = rows.filter(r => r.resultat === 'importe');
+  const skippedRows = rows.filter(r => r.resultat === 'ignore');
+  const actuallyInserted = espDB().etablissements.length - countBefore;
+  _espLastEtabImportResult = importedRows.length ? importedRows : null;
+  _espLastEtabSkipped = skippedRows.length ? skippedRows : null;
+  _espLastEtabImportWarning = (actuallyInserted !== importedRows.length)
+    ? `Écart détecté : le serveur annonce ${importedRows.length} établissement(s) importé(s), mais ${actuallyInserted} seulement sont réellement présents en base après vérification. Ne transmets aucun code avant d'avoir compris l'écart.`
+    : null;
   espRenderAdminDashboard('etablissements');
 }
 
