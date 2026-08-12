@@ -138,61 +138,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
           </table></div>
         ` : ''}</div>
       </div>
-      <table class="esp-table">
-        <thead><tr><th>Établissement</th><th>Ville</th><th>Type</th><th>Catégorie</th><th>Responsable</th><th>Contact</th><th>Statut</th><th>Actions</th></tr></thead>
-        <tbody>
-        ${db.etablissements.length ? db.etablissements.map(e => `
-          <tr>
-            <td><b>${escapeHtml(e.nom)}</b></td>
-            <td>${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</td>
-            <td>${escapeHtml(e.type)}</td>
-            <td>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${espEtabCategorieLabel(e)}</div>
-              <select id="esp-admin-etab-cat-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:2px;">
-                <option value="">— Catégorie —</option>
-                <option value="technique" ${e.categorie==='technique'?'selected':''}>Technique</option>
-                <option value="superieur" ${e.categorie==='superieur'?'selected':''}>Supérieur</option>
-                <option value="general" ${e.categorie==='general'?'selected':''}>Général</option>
-              </select>
-              <select id="esp-admin-etab-sous-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:2px;">
-                <option value="">— Sous-cat. —</option>
-                <option value="universite" ${e.sousCategorie==='universite'?'selected':''}>Université</option>
-                <option value="grande_ecole" ${e.sousCategorie==='grande_ecole'?'selected':''}>Grande école</option>
-                <option value="secondaire" ${e.sousCategorie==='secondaire'?'selected':''}>Secondaire</option>
-              </select>
-              <select id="esp-admin-etab-sect-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:4px;">
-                <option value="">— Secteur —</option>
-                <option value="public" ${e.secteur==='public'?'selected':''}>Public</option>
-                <option value="prive" ${e.secteur==='prive'?'selected':''}>Privé</option>
-              </select>
-              <button class="esp-btn" style="padding:3px 8px;font-size:11px;width:100%;" onclick="espAdminSaveEtabClassification('${e.id}')">✔ Enregistrer</button>
-            </td>
-            <td>${escapeHtml(e.responsable)}</td>
-            <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
-            <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span>${e.preInscrit && !e.reclame ? '<br><span class="esp-badge non_reclame" style="margin-top:4px;">Non réclamé</span>' : ''}${e.premium ? '<br><span class="esp-badge valide" style="margin-top:4px;">⭐ Premium</span>' : ''}</td>
-            <td>
-              <button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminToggleEtabPremium('${e.id}')">${e.premium ? '☆ Retirer Premium' : '⭐ Activer Premium'}</button><br>
-              ${e.statut !== 'valide' ? `<button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','valide')">✔ Valider</button>` : ''}
-              ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
-              <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminDeleteEtab('${e.id}')">🗑 Supprimer</button>
-            </td>
-          </tr>
-          ${(e.filieresProposees||[]).length ? `<tr><td colspan="8" style="background:#fffaf3;">
-            <b style="font-size:12px;">Filières proposées par cet établissement :</b>
-            ${e.filieresProposees.map(f => `
-              <div style="margin:6px 0;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
-                <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)})${f.conditions ? ' — ' + escapeHtml(f.conditions) : ''}
-                <span class="esp-badge ${f.statut}" style="margin-left:8px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span>
-                ${f.statut === 'en_attente' ? `
-                  <button class="esp-btn" style="padding:3px 8px;font-size:11px;margin-left:8px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','valide')">✔ Valider</button>
-                  <button class="esp-btn esp-btn-danger" style="padding:3px 8px;font-size:11px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','refuse')">✕ Refuser</button>
-                ` : ''}
-              </div>
-            `).join('')}
-          </td></tr>` : ''}
-        `).join('') : `<tr><td colspan="8" class="esp-empty">Aucun établissement inscrit pour le moment.</td></tr>`}
-        </tbody>
-      </table>
+      <div id="esp-admin-etab-section">${espAdminEtabSectionHtml(db)}</div>
     `;
   } else if(sub === 'inspecteurs'){
     subHtml = `
@@ -283,6 +229,170 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
   espUpdateReplyPreview();
   if(sub === 'ban-eleve') document.getElementById('esp-ban-eleve-search').focus();
 }
+
+// ---------------- Établissements : liste paginée/filtrée (évite d'injecter des milliers de lignes d'un coup) ----------------
+const ESP_ETAB_PAGE_SIZE = 50;
+let _espEtabPage = 1;
+let _espEtabSearch = '';
+let _espEtabFilterCategorie = '';
+let _espEtabFilterStatut = '';
+let _espEtabSearchDebounceTimer = null;
+
+function espAdminEtabFilteredList(db){
+  const nq = (_espEtabSearch||'').trim().toLowerCase();
+  return db.etablissements.filter(e => {
+    if(_espEtabFilterCategorie && e.categorie !== _espEtabFilterCategorie) return false;
+    if(_espEtabFilterStatut && e.statut !== _espEtabFilterStatut) return false;
+    if(nq){
+      const hay = [e.nom, e.ville, e.quartier, e.region].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(nq)) return false;
+    }
+    return true;
+  });
+}
+
+function espAdminEtabRowHtml(e){
+  return `
+    <tr>
+      <td><b>${escapeHtml(e.nom)}</b></td>
+      <td>${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}</td>
+      <td>${escapeHtml(e.type)}</td>
+      <td>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${espEtabCategorieLabel(e)}</div>
+        <select id="esp-admin-etab-cat-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:2px;">
+          <option value="">— Catégorie —</option>
+          <option value="technique" ${e.categorie==='technique'?'selected':''}>Technique</option>
+          <option value="superieur" ${e.categorie==='superieur'?'selected':''}>Supérieur</option>
+          <option value="general" ${e.categorie==='general'?'selected':''}>Général</option>
+        </select>
+        <select id="esp-admin-etab-sous-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:2px;">
+          <option value="">— Sous-cat. —</option>
+          <option value="universite" ${e.sousCategorie==='universite'?'selected':''}>Université</option>
+          <option value="grande_ecole" ${e.sousCategorie==='grande_ecole'?'selected':''}>Grande école</option>
+          <option value="secondaire" ${e.sousCategorie==='secondaire'?'selected':''}>Secondaire</option>
+        </select>
+        <select id="esp-admin-etab-sect-${e.id}" style="font-size:11px;padding:2px 4px;width:100%;margin-bottom:4px;">
+          <option value="">— Secteur —</option>
+          <option value="public" ${e.secteur==='public'?'selected':''}>Public</option>
+          <option value="prive" ${e.secteur==='prive'?'selected':''}>Privé</option>
+        </select>
+        <button class="esp-btn" style="padding:3px 8px;font-size:11px;width:100%;" onclick="espAdminSaveEtabClassification('${e.id}')">✔ Enregistrer</button>
+      </td>
+      <td>${escapeHtml(e.responsable)}</td>
+      <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
+      <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span>${e.preInscrit && !e.reclame ? '<br><span class="esp-badge non_reclame" style="margin-top:4px;">Non réclamé</span>' : ''}${e.premium ? '<br><span class="esp-badge valide" style="margin-top:4px;">⭐ Premium</span>' : ''}</td>
+      <td>
+        <button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminToggleEtabPremium('${e.id}')">${e.premium ? '☆ Retirer Premium' : '⭐ Activer Premium'}</button><br>
+        ${e.statut !== 'valide' ? `<button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','valide')">✔ Valider</button>` : ''}
+        ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
+        <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminDeleteEtab('${e.id}')">🗑 Supprimer</button>
+      </td>
+    </tr>
+    ${(e.filieresProposees||[]).length ? `<tr><td colspan="8" style="background:#fffaf3;">
+      <b style="font-size:12px;">Filières proposées par cet établissement :</b>
+      ${e.filieresProposees.map(f => `
+        <div style="margin:6px 0;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
+          <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)})${f.conditions ? ' — ' + escapeHtml(f.conditions) : ''}
+          <span class="esp-badge ${f.statut}" style="margin-left:8px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span>
+          ${f.statut === 'en_attente' ? `
+            <button class="esp-btn" style="padding:3px 8px;font-size:11px;margin-left:8px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','valide')">✔ Valider</button>
+            <button class="esp-btn esp-btn-danger" style="padding:3px 8px;font-size:11px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','refuse')">✕ Refuser</button>
+          ` : ''}
+        </div>
+      `).join('')}
+    </td></tr>` : ''}
+  `;
+}
+
+function espAdminEtabSectionHtml(db){
+  const filtered = espAdminEtabFilteredList(db);
+  const total = db.etablissements.length;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ESP_ETAB_PAGE_SIZE));
+  if(_espEtabPage > totalPages) _espEtabPage = totalPages;
+  if(_espEtabPage < 1) _espEtabPage = 1;
+  const startIdx = (_espEtabPage - 1) * ESP_ETAB_PAGE_SIZE;
+  const pageItems = filtered.slice(startIdx, startIdx + ESP_ETAB_PAGE_SIZE);
+
+  return `
+    <div class="esp-field-row" style="margin-bottom:10px;align-items:flex-end;">
+      <div class="esp-field" style="flex:2;min-width:220px;">
+        <label>Rechercher</label>
+        <input type="text" id="esp-admin-etab-search" placeholder="Nom, ville, quartier, région..." value="${escapeHtml(_espEtabSearch)}" oninput="espAdminEtabOnSearchInput(this.value)">
+      </div>
+      <div class="esp-field">
+        <label>Catégorie</label>
+        <select id="esp-admin-etab-filter-cat" onchange="espAdminEtabOnFilterChange()">
+          <option value="">Toutes</option>
+          <option value="general" ${_espEtabFilterCategorie==='general'?'selected':''}>Général</option>
+          <option value="technique" ${_espEtabFilterCategorie==='technique'?'selected':''}>Technique</option>
+          <option value="superieur" ${_espEtabFilterCategorie==='superieur'?'selected':''}>Supérieur</option>
+        </select>
+      </div>
+      <div class="esp-field">
+        <label>Statut</label>
+        <select id="esp-admin-etab-filter-statut" onchange="espAdminEtabOnFilterChange()">
+          <option value="">Tous</option>
+          <option value="en_attente" ${_espEtabFilterStatut==='en_attente'?'selected':''}>En attente</option>
+          <option value="valide" ${_espEtabFilterStatut==='valide'?'selected':''}>Validé</option>
+          <option value="refuse" ${_espEtabFilterStatut==='refuse'?'selected':''}>Refusé</option>
+        </select>
+      </div>
+    </div>
+    <p class="esp-sub"><b>${filtered.length}</b> établissement(s) trouvé(s) sur <b>${total}</b> au total.</p>
+    <table class="esp-table">
+      <thead><tr><th>Établissement</th><th>Ville</th><th>Type</th><th>Catégorie</th><th>Responsable</th><th>Contact</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody>
+      ${pageItems.length ? pageItems.map(espAdminEtabRowHtml).join('') : `<tr><td colspan="8" class="esp-empty">Aucun établissement ne correspond à cette recherche.</td></tr>`}
+      </tbody>
+    </table>
+    <div class="esp-field-row" style="justify-content:center;align-items:center;gap:14px;margin-top:12px;">
+      <button class="esp-btn" ${_espEtabPage<=1?'disabled':''} onclick="espAdminEtabGoToPage(${_espEtabPage-1})">← Précédent</button>
+      <span class="esp-sub" style="margin:0;">Page ${_espEtabPage} / ${totalPages}</span>
+      <button class="esp-btn" ${_espEtabPage>=totalPages?'disabled':''} onclick="espAdminEtabGoToPage(${_espEtabPage+1})">Suivant →</button>
+    </div>
+  `;
+}
+
+function espAdminRefreshEtabSection(){
+  const container = document.getElementById('esp-admin-etab-section');
+  if(!container) return;
+  const searchInput = document.getElementById('esp-admin-etab-search');
+  const hadFocus = !!(searchInput && document.activeElement === searchInput);
+  const selStart = hadFocus ? searchInput.selectionStart : null;
+  const selEnd = hadFocus ? searchInput.selectionEnd : null;
+  const db = espDB();
+  container.innerHTML = espAdminEtabSectionHtml(db);
+  if(hadFocus){
+    const newInput = document.getElementById('esp-admin-etab-search');
+    if(newInput){
+      newInput.focus();
+      try { newInput.setSelectionRange(selStart, selEnd); } catch(err){}
+    }
+  }
+}
+
+function espAdminEtabOnSearchInput(value){
+  _espEtabSearch = value;
+  _espEtabPage = 1;
+  if(_espEtabSearchDebounceTimer) clearTimeout(_espEtabSearchDebounceTimer);
+  _espEtabSearchDebounceTimer = setTimeout(() => {
+    _espEtabSearchDebounceTimer = null;
+    espAdminRefreshEtabSection();
+  }, 200);
+}
+
+function espAdminEtabOnFilterChange(){
+  _espEtabFilterCategorie = document.getElementById('esp-admin-etab-filter-cat').value;
+  _espEtabFilterStatut = document.getElementById('esp-admin-etab-filter-statut').value;
+  _espEtabPage = 1;
+  espAdminRefreshEtabSection();
+}
+
+function espAdminEtabGoToPage(page){
+  _espEtabPage = page;
+  espAdminRefreshEtabSection();
+}
+
 function espAdminSearchEleve(query){
   const resultsEl = document.getElementById('esp-ban-eleve-results');
   const q = (query||'').trim();
