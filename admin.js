@@ -124,7 +124,7 @@ function espRenderAdminDashboard(sub){
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">🔑 Voir tous les codes non réclamés</button> <button class="esp-btn" onclick="espAdminShowAllEtabCodes()">📋 Codes établissements</button></p>
         <div id="esp-admin-unclaimed-codes">${_espUnclaimedCodesResult ? espAdminUnclaimedCodesHtml(_espUnclaimedCodesResult) : ''}</div>
-        <div id="esp-admin-all-etab-codes">${_espAllEtabCodesResult ? espAdminAllEtabCodesHtml(_espAllEtabCodesResult) : ''}</div>
+        <div id="esp-admin-all-etab-codes">${_espAllEtabCodesResult ? espAdminAllEtabCodesHtml() : ''}</div>
         <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">⚠️ ${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
           <p class="esp-error">⚠️ <b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
           <div class="table-wrap"><table>
@@ -548,6 +548,10 @@ let _espLastEtabSkipped = null;
 let _espLastEtabImportWarning = null;
 let _espUnclaimedCodesResult = null;
 let _espAllEtabCodesResult = null;
+let _espAllEtabCodesSearch = '';
+let _espAllEtabCodesFilterCategorie = '';
+let _espAllEtabCodesFilterReclame = '';
+let _espAllEtabCodesSearchDebounceTimer = null;
 let _espImportCategorie = 'general';
 let _espImportSousCategorie = 'universite';
 
@@ -588,16 +592,58 @@ function espAdminEtabCodesCatLabel(categorie, sousCategorie){
   if(categorie === 'superieur') return sousCategorie === 'universite' ? 'Supérieur — Université' : sousCategorie === 'grande_ecole' ? 'Supérieur — Grande école' : 'Supérieur';
   return categorie || '—';
 }
-function espAdminAllEtabCodesHtml(rows){
-  if(!rows.length){
+function espAdminAllEtabCodesFilteredList(){
+  const all = _espAllEtabCodesResult || [];
+  const nq = (_espAllEtabCodesSearch||'').trim().toLowerCase();
+  return all.filter(r => {
+    if(_espAllEtabCodesFilterCategorie && r.categorie !== _espAllEtabCodesFilterCategorie) return false;
+    if(_espAllEtabCodesFilterReclame === 'oui' && !r.reclame) return false;
+    if(_espAllEtabCodesFilterReclame === 'non' && r.reclame) return false;
+    if(nq){
+      const hay = [r.nom, r.ville].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(nq)) return false;
+    }
+    return true;
+  });
+}
+function espAdminAllEtabCodesHtml(){
+  const all = _espAllEtabCodesResult || [];
+  if(!all.length){
     return '<p class="esp-sub" style="margin-top:10px;">Aucun établissement pré-inscrit pour le moment. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard(\'etablissements\')">Fermer</span></p>';
   }
+  const filtered = espAdminAllEtabCodesFilteredList();
   return `
-    <p class="esp-sub" style="margin-top:10px;"><b>${rows.length}</b> établissement(s) pré-inscrit(s) au total. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+    <p class="esp-sub" style="margin-top:10px;">
+      <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard('etablissements')">Fermer</span>
+    </p>
+    <div class="esp-field-row" style="margin-bottom:10px;align-items:flex-end;">
+      <div class="esp-field" style="flex:2;min-width:220px;">
+        <label>Rechercher</label>
+        <input type="text" id="esp-admin-all-etab-codes-search" placeholder="Nom, ville..." value="${escapeHtml(_espAllEtabCodesSearch)}" oninput="espAdminAllEtabCodesOnSearchInput(this.value)">
+      </div>
+      <div class="esp-field">
+        <label>Catégorie</label>
+        <select id="esp-admin-all-etab-codes-filter-cat" onchange="espAdminAllEtabCodesOnFilterChange()">
+          <option value="">Toutes</option>
+          <option value="general" ${_espAllEtabCodesFilterCategorie==='general'?'selected':''}>Général</option>
+          <option value="technique" ${_espAllEtabCodesFilterCategorie==='technique'?'selected':''}>Technique</option>
+          <option value="superieur" ${_espAllEtabCodesFilterCategorie==='superieur'?'selected':''}>Supérieur</option>
+        </select>
+      </div>
+      <div class="esp-field">
+        <label>Statut</label>
+        <select id="esp-admin-all-etab-codes-filter-reclame" onchange="espAdminAllEtabCodesOnFilterChange()">
+          <option value="">Tous</option>
+          <option value="oui" ${_espAllEtabCodesFilterReclame==='oui'?'selected':''}>Réclamé</option>
+          <option value="non" ${_espAllEtabCodesFilterReclame==='non'?'selected':''}>Non réclamé</option>
+        </select>
+      </div>
+    </div>
+    <p class="esp-sub"><b>${filtered.length}</b> établissement(s) trouvé(s) sur <b>${all.length}</b> au total.</p>
     <p style="margin:8px 0;"><button class="esp-btn" onclick="espAdminExportEtabCodesCSV()">⬇️ Exporter en CSV</button> <button class="esp-btn" onclick="espAdminExportEtabCodesExcel()">⬇️ Exporter en Excel</button></p>
     <div class="table-wrap"><table>
       <thead><tr><th>Établissement</th><th>Catégorie</th><th>Sous-catégorie</th><th>Ville</th><th>Secteur</th><th>Code</th><th>Statut</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.sous_categorie||'—')}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '—'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td><td><span class="esp-badge ${r.reclame ? 'valide' : 'non_reclame'}">${r.reclame ? 'Réclamé' : 'Non réclamé'}</span></td></tr>`).join('')}</tbody>
+      <tbody>${filtered.length ? filtered.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.sous_categorie||'—')}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '—'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td><td><span class="esp-badge ${r.reclame ? 'valide' : 'non_reclame'}">${r.reclame ? 'Réclamé' : 'Non réclamé'}</span></td></tr>`).join('') : `<tr><td colspan="7" class="esp-empty">Aucun établissement ne correspond à cette recherche.</td></tr>`}</tbody>
     </table></div>
   `;
 }
@@ -608,10 +654,42 @@ async function espAdminShowAllEtabCodes(){
   try {
     const rows = await espAdminListAllEtabCodesRPC(session.password);
     _espAllEtabCodesResult = rows;
-    container.innerHTML = espAdminAllEtabCodesHtml(rows);
+    _espAllEtabCodesSearch = '';
+    _espAllEtabCodesFilterCategorie = '';
+    _espAllEtabCodesFilterReclame = '';
+    container.innerHTML = espAdminAllEtabCodesHtml();
   } catch(err){
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
+}
+function espAdminRefreshAllEtabCodesSection(){
+  const container = document.getElementById('esp-admin-all-etab-codes');
+  if(!container) return;
+  const searchInput = document.getElementById('esp-admin-all-etab-codes-search');
+  const hadFocus = !!(searchInput && document.activeElement === searchInput);
+  const selStart = hadFocus ? searchInput.selectionStart : null;
+  const selEnd = hadFocus ? searchInput.selectionEnd : null;
+  container.innerHTML = espAdminAllEtabCodesHtml();
+  if(hadFocus){
+    const newInput = document.getElementById('esp-admin-all-etab-codes-search');
+    if(newInput){
+      newInput.focus();
+      try { newInput.setSelectionRange(selStart, selEnd); } catch(err){}
+    }
+  }
+}
+function espAdminAllEtabCodesOnSearchInput(value){
+  _espAllEtabCodesSearch = value;
+  if(_espAllEtabCodesSearchDebounceTimer) clearTimeout(_espAllEtabCodesSearchDebounceTimer);
+  _espAllEtabCodesSearchDebounceTimer = setTimeout(() => {
+    _espAllEtabCodesSearchDebounceTimer = null;
+    espAdminRefreshAllEtabCodesSection();
+  }, 200);
+}
+function espAdminAllEtabCodesOnFilterChange(){
+  _espAllEtabCodesFilterCategorie = document.getElementById('esp-admin-all-etab-codes-filter-cat').value;
+  _espAllEtabCodesFilterReclame = document.getElementById('esp-admin-all-etab-codes-filter-reclame').value;
+  espAdminRefreshAllEtabCodesSection();
 }
 // Transforme les lignes brutes RPC en objets { "En-tête FR": valeur }, utilisés
 // à la fois par l'export CSV (colonnes = clés) et par l'export Excel (SheetJS
@@ -647,9 +725,10 @@ function espAdminDownloadBlob(blob, filename){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 function espAdminExportEtabCodesCSV(){
-  if(!_espAllEtabCodesResult || !_espAllEtabCodesResult.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements »."); return; }
+  const rows = espAdminAllEtabCodesFilteredList();
+  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements », ou élargis la recherche/les filtres."); return; }
   const stamp = new Date().toISOString().slice(0,10);
-  const csv = espAdminEtabCodesCsvContent(_espAllEtabCodesResult);
+  const csv = espAdminEtabCodesCsvContent(rows);
   // BOM UTF-8 en tête pour qu'Excel affiche correctement les accents à l'ouverture du .csv.
   espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8;' }), `ORIMETIER-codes-etablissements-${stamp}.csv`);
 }
@@ -667,20 +746,21 @@ function espLoadScriptOnce(src){
   });
 }
 async function espAdminExportEtabCodesExcel(){
-  if(!_espAllEtabCodesResult || !_espAllEtabCodesResult.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements »."); return; }
+  const rows = espAdminAllEtabCodesFilteredList();
+  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements », ou élargis la recherche/les filtres."); return; }
   const stamp = new Date().toISOString().slice(0,10);
   try {
     if(!window.XLSX){
       await espLoadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     }
     if(!window.XLSX) throw new Error('Bibliothèque Excel indisponible');
-    const ws = XLSX.utils.json_to_sheet(espAdminEtabCodesRowsForExport(_espAllEtabCodesResult));
+    const ws = XLSX.utils.json_to_sheet(espAdminEtabCodesRowsForExport(rows));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Codes établissements');
     XLSX.writeFile(wb, `ORIMETIER-codes-etablissements-${stamp}.xlsx`);
   } catch(err){
     console.error('[esp] export Excel indisponible, repli en CSV renommé .xls', err);
-    const csv = espAdminEtabCodesCsvContent(_espAllEtabCodesResult);
+    const csv = espAdminEtabCodesCsvContent(rows);
     espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'application/vnd.ms-excel' }), `ORIMETIER-codes-etablissements-${stamp}.xls`);
   }
 }
