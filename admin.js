@@ -122,8 +122,9 @@ function espRenderAdminDashboard(sub){
         </div>
         <textarea id="esp-admin-import-etab-textarea" rows="6" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid var(--border);" placeholder="Lycée Moderne 1 Bouaké;Vallée du Bandama;Bouaké;;public;;
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
-        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">🔑 Voir tous les codes non réclamés</button></p>
+        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">🔑 Voir tous les codes non réclamés</button> <button class="esp-btn" onclick="espAdminShowAllEtabCodes()">📋 Codes établissements</button></p>
         <div id="esp-admin-unclaimed-codes">${_espUnclaimedCodesResult ? espAdminUnclaimedCodesHtml(_espUnclaimedCodesResult) : ''}</div>
+        <div id="esp-admin-all-etab-codes">${_espAllEtabCodesResult ? espAdminAllEtabCodesHtml(_espAllEtabCodesResult) : ''}</div>
         <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">⚠️ ${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
           <p class="esp-error">⚠️ <b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
           <div class="table-wrap"><table>
@@ -546,6 +547,7 @@ let _espLastEtabImportResult = null;
 let _espLastEtabSkipped = null;
 let _espLastEtabImportWarning = null;
 let _espUnclaimedCodesResult = null;
+let _espAllEtabCodesResult = null;
 let _espImportCategorie = 'general';
 let _espImportSousCategorie = 'universite';
 
@@ -578,6 +580,111 @@ async function espAdminShowUnclaimedCodes(){
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
 }
+
+// ---------------- Codes établissements (tous, réclamés ou non) + export CSV/Excel ----------------
+function espAdminEtabCodesCatLabel(categorie, sousCategorie){
+  if(categorie === 'general') return 'Général';
+  if(categorie === 'technique') return 'Technique';
+  if(categorie === 'superieur') return sousCategorie === 'universite' ? 'Supérieur — Université' : sousCategorie === 'grande_ecole' ? 'Supérieur — Grande école' : 'Supérieur';
+  return categorie || '—';
+}
+function espAdminAllEtabCodesHtml(rows){
+  if(!rows.length){
+    return '<p class="esp-sub" style="margin-top:10px;">Aucun établissement pré-inscrit pour le moment. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard(\'etablissements\')">Fermer</span></p>';
+  }
+  return `
+    <p class="esp-sub" style="margin-top:10px;"><b>${rows.length}</b> établissement(s) pré-inscrit(s) au total. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+    <p style="margin:8px 0;"><button class="esp-btn" onclick="espAdminExportEtabCodesCSV()">⬇️ Exporter en CSV</button> <button class="esp-btn" onclick="espAdminExportEtabCodesExcel()">⬇️ Exporter en Excel</button></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Établissement</th><th>Catégorie</th><th>Sous-catégorie</th><th>Ville</th><th>Secteur</th><th>Code</th><th>Statut</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.sous_categorie||'—')}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '—'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td><td><span class="esp-badge ${r.reclame ? 'valide' : 'non_reclame'}">${r.reclame ? 'Réclamé' : 'Non réclamé'}</span></td></tr>`).join('')}</tbody>
+    </table></div>
+  `;
+}
+async function espAdminShowAllEtabCodes(){
+  const session = espSession();
+  const container = document.getElementById('esp-admin-all-etab-codes');
+  container.innerHTML = '<p class="sub" style="margin-top:10px;">⏳ Chargement…</p>';
+  try {
+    const rows = await espAdminListAllEtabCodesRPC(session.password);
+    _espAllEtabCodesResult = rows;
+    container.innerHTML = espAdminAllEtabCodesHtml(rows);
+  } catch(err){
+    container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
+  }
+}
+// Transforme les lignes brutes RPC en objets { "En-tête FR": valeur }, utilisés
+// à la fois par l'export CSV (colonnes = clés) et par l'export Excel (SheetJS
+// json_to_sheet lit directement ce format).
+function espAdminEtabCodesRowsForExport(rows){
+  return rows.map(r => ({
+    'Nom': r.nom || '',
+    'Catégorie': espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie),
+    'Sous-catégorie': r.sous_categorie || '',
+    'Ville': r.ville || '',
+    'Secteur': r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '',
+    'Code de récupération': r.code_recuperation || '',
+    'Réclamé': r.reclame ? 'Oui' : 'Non',
+    "Date d'inscription": r.date_inscription || '',
+  }));
+}
+function espAdminEtabCodesCsvContent(rows){
+  const data = espAdminEtabCodesRowsForExport(rows);
+  const header = ['Nom','Catégorie','Sous-catégorie','Ville','Secteur','Code de récupération','Réclamé',"Date d'inscription"];
+  const esc = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+  const lines = [header.map(esc).join(';')];
+  data.forEach(row => lines.push(header.map(h => esc(row[h])).join(';')));
+  return lines.join('\r\n');
+}
+function espAdminDownloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function espAdminExportEtabCodesCSV(){
+  if(!_espAllEtabCodesResult || !_espAllEtabCodesResult.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements »."); return; }
+  const stamp = new Date().toISOString().slice(0,10);
+  const csv = espAdminEtabCodesCsvContent(_espAllEtabCodesResult);
+  // BOM UTF-8 en tête pour qu'Excel affiche correctement les accents à l'ouverture du .csv.
+  espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8;' }), `ORIMETIER-codes-etablissements-${stamp}.csv`);
+}
+// Charge SheetJS depuis le même CDN que les autres scripts tiers du projet
+// (cdnjs.cloudflare.com, déjà utilisé par html2canvas/jsPDF dans test.html),
+// une seule fois, pour générer un vrai .xlsx sans dépendance locale.
+function espLoadScriptOnce(src){
+  return new Promise((resolve, reject) => {
+    if(document.querySelector(`script[src="${src}"]`)){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Impossible de charger ' + src));
+    document.head.appendChild(s);
+  });
+}
+async function espAdminExportEtabCodesExcel(){
+  if(!_espAllEtabCodesResult || !_espAllEtabCodesResult.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements »."); return; }
+  const stamp = new Date().toISOString().slice(0,10);
+  try {
+    if(!window.XLSX){
+      await espLoadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+    if(!window.XLSX) throw new Error('Bibliothèque Excel indisponible');
+    const ws = XLSX.utils.json_to_sheet(espAdminEtabCodesRowsForExport(_espAllEtabCodesResult));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Codes établissements');
+    XLSX.writeFile(wb, `ORIMETIER-codes-etablissements-${stamp}.xlsx`);
+  } catch(err){
+    console.error('[esp] export Excel indisponible, repli en CSV renommé .xls', err);
+    const csv = espAdminEtabCodesCsvContent(_espAllEtabCodesResult);
+    espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'application/vnd.ms-excel' }), `ORIMETIER-codes-etablissements-${stamp}.xls`);
+  }
+}
+
 function espAdminImportOnCategorieChange(){
   _espImportCategorie = document.getElementById('esp-admin-import-categorie').value;
   const field = document.getElementById('esp-admin-import-souscat-field');

@@ -414,3 +414,13 @@ async function espAdminListUnclaimedCodesRPC(adminPassword){
   if(error) throw error;
   return data || [];
 }
+// Liste permanente de TOUS les établissements pré-inscrits avec leur code de
+// récupération, réclamé ou non (contrairement à admin_list_unclaimed_codes qui
+// ne renvoie que les codes pas encore réclamés) — utilisée pour l'export CSV/Excel.
+async function espAdminListAllEtabCodesRPC(adminPassword){
+  const { data, error } = await supabaseClient.rpc('admin_list_all_etablissement_codes', {
+    p_admin_password: adminPassword,
+  });
+  if(error) throw error;
+  return data || [];
+}
