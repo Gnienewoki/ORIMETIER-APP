@@ -359,6 +359,12 @@ function espRenderEtabDashboard(){
       <div class="esp-title" style="font-size:15px;">⭐ Contact direct, site web & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
       ${!etab.premium ? `
         <p class="esp-sub">Ces fonctionnalités sont réservées aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
+        ${etab.demandePremium ? `
+          <p class="esp-sub"><span class="esp-badge en_attente">⏳ Demande en attente de validation</span>${etab.demandePremiumDate ? ' — envoyée le ' + escapeHtml(etab.demandePremiumDate) : ''}</p>
+        ` : `
+          <button class="esp-btn esp-btn-primary" onclick="espEtabDemanderPremium()">Demander le mode Premium</button>
+          <div id="esp-etab-premium-msg"></div>
+        `}
       ` : `
         <p class="esp-sub" style="margin-bottom:10px;">Contact direct de l'établissement, site web, et jusqu'à 10 photos.</p>
         <div class="esp-field-row">
@@ -409,8 +415,9 @@ function espRenderEtabDashboard(){
     <div class="esp-card">
       <div class="esp-title" style="font-size:15px;">Mes filières (${(etab.filieresProposees||[]).length}/10)</div>
       ${(etab.filieresProposees||[]).length ? etab.filieresProposees.map(f => `
-        <div class="esp-note-item" style="border-left-color:var(--green-dark);">
-          <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)}) <span class="esp-badge ${f.statut}" style="margin-left:6px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span>
+        <div class="esp-note-item" style="border-left-color:var(--green-dark);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span><b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)}) <span class="esp-badge ${f.statut}" style="margin-left:6px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span></span>
+          <button class="esp-btn esp-btn-danger" style="padding:4px 9px;font-size:12px;flex-shrink:0;" title="Supprimer cette filière" onclick="espEtabDeleteFiliereDashboard('${f.id}')">🗑️</button>
         </div>
       `).join('') : `<p class="esp-empty">Aucune filière renseignée.</p>`}
       ${(etab.filieresProposees||[]).length < 10 ? `
@@ -516,6 +523,40 @@ async function espEtabAddFiliereDashboard(){
     return;
   }
   try { await espLoadFromSupabase(); } catch(e){}
+  espRenderEtabDashboard();
+}
+
+// ---------------- Suppression d'une filière déjà ajoutée ----------------
+async function espEtabDeleteFiliereDashboard(filiereId){
+  if(!confirm('Supprimer définitivement cette filière ? Cette action est irréversible.')) return;
+  const session = espSession();
+  try {
+    const ok = await espEtabDeleteFiliereRPC(session.id, session.password, filiereId);
+    if(!ok){ alert("Échec de la suppression (session expirée, merci de te reconnecter)."); return; }
+  } catch(e){
+    alert('Erreur : ' + e.message);
+    return;
+  }
+  try { await espLoadFromSupabase(); } catch(e){}
+  espRenderEtabDashboard();
+}
+
+// ---------------- Demande d'activation du mode Premium ----------------
+async function espEtabDemanderPremium(){
+  const session = espSession();
+  const msgEl = document.getElementById('esp-etab-premium-msg');
+  if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Envoi de la demande...</p>';
+  try {
+    const ok = await espEtabDemanderPremiumRPC(session.id, session.password);
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Échec de la demande (session expirée, ou compte déjà Premium).</p>'; return; }
+  } catch(e){
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  const db = espDB();
+  const etab = db.etablissements.find(e => e.id === session.id);
+  if(etab){ etab.demandePremium = true; etab.demandePremiumDate = espDate(); }
+  espSaveDB(db);
   espRenderEtabDashboard();
 }
 

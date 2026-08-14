@@ -139,6 +139,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
           </table></div>
         ` : ''}</div>
       </div>
+      ${espAdminDemandesPremiumHtml(db)}
       <div id="esp-admin-etab-section">${espAdminEtabSectionHtml(db)}</div>
     `;
   } else if(sub === 'inspecteurs'){
@@ -490,6 +491,34 @@ async function espAdminDeleteMessage(messageId){
   espRenderAdminDashboard('chat');
 }
 
+// ---------------- Demandes d'activation du mode Premium (en attente de validation) ----------------
+function espAdminDemandesPremiumHtml(db){
+  const demandes = db.etablissements.filter(e => e.demandePremium);
+  if(!demandes.length) return '';
+  return `
+    <div class="esp-card" style="margin-bottom:18px;">
+      <div class="esp-title" style="font-size:16px;">⭐ Demandes Premium en attente (${demandes.length})</div>
+      ${demandes.map(e => `
+        <div class="esp-note-item" style="border-left-color:var(--orange, #ff7a1a);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span><b>${escapeHtml(e.nom)}</b> — ${[e.ville, e.region].filter(Boolean).map(escapeHtml).join(' · ')}${e.demandePremiumDate ? ` <span class="esp-sub">(demande envoyée le ${escapeHtml(e.demandePremiumDate)})</span>` : ''}</span>
+          <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0;" onclick="espAdminValiderPremium('${e.id}')">✔ Valider</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+async function espAdminValiderPremium(id){
+  const session = espSession();
+  const db = espDB();
+  const e = db.etablissements.find(x => x.id === id);
+  if(!e) return;
+  if(!confirm(`Activer le Premium pour "${e.nom}" ? Confirme que cet établissement a bien souscrit à l'offre avant de valider.`)) return;
+  let ok;
+  try { ok = await espAdminValiderPremiumRPC(session.password, id); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  e.premium = true; e.demandePremium = false; espSaveDB(db); espRenderAdminDashboard('etablissements');
+}
 async function espAdminToggleEtabPremium(id){
   const session = espSession();
   const db = espDB();

@@ -26,7 +26,7 @@ function espRowToEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, class
 function espEleveToRow(e){ return { id:e.id, nom:e.nom, prenoms:e.prenoms, classe:e.classe, etablissement:e.etablissement, tel:e.tel, email:e.email, password:e.password, riasec:e.riasec, active:!!e.active, date_inscription:e.dateInscription, banni:!!e.banni }; }
 function espRowToInspecteur(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, fonction:r.fonction, cio:r.cio, tel:r.tel, email:r.email, password:r.password, active:r.active, dateInscription:r.date_inscription, certifie:!!r.certifie, banni:!!r.banni, avatarUrl:r.avatar_url||null, certificationDemandee:!!r.certification_demandee, messageAccueil:r.message_accueil||'' }; }
 function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, fonction:i.fonction, cio:i.cio, tel:i.tel, email:i.email, password:i.password, active:!!i.active, date_inscription:i.dateInscription }; }
-function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, contactEmail:r.contact_email||'', contactTel:r.contact_tel||'', siteWeb:r.site_web||'', premium:!!r.premium }; }
+function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, contactEmail:r.contact_email||'', contactTel:r.contact_tel||'', siteWeb:r.site_web||'', premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
 function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
@@ -371,9 +371,30 @@ async function espEtabAddFiliereRPC(etabId, password, nom, diplome){
   if(error) throw error;
   return !!data;
 }
+async function espEtabDeleteFiliereRPC(etabId, password, filiereId){
+  const { data, error } = await supabaseClient.rpc('etablissement_delete_filiere', {
+    p_etab_id: etabId, p_password: password, p_filiere_id: filiereId,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espEtabDemanderPremiumRPC(etabId, password){
+  const { data, error } = await supabaseClient.rpc('etablissement_demander_premium', {
+    p_etab_id: etabId, p_password: password,
+  });
+  if(error) throw error;
+  return !!data;
+}
 async function espAdminSetEtabPremiumRPC(adminPassword, etabId, premium){
   const { data, error } = await supabaseClient.rpc('admin_set_etab_premium', {
     p_admin_password: adminPassword, p_etab_id: etabId, p_premium: premium,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espAdminValiderPremiumRPC(adminPassword, etabId){
+  const { data, error } = await supabaseClient.rpc('admin_valider_premium', {
+    p_admin_password: adminPassword, p_etab_id: etabId,
   });
   if(error) throw error;
   return !!data;

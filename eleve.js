@@ -216,7 +216,7 @@ function espEleveSearchEtablissements(){
     const filieresValidees = (e.filieresProposees||[]).filter(f => f.statut === 'valide');
     return `
       <div class="esp-note-item" style="border-left-color:var(--green-dark);">
-        <b>${escapeHtml(e.nom)}</b> — ${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}<br>
+        <b>${espEtabNomCellHtml(e)}</b> — ${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}<br>
         <span class="esp-sub">${escapeHtml(e.type)} · ${escapeHtml(e.tel)} · ${escapeHtml(e.email)}</span>
         ${filieresValidees.length ? `
           <div style="margin-top:6px;">
