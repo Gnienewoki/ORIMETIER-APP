@@ -31,7 +31,7 @@ async function espAdminLogin(){
   espSetSession('admin', null, pass);
   platformUnlock();
 }
-function espAdminLogout(){ platformLogout(); }
+function espAdminLogout(){ _espAdminEtabFull = null; platformLogout(); }
 
 function espExportBackup(){
   const db = espDB();
@@ -139,9 +139,10 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
           </table></div>
         ` : ''}</div>
       </div>
-      ${espAdminDemandesPremiumHtml(db)}
-      <div id="esp-admin-etab-section">${espAdminEtabSectionHtml(db)}</div>
+      <div id="esp-admin-demandes-premium">${_espAdminEtabFull !== null ? espAdminDemandesPremiumHtml(_espAdminEtabFull) : ''}</div>
+      <div id="esp-admin-etab-section">${_espAdminEtabFull !== null ? espAdminEtabSectionHtml(_espAdminEtabFull) : '<p class="esp-empty">Chargement des établissements…</p>'}</div>
     `;
+    if(_espAdminEtabFull === null) espAdminEnsureEtabFullLoaded();
   } else if(sub === 'inspecteurs'){
     subHtml = `
       <table class="esp-table">
@@ -240,9 +241,38 @@ let _espEtabFilterCategorie = '';
 let _espEtabFilterStatut = '';
 let _espEtabSearchDebounceTimer = null;
 
-function espAdminEtabFilteredList(db){
+// Cache admin-only (responsable/tel/email non masqués), séparé du cache partagé
+// espDB() : alimenté par admin_list_etablissements_full(), jamais par
+// list_etablissements(). null = pas encore chargé, [] = chargé et vide.
+let _espAdminEtabFull = null;
+let _espAdminEtabFullLoading = false;
+
+async function espAdminEnsureEtabFullLoaded(){
+  if(_espAdminEtabFull !== null || _espAdminEtabFullLoading) return;
+  _espAdminEtabFullLoading = true;
+  const session = espSession();
+  let rows;
+  try {
+    rows = await espAdminListEtablissementsFullRPC(session.password);
+  } catch(err){
+    _espAdminEtabFullLoading = false;
+    if(err && /unauthorized/i.test(err.message||'')){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+    alert("Erreur lors du chargement des établissements : " + err.message);
+    return;
+  }
+  _espAdminEtabFull = rows.map(espRowToEtab);
+  _espAdminEtabFullLoading = false;
+  espAdminRefreshEtabSection();
+}
+// Invalide le cache admin après toute mutation, pour que la table se recharge
+// avec des données fraîches (y compris responsable/tel/email) au prochain rendu.
+function espAdminInvalidateEtabFull(){
+  _espAdminEtabFull = null;
+}
+
+function espAdminEtabFilteredList(list){
   const nq = (_espEtabSearch||'').trim().toLowerCase();
-  return db.etablissements.filter(e => {
+  return list.filter(e => {
     if(_espEtabFilterCategorie && e.categorie !== _espEtabFilterCategorie) return false;
     if(_espEtabFilterStatut && e.statut !== _espEtabFilterStatut) return false;
     if(nq){
@@ -306,9 +336,9 @@ function espAdminEtabRowHtml(e){
   `;
 }
 
-function espAdminEtabSectionHtml(db){
-  const filtered = espAdminEtabFilteredList(db);
-  const total = db.etablissements.length;
+function espAdminEtabSectionHtml(list){
+  const filtered = espAdminEtabFilteredList(list);
+  const total = list.length;
   const totalPages = Math.max(1, Math.ceil(filtered.length / ESP_ETAB_PAGE_SIZE));
   if(_espEtabPage > totalPages) _espEtabPage = totalPages;
   if(_espEtabPage < 1) _espEtabPage = 1;
@@ -356,14 +386,15 @@ function espAdminEtabSectionHtml(db){
 }
 
 function espAdminRefreshEtabSection(){
+  const demandesContainer = document.getElementById('esp-admin-demandes-premium');
+  if(demandesContainer) demandesContainer.innerHTML = espAdminDemandesPremiumHtml(_espAdminEtabFull || []);
   const container = document.getElementById('esp-admin-etab-section');
   if(!container) return;
   const searchInput = document.getElementById('esp-admin-etab-search');
   const hadFocus = !!(searchInput && document.activeElement === searchInput);
   const selStart = hadFocus ? searchInput.selectionStart : null;
   const selEnd = hadFocus ? searchInput.selectionEnd : null;
-  const db = espDB();
-  container.innerHTML = espAdminEtabSectionHtml(db);
+  container.innerHTML = espAdminEtabSectionHtml(_espAdminEtabFull || []);
   if(hadFocus){
     const newInput = document.getElementById('esp-admin-etab-search');
     if(newInput){
@@ -492,15 +523,15 @@ async function espAdminDeleteMessage(messageId){
 }
 
 // ---------------- Demandes d'activation du mode Premium (en attente de validation) ----------------
-function espAdminDemandesPremiumHtml(db){
-  const demandes = db.etablissements.filter(e => e.demandePremium);
+function espAdminDemandesPremiumHtml(list){
+  const demandes = (list || []).filter(e => e.demandePremium);
   if(!demandes.length) return '';
   return `
     <div class="esp-card" style="margin-bottom:18px;">
       <div class="esp-title" style="font-size:16px;">⭐ Demandes Premium en attente (${demandes.length})</div>
       ${demandes.map(e => `
         <div class="esp-note-item" style="border-left-color:var(--orange, #ff7a1a);display:flex;justify-content:space-between;align-items:center;gap:8px;">
-          <span><b>${escapeHtml(e.nom)}</b> — ${[e.ville, e.region].filter(Boolean).map(escapeHtml).join(' · ')}${e.demandePremiumDate ? ` <span class="esp-sub">(demande envoyée le ${escapeHtml(e.demandePremiumDate)})</span>` : ''}</span>
+          <span><b>${escapeHtml(e.nom)}</b> — ${[e.ville, e.region].filter(Boolean).map(escapeHtml).join(' · ')}${e.responsable ? ` · Responsable : ${escapeHtml(e.responsable)}` : ''}${e.contactTel ? ` · Tél. responsable : ${escapeHtml(e.contactTel)}` : ''}${e.demandePremiumDate ? ` <span class="esp-sub">(demande envoyée le ${escapeHtml(e.demandePremiumDate)})</span>` : ''}</span>
           <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0;" onclick="espAdminValiderPremium('${e.id}')">✔ Valider</button>
         </div>
       `).join('')}
@@ -517,7 +548,7 @@ async function espAdminValiderPremium(id){
   try { ok = await espAdminValiderPremiumRPC(session.password, id); }
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  e.premium = true; e.demandePremium = false; espSaveDB(db); espRenderAdminDashboard('etablissements');
+  e.premium = true; e.demandePremium = false; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 async function espAdminToggleEtabPremium(id){
   const session = espSession();
@@ -530,7 +561,7 @@ async function espAdminToggleEtabPremium(id){
   try { ok = await espAdminSetEtabPremiumRPC(session.password, id, nextPremium); }
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  e.premium = nextPremium; espSaveDB(db); espRenderAdminDashboard('etablissements');
+  e.premium = nextPremium; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 async function espAdminSetEtabStatut(id, statut){
   const session = espSession();
@@ -541,7 +572,7 @@ async function espAdminSetEtabStatut(id, statut){
   try { ok = await espSetEtabStatutRPC(session.password, id, statut); }
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  e.statut = statut; espSaveDB(db); espRenderAdminDashboard('etablissements');
+  e.statut = statut; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 async function espAdminSetPropositionStatut(etabId, filiereId, statut){
   const session = espSession();
@@ -554,7 +585,7 @@ async function espAdminSetPropositionStatut(etabId, filiereId, statut){
   try { ok = await espSetFiliereStatutRPC(session.password, etabId, filiereId, statut); }
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  f.statut = statut; espSaveDB(db); espRenderAdminDashboard('etablissements');
+  f.statut = statut; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 
 async function espAdminDeleteEtab(etabId){
@@ -569,6 +600,7 @@ async function espAdminDeleteEtab(etabId){
   if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
   db.etablissements = db.etablissements.filter(x => x.id !== etabId);
   espSaveDB(db);
+  espAdminInvalidateEtabFull();
   espRenderAdminDashboard('etablissements');
 }
 
@@ -603,6 +635,9 @@ function espAdminUnclaimedCodesHtml(rows){
 }
 async function espAdminShowUnclaimedCodes(){
   const session = espSession();
+  _espAllEtabCodesResult = null;
+  const otherContainer = document.getElementById('esp-admin-all-etab-codes');
+  if(otherContainer) otherContainer.innerHTML = '';
   const container = document.getElementById('esp-admin-unclaimed-codes');
   container.innerHTML = '<p class="sub" style="margin-top:10px;">⏳ Chargement…</p>';
   try {
@@ -678,6 +713,9 @@ function espAdminAllEtabCodesHtml(){
 }
 async function espAdminShowAllEtabCodes(){
   const session = espSession();
+  _espUnclaimedCodesResult = null;
+  const otherContainer = document.getElementById('esp-admin-unclaimed-codes');
+  if(otherContainer) otherContainer.innerHTML = '';
   const container = document.getElementById('esp-admin-all-etab-codes');
   container.innerHTML = '<p class="sub" style="margin-top:10px;">⏳ Chargement…</p>';
   try {
@@ -846,6 +884,7 @@ async function espAdminImportEtab(){
   _espLastEtabImportWarning = (actuallyInserted !== importedRows.length)
     ? `Écart détecté : le serveur annonce ${importedRows.length} établissement(s) importé(s), mais ${actuallyInserted} seulement sont réellement présents en base après vérification. Ne transmets aucun code avant d'avoir compris l'écart.`
     : null;
+  espAdminInvalidateEtabFull();
   espRenderAdminDashboard('etablissements');
 }
 
@@ -865,6 +904,7 @@ async function espAdminSaveEtabClassification(etabId){
   const e = db.etablissements.find(x => x.id === etabId);
   if(e){ e.categorie = categorie; e.sousCategorie = sousCategorie; e.secteur = secteur; }
   espSaveDB(db);
+  espAdminInvalidateEtabFull();
   espRenderAdminDashboard('etablissements');
 }
 

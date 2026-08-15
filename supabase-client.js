@@ -30,7 +30,7 @@ function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, 
 // uniquement) — absents des lignes renvoyées par list_etablissements() (publique), donc
 // undefined -> '' ici pour ces appels, ce qui est le comportement voulu.
 function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable||'', contactTel:r.contact_tel||'', tel:r.tel, tel2:r.tel2||'', tel3:r.tel3||'', email:r.email, siteWeb:r.site_web||'', statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
-function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
+function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, contact_tel:e.contactTel||null, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
@@ -124,6 +124,7 @@ async function espInsertEtablissement(row){
     p_date_inscription: row.date_inscription, p_filieres_proposees: row.filieres_proposees, p_photos: row.photos || [],
     p_categorie: row.categorie || null, p_sous_categorie: row.sous_categorie || null, p_secteur: row.secteur || null,
     p_tel2: row.tel2 || null, p_tel3: row.tel3 || null, p_site_web: row.site_web || null,
+    p_contact_tel: row.contact_tel || null,
   });
   if(error){ throw error; }
   if(!data){ throw new Error("Inscription refusée (e-mail déjà utilisé, ou champ obligatoire manquant)."); }
@@ -148,14 +149,21 @@ async function espEtabLoginRPC(email, password){
 // Récupération d'un compte établissement pré-inscrit (import en masse) via le
 // code unique remis hors-plateforme. L'établissement choisit à ce moment-là
 // son propre e-mail et mot de passe.
-async function espEtabClaimRPC(code, email, password, responsable, tel, tel2, tel3, siteWeb){
+async function espEtabClaimRPC(code, email, password, responsable, tel, tel2, tel3, siteWeb, contactTel){
   const { data, error } = await supabaseClient.rpc('etablissement_claim_by_code', {
     p_code: code, p_email: email, p_password: password,
     p_responsable: responsable || null, p_tel: tel || null, p_tel2: tel2 || null, p_tel3: tel3 || null,
-    p_site_web: siteWeb || null,
+    p_site_web: siteWeb || null, p_contact_tel: contactTel || null,
   });
   if(error) throw error;
   return !!data;
+}
+// Fiche complète, non masquée, de l'établissement connecté (responsable/contact_tel inclus,
+// tel/tel2/tel3/email/site_web/photos jamais masqués par le premium) — alimente son tableau de bord.
+async function espEtabGetOwnRPC(etabId, password){
+  const { data, error } = await supabaseClient.rpc('etablissement_get_own', { p_etab_id: etabId, p_password: password });
+  if(error) throw error;
+  return (data && data[0]) ? espRowToEtab(data[0]) : null;
 }
 async function espAdminLoginRPC(password){
   const { data, error } = await supabaseClient.rpc('admin_login', { p_password: password });
@@ -350,9 +358,10 @@ async function espUploadEtabPhoto(file){
   const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
   return data.publicUrl;
 }
-async function espEtabUpdateInfoRPC(etabId, password, nom, type, responsable, tel, email){
+async function espEtabUpdateInfoRPC(etabId, password, nom, type, responsable, tel, email, contactTel){
   const { data, error } = await supabaseClient.rpc('etablissement_update_info', {
     p_etab_id: etabId, p_password: password, p_nom: nom, p_type: type, p_responsable: responsable, p_tel: tel, p_email: email,
+    p_contact_tel: contactTel || null,
   });
   if(error) throw error;
   return !!data;
@@ -365,9 +374,9 @@ async function espEtabUpdatePhotosRPC(etabId, password, photos){
   return !!data;
 }
 // ---------------- Établissement Premium : contact direct, site web, filières libres ----------------
-async function espEtabUpdateContactExtrasRPC(etabId, password, contactEmail, contactTel, siteWeb){
+async function espEtabUpdateContactExtrasRPC(etabId, password, tel2, tel3, siteWeb){
   const { data, error } = await supabaseClient.rpc('etablissement_update_contact_extras', {
-    p_etab_id: etabId, p_password: password, p_contact_email: contactEmail, p_contact_tel: contactTel, p_site_web: siteWeb,
+    p_etab_id: etabId, p_password: password, p_tel2: tel2 || null, p_tel3: tel3 || null, p_site_web: siteWeb || null,
   });
   if(error) throw error;
   return !!data;

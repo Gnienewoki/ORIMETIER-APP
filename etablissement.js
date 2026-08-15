@@ -56,6 +56,7 @@ function espRenderEtabAuth(mode){
           <div class="esp-field"><label>Quartier</label><input type="text" id="esp-etab-quartier" placeholder="Facultatif"></div>
           <div class="esp-field"><label>Nom du responsable</label><input type="text" id="esp-etab-resp"></div>
         </div>
+        <div class="esp-field"><label>Téléphone du responsable</label><input type="tel" id="esp-etab-resp-tel" placeholder="Optionnel — usage interne, jamais public"></div>
         <div class="esp-field-row">
           <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-tel"></div>
           <div class="esp-field"><label>E-mail</label><input type="email" id="esp-etab-email2"></div>
@@ -207,6 +208,7 @@ async function espEtabRegister(){
   const typeParCategorie = { technique: 'Secondaire formation professionnelle et technique', general: 'Secondaire générale', superieur: 'Supérieure' };
   const type = typeParCategorie[categorie] || '';
   const responsable = document.getElementById('esp-etab-resp').value.trim();
+  const contactTel = document.getElementById('esp-etab-resp-tel').value.trim();
   const tel = document.getElementById('esp-etab-tel').value.trim();
   const tel2 = document.getElementById('esp-etab-tel2').value.trim();
   const tel3 = document.getElementById('esp-etab-tel3').value.trim();
@@ -231,7 +233,7 @@ async function espEtabRegister(){
     }
   });
   const id = espUid();
-  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, tel2, tel3, siteWeb, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), categorie, sousCategorie, secteur };
+  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, contactTel, tel, tel2, tel3, siteWeb, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), categorie, sousCategorie, secteur };
   try {
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
@@ -260,7 +262,7 @@ async function espEtabLogin(){
   espSetSession('etablissement', etab.id, pass);
   platformUnlock();
 }
-function espEtabLogout(){ platformLogout(); }
+function espEtabLogout(){ _espEtabOwn = null; platformLogout(); }
 
 // ---------------- Récupération d'un compte pré-inscrit (import en masse) via code ----------------
 // Cas des établissements d'Enseignement Général inscrits d'office par l'administration :
@@ -277,6 +279,7 @@ function espRenderEtabClaim(){
       <div class="esp-field" style="margin-bottom:12px;"><label>Code de récupération</label><input type="text" id="esp-etab-claim-code" placeholder="Ex : A7K9QPX2" style="text-transform:uppercase;"></div>
       <div class="esp-field" style="margin-bottom:12px;"><label>E-mail de l'établissement</label><input type="email" id="esp-etab-claim-email" placeholder="contact@etablissement.ci"></div>
       <div class="esp-field" style="margin-bottom:12px;"><label>Nom du responsable</label><input type="text" id="esp-etab-claim-resp" placeholder="Optionnel si déjà renseigné par l'administration"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Téléphone du responsable</label><input type="tel" id="esp-etab-claim-resp-tel" placeholder="Optionnel — usage interne, jamais public"></div>
       <div class="esp-field-row" style="margin-bottom:12px;">
         <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-claim-tel" placeholder="Optionnel"></div>
         <div class="esp-field"><label>Téléphone 2</label><input type="tel" id="esp-etab-claim-tel2" placeholder="Optionnel"></div>
@@ -293,6 +296,7 @@ async function espEtabClaim(){
   const code = document.getElementById('esp-etab-claim-code').value.trim().toUpperCase();
   const email = document.getElementById('esp-etab-claim-email').value.trim();
   const responsable = document.getElementById('esp-etab-claim-resp').value.trim();
+  const contactTel = document.getElementById('esp-etab-claim-resp-tel').value.trim();
   const tel = document.getElementById('esp-etab-claim-tel').value.trim();
   const tel2 = document.getElementById('esp-etab-claim-tel2').value.trim();
   const tel3 = document.getElementById('esp-etab-claim-tel3').value.trim();
@@ -310,7 +314,7 @@ async function espEtabClaim(){
   }
   let ok;
   try {
-    ok = await espEtabClaimRPC(code, email, pass, responsable, tel, tel2, tel3, siteWeb);
+    ok = await espEtabClaimRPC(code, email, pass, responsable, tel, tel2, tel3, siteWeb, contactTel);
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
@@ -327,11 +331,47 @@ async function espEtabClaim(){
   else { espRenderEtabAuth('login'); }
 }
 
+// ---------------- Cache non masqué de l'établissement connecté (sa propre fiche) ----------------
+// Alimenté par etablissement_get_own(), jamais par list_etablissements() : cette dernière masque
+// tel/tel2/tel3/email/site_web tant que non premium, et ne renvoie jamais responsable/contact_tel.
+// null = pas encore chargé.
+let _espEtabOwn = null;
+let _espEtabOwnLoading = false;
+async function espEtabEnsureOwnLoaded(){
+  const session = espSession();
+  if(!session || session.role !== 'etablissement') return;
+  if((_espEtabOwn && _espEtabOwn.id === session.id) || _espEtabOwnLoading) return;
+  _espEtabOwnLoading = true;
+  let own;
+  try {
+    own = await espEtabGetOwnRPC(session.id, session.password);
+  } catch(e){
+    _espEtabOwnLoading = false;
+    alert("Erreur lors du chargement de votre fiche établissement : " + e.message);
+    return;
+  }
+  _espEtabOwnLoading = false;
+  if(!own){ espEtabLogout(); return; }
+  _espEtabOwn = own;
+  espRenderEtabDashboard();
+}
+// Invalide le cache et relance le rendu après toute mutation depuis le tableau de bord :
+// garantit que la fiche affichée reste alignée avec la base plutôt que des patchs locaux
+// dispersés qui finissent par diverger.
+async function espEtabRefreshOwnAndDashboard(){
+  _espEtabOwn = null;
+  try { await espLoadFromSupabase(); } catch(e){}
+  espRenderEtabDashboard();
+}
+
 function espRenderEtabDashboard(){
   const session = espSession();
-  const db = espDB();
-  const etab = db.etablissements.find(e => e.id === session.id);
-  if(!etab){ espEtabLogout(); return; }
+  if(!_espEtabOwn || _espEtabOwn.id !== session.id){
+    document.getElementById('esp-etablissement').innerHTML = '<p class="esp-empty">Chargement de votre fiche…</p>';
+    espEtabEnsureOwnLoaded();
+    return;
+  }
+  const etab = _espEtabOwn;
 
   const statutLabel = etab.statut === 'en_attente' ? 'En attente de validation' : etab.statut === 'valide' ? 'Validé' : 'Refusé';
   const statutMsg = etab.statut === 'en_attente'
@@ -367,18 +407,33 @@ function espRenderEtabDashboard(){
         </div>
         <div class="esp-field-row">
           <div class="esp-field"><label>Nom du responsable</label><input type="text" id="esp-etab-edit-resp" value="${escapeHtml(etab.responsable||'')}"></div>
-          <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-edit-tel" value="${escapeHtml(etab.tel||'')}"></div>
+          <div class="esp-field"><label>Téléphone du responsable</label><input type="tel" id="esp-etab-edit-resp-tel" value="${escapeHtml(etab.contactTel||'')}" placeholder="Usage interne, jamais public"></div>
         </div>
-        <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-etab-edit-email" value="${escapeHtml(etab.email||'')}"></div>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-edit-tel" value="${escapeHtml(etab.tel||'')}"></div>
+          <div class="esp-field"><label>E-mail</label><input type="email" id="esp-etab-edit-email" value="${escapeHtml(etab.email||'')}"></div>
+        </div>
         <button class="esp-btn esp-btn-primary" onclick="espEtabSaveInfo()">Enregistrer</button>
         <div id="esp-etab-info-msg"></div>
       </div>
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">⭐ Contact direct, site web & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
+      <div class="esp-title" style="font-size:15px;">📞 Contact & site web</div>
+      <p class="esp-sub" style="margin-bottom:10px;">Numéros supplémentaires et site web — visibles publiquement une fois le Premium actif, mais modifiables dès maintenant.</p>
+      <div class="esp-field-row">
+        <div class="esp-field"><label>Téléphone 2</label><input type="tel" id="esp-etab-extra-tel2" value="${escapeHtml(etab.tel2||'')}" placeholder="Optionnel"></div>
+        <div class="esp-field"><label>Téléphone 3</label><input type="tel" id="esp-etab-extra-tel3" value="${escapeHtml(etab.tel3||'')}" placeholder="Optionnel"></div>
+      </div>
+      <div class="esp-field" style="margin-bottom:10px;"><label>Site web</label><input type="url" id="esp-etab-extra-site-web" value="${escapeHtml(etab.siteWeb||'')}" placeholder="https://..."></div>
+      <button class="esp-btn esp-btn-primary" onclick="espEtabSaveContactExtras()">Enregistrer</button>
+      <div id="esp-etab-extras-msg"></div>
+    </div>
+
+    <div class="esp-card">
+      <div class="esp-title" style="font-size:15px;">📷 Photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
       ${!etab.premium ? `
-        <p class="esp-sub">Ces fonctionnalités sont réservées aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
+        <p class="esp-sub">Fonctionnalité réservée aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
         ${etab.demandePremium ? `
           <p class="esp-sub"><span class="esp-badge en_attente">⏳ Demande en attente de validation</span>${etab.demandePremiumDate ? ' — envoyée le ' + escapeHtml(etab.demandePremiumDate) : ''}</p>
         ` : `
@@ -386,28 +441,18 @@ function espRenderEtabDashboard(){
           <div id="esp-etab-premium-msg"></div>
         `}
       ` : `
-        <p class="esp-sub" style="margin-bottom:10px;">Contact direct de l'établissement, site web, et jusqu'à 10 photos.</p>
-        <div class="esp-field-row">
-          <div class="esp-field"><label>E-mail de contact direct</label><input type="email" id="esp-etab-extra-contact-email" value="${escapeHtml(etab.contactEmail||'')}" placeholder="secretariat@etablissement.ci"></div>
-          <div class="esp-field"><label>Téléphone de contact direct</label><input type="tel" id="esp-etab-extra-contact-tel" value="${escapeHtml(etab.contactTel||'')}"></div>
+        <div class="esp-title" style="font-size:14px;">Mes photos (${(etab.photos||[]).length}/10)</div>
+        <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
+        <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
+          ${(etab.photos||[]).map((u,i) => `
+            <div class="esp-etab-photo-thumb">
+              <img src="${escapeHtml(u)}" alt="Photo établissement">
+              <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">✕</span>
+            </div>
+          `).join('')}
         </div>
-        <div class="esp-field" style="margin-bottom:10px;"><label>Site web</label><input type="url" id="esp-etab-extra-site-web" value="${escapeHtml(etab.siteWeb||'')}" placeholder="https://..."></div>
-        <button class="esp-btn esp-btn-primary" onclick="espEtabSaveContactExtras()">Enregistrer</button>
-        <div id="esp-etab-extras-msg"></div>
-        <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:16px;">
-          <div class="esp-title" style="font-size:14px;">Mes photos (${(etab.photos||[]).length}/10)</div>
-          <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
-          <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
-            ${(etab.photos||[]).map((u,i) => `
-              <div class="esp-etab-photo-thumb">
-                <img src="${escapeHtml(u)}" alt="Photo établissement">
-                <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">✕</span>
-              </div>
-            `).join('')}
-          </div>
-          ${(etab.photos||[]).length < 10 ? `<input type="file" id="esp-etab-photos-dash-input" accept="image/*" multiple onchange="espEtabDashboardPhotosChange(this)">` : `<p class="esp-sub">Maximum de 10 photos atteint.</p>`}
-          <div id="esp-etab-photos-dash-msg"></div>
-        </div>
+        ${(etab.photos||[]).length < 10 ? `<input type="file" id="esp-etab-photos-dash-input" accept="image/*" multiple onchange="espEtabDashboardPhotosChange(this)">` : `<p class="esp-sub">Maximum de 10 photos atteint.</p>`}
+        <div id="esp-etab-photos-dash-msg"></div>
       `}
     </div>
 
@@ -481,6 +526,7 @@ async function espEtabSaveInfo(){
   const nom = document.getElementById('esp-etab-edit-nom').value.trim();
   const type = document.getElementById('esp-etab-edit-type').value;
   const responsable = document.getElementById('esp-etab-edit-resp').value.trim();
+  const contactTel = document.getElementById('esp-etab-edit-resp-tel').value.trim();
   const tel = document.getElementById('esp-etab-edit-tel').value.trim();
   const email = document.getElementById('esp-etab-edit-email').value.trim();
   if(!nom || !email){
@@ -489,13 +535,9 @@ async function espEtabSaveInfo(){
   }
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
   try {
-    const ok = await espEtabUpdateInfoRPC(session.id, session.password, nom, type, responsable, tel, email);
+    const ok = await espEtabUpdateInfoRPC(session.id, session.password, nom, type, responsable, tel, email, contactTel);
     if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
-    const db = espDB();
-    const etab = db.etablissements.find(e => e.id === session.id);
-    if(etab){ etab.nom = nom; etab.type = type; etab.responsable = responsable; etab.tel = tel; etab.email = email; }
-    espSaveDB(db);
-    espRenderEtabDashboard();
+    await espEtabRefreshOwnAndDashboard();
   } catch(e){
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
@@ -505,18 +547,14 @@ async function espEtabSaveInfo(){
 async function espEtabSaveContactExtras(){
   const session = espSession();
   const msgEl = document.getElementById('esp-etab-extras-msg');
-  const contactEmail = document.getElementById('esp-etab-extra-contact-email').value.trim();
-  const contactTel = document.getElementById('esp-etab-extra-contact-tel').value.trim();
+  const tel2 = document.getElementById('esp-etab-extra-tel2').value.trim();
+  const tel3 = document.getElementById('esp-etab-extra-tel3').value.trim();
   const siteWeb = document.getElementById('esp-etab-extra-site-web').value.trim();
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
   try {
-    const ok = await espEtabUpdateContactExtrasRPC(session.id, session.password, contactEmail, contactTel, siteWeb);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Échec de l\'enregistrement (Premium requis, ou session expirée).</p>'; return; }
-    const db = espDB();
-    const etab = db.etablissements.find(e => e.id === session.id);
-    if(etab){ etab.contactEmail = contactEmail; etab.contactTel = contactTel; etab.siteWeb = siteWeb; }
-    espSaveDB(db);
-    espRenderEtabDashboard();
+    const ok = await espEtabUpdateContactExtrasRPC(session.id, session.password, tel2, tel3, siteWeb);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    await espEtabRefreshOwnAndDashboard();
   } catch(e){
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
@@ -542,8 +580,7 @@ async function espEtabAddFiliereDashboard(){
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
-  try { await espLoadFromSupabase(); } catch(e){}
-  espRenderEtabDashboard();
+  await espEtabRefreshOwnAndDashboard();
 }
 
 // ---------------- Suppression d'une filière déjà ajoutée ----------------
@@ -557,8 +594,7 @@ async function espEtabDeleteFiliereDashboard(filiereId){
     alert('Erreur : ' + e.message);
     return;
   }
-  try { await espLoadFromSupabase(); } catch(e){}
-  espRenderEtabDashboard();
+  await espEtabRefreshOwnAndDashboard();
 }
 
 // ---------------- Demande d'activation du mode Premium ----------------
@@ -573,20 +609,14 @@ async function espEtabDemanderPremium(){
     if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
-  const db = espDB();
-  const etab = db.etablissements.find(e => e.id === session.id);
-  if(etab){ etab.demandePremium = true; etab.demandePremiumDate = espDate(); }
-  espSaveDB(db);
-  espRenderEtabDashboard();
+  await espEtabRefreshOwnAndDashboard();
 }
 
 // ---------------- Photos (modifiables après inscription) ----------------
 async function espEtabDashboardPhotosChange(input){
   const session = espSession();
-  const db = espDB();
-  const etab = db.etablissements.find(e => e.id === session.id);
-  if(!etab) return;
-  const current = etab.photos || [];
+  if(!_espEtabOwn) return;
+  const current = _espEtabOwn.photos || [];
   const files = Array.from(input.files || []);
   const remaining = 10 - current.length;
   if(remaining <= 0){ input.value = ''; return; }
@@ -602,26 +632,20 @@ async function espEtabDashboardPhotosChange(input){
   try {
     const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
     if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
-    etab.photos = updated;
-    espSaveDB(db);
-    espRenderEtabDashboard();
+    await espEtabRefreshOwnAndDashboard();
   } catch(e){
     if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
 async function espEtabRemovePhoto(idx){
   const session = espSession();
-  const db = espDB();
-  const etab = db.etablissements.find(e => e.id === session.id);
-  if(!etab) return;
-  const updated = (etab.photos || []).slice();
+  if(!_espEtabOwn) return;
+  const updated = (_espEtabOwn.photos || []).slice();
   updated.splice(idx, 1);
   try {
     const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
     if(!ok) return;
-    etab.photos = updated;
-    espSaveDB(db);
-    espRenderEtabDashboard();
+    await espEtabRefreshOwnAndDashboard();
   } catch(e){}
 }
 
@@ -656,11 +680,7 @@ async function espEtabSaveLocalisation(){
   try {
     const ok = await espEtabUpdateLocalisationRPC(session.id, session.password, region, ville, quartier);
     if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
-    const db = espDB();
-    const etab = db.etablissements.find(e => e.id === session.id);
-    if(etab){ etab.region = region; etab.ville = ville; etab.quartier = quartier; }
-    espSaveDB(db);
-    espRenderEtabDashboard();
+    await espEtabRefreshOwnAndDashboard();
   } catch(e){
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }

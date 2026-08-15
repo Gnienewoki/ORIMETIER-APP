@@ -21,8 +21,9 @@ function espEtabNomCellHtml(e){
 // complété par le contact direct de l'établissement si Premium et renseigné.
 function espEtabContactCellHtml(e){
   const base = [e.tel, e.email].filter(Boolean).join(' · ') || '—';
-  if(!e.premium || (!e.contactEmail && !e.contactTel)) return escapeHtml(base);
-  const direct = [e.contactTel, e.contactEmail].filter(Boolean).join(' · ');
+  if(!e.premium) return escapeHtml(base);
+  const direct = [e.tel2, e.tel3, e.siteWeb].filter(Boolean).join(' · ');
+  if(!direct) return escapeHtml(base);
   return `${escapeHtml(base)}<br><span class="esp-badge valide" style="margin-top:2px;">Contact direct</span> ${escapeHtml(direct)}`;
 }
 // Fiche détaillée dans la fenêtre modale générique (cf. modal.js). Nécessite le markup
@@ -58,8 +59,10 @@ function espOpenEtabDetailModal(etabId){
     </div>
   ` : '';
   const contactLines = [];
-  if(e.premium && e.contactEmail) contactLines.push(`✉️ <a href="mailto:${escapeHtml(e.contactEmail)}">${escapeHtml(e.contactEmail)}</a>`);
-  if(e.premium && e.contactTel) contactLines.push(`📞 <a href="tel:${escapeHtml(e.contactTel)}">${escapeHtml(e.contactTel)}</a>`);
+  if(e.premium && e.email) contactLines.push(`✉️ <a href="mailto:${escapeHtml(e.email)}">${escapeHtml(e.email)}</a>`);
+  if(e.premium && e.tel) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel)}">${escapeHtml(e.tel)}</a>`);
+  if(e.premium && e.tel2) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel2)}">${escapeHtml(e.tel2)}</a>`);
+  if(e.premium && e.tel3) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel3)}">${escapeHtml(e.tel3)}</a>`);
   if(e.premium && e.siteWeb) contactLines.push(`🌐 <a href="${escapeHtml(e.siteWeb)}" target="_blank" rel="noopener">${escapeHtml(e.siteWeb)}</a>`);
   const contactHtml = contactLines.length ? `<p class="esp-sub" style="line-height:1.9;">${contactLines.join('<br>')}</p>` : '';
 
