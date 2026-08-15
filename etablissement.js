@@ -60,6 +60,11 @@ function espRenderEtabAuth(mode){
           <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-tel"></div>
           <div class="esp-field"><label>E-mail</label><input type="email" id="esp-etab-email2"></div>
         </div>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Téléphone 2</label><input type="tel" id="esp-etab-tel2" placeholder="Optionnel"></div>
+          <div class="esp-field"><label>Téléphone 3</label><input type="tel" id="esp-etab-tel3" placeholder="Optionnel"></div>
+        </div>
+        <div class="esp-field"><label>Site web</label><input type="text" id="esp-etab-siteweb" placeholder="Optionnel"></div>
         <div class="esp-field" style="margin-bottom:14px;"><label>Mot de passe</label><input type="password" id="esp-etab-pass2"></div>
         <div class="esp-field" style="margin-bottom:8px;">
           <label>Filières proposées (jusqu'à 10, avec diplôme préparé)</label>
@@ -203,6 +208,9 @@ async function espEtabRegister(){
   const type = typeParCategorie[categorie] || '';
   const responsable = document.getElementById('esp-etab-resp').value.trim();
   const tel = document.getElementById('esp-etab-tel').value.trim();
+  const tel2 = document.getElementById('esp-etab-tel2').value.trim();
+  const tel3 = document.getElementById('esp-etab-tel3').value.trim();
+  const siteWeb = document.getElementById('esp-etab-siteweb').value.trim();
   const email = document.getElementById('esp-etab-email2').value.trim();
   const pass = document.getElementById('esp-etab-pass2').value;
   if(!nom || !ville || !email || !pass){
@@ -223,7 +231,7 @@ async function espEtabRegister(){
     }
   });
   const id = espUid();
-  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), categorie, sousCategorie, secteur };
+  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, tel, tel2, tel3, siteWeb, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), categorie, sousCategorie, secteur };
   try {
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
@@ -268,6 +276,13 @@ function espRenderEtabClaim(){
       <div id="esp-etab-claim-error"></div>
       <div class="esp-field" style="margin-bottom:12px;"><label>Code de récupération</label><input type="text" id="esp-etab-claim-code" placeholder="Ex : A7K9QPX2" style="text-transform:uppercase;"></div>
       <div class="esp-field" style="margin-bottom:12px;"><label>E-mail de l'établissement</label><input type="email" id="esp-etab-claim-email" placeholder="contact@etablissement.ci"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Nom du responsable</label><input type="text" id="esp-etab-claim-resp" placeholder="Optionnel si déjà renseigné par l'administration"></div>
+      <div class="esp-field-row" style="margin-bottom:12px;">
+        <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-claim-tel" placeholder="Optionnel"></div>
+        <div class="esp-field"><label>Téléphone 2</label><input type="tel" id="esp-etab-claim-tel2" placeholder="Optionnel"></div>
+      </div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Téléphone 3</label><input type="tel" id="esp-etab-claim-tel3" placeholder="Optionnel"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Site web</label><input type="text" id="esp-etab-claim-siteweb" placeholder="Optionnel"></div>
       <div class="esp-field" style="margin-bottom:8px;"><label>Choisir un mot de passe</label><input type="password" id="esp-etab-claim-pass"></div>
       <div class="esp-field" style="margin-bottom:14px;"><label>Confirmer le mot de passe</label><input type="password" id="esp-etab-claim-pass2" onkeydown="if(event.key==='Enter')espEtabClaim()"></div>
       <button class="esp-btn esp-btn-primary" onclick="espEtabClaim()">Récupérer mon compte</button>
@@ -277,6 +292,11 @@ function espRenderEtabClaim(){
 async function espEtabClaim(){
   const code = document.getElementById('esp-etab-claim-code').value.trim().toUpperCase();
   const email = document.getElementById('esp-etab-claim-email').value.trim();
+  const responsable = document.getElementById('esp-etab-claim-resp').value.trim();
+  const tel = document.getElementById('esp-etab-claim-tel').value.trim();
+  const tel2 = document.getElementById('esp-etab-claim-tel2').value.trim();
+  const tel3 = document.getElementById('esp-etab-claim-tel3').value.trim();
+  const siteWeb = document.getElementById('esp-etab-claim-siteweb').value.trim();
   const pass = document.getElementById('esp-etab-claim-pass').value;
   const pass2 = document.getElementById('esp-etab-claim-pass2').value;
   const errEl = document.getElementById('esp-etab-claim-error');
@@ -290,7 +310,7 @@ async function espEtabClaim(){
   }
   let ok;
   try {
-    ok = await espEtabClaimRPC(code, email, pass);
+    ok = await espEtabClaimRPC(code, email, pass, responsable, tel, tel2, tel3, siteWeb);
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;

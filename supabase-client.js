@@ -26,8 +26,11 @@ function espRowToEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, class
 function espEleveToRow(e){ return { id:e.id, nom:e.nom, prenoms:e.prenoms, classe:e.classe, etablissement:e.etablissement, tel:e.tel, email:e.email, password:e.password, riasec:e.riasec, active:!!e.active, date_inscription:e.dateInscription, banni:!!e.banni }; }
 function espRowToInspecteur(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, fonction:r.fonction, cio:r.cio, tel:r.tel, email:r.email, password:r.password, active:r.active, dateInscription:r.date_inscription, certifie:!!r.certifie, banni:!!r.banni, avatarUrl:r.avatar_url||null, certificationDemandee:!!r.certification_demandee, messageAccueil:r.message_accueil||'' }; }
 function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, fonction:i.fonction, cio:i.cio, tel:i.tel, email:i.email, password:i.password, active:!!i.active, date_inscription:i.dateInscription }; }
-function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable, tel:r.tel, email:r.email, password:r.password, statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, contactEmail:r.contact_email||'', contactTel:r.contact_tel||'', siteWeb:r.site_web||'', premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
-function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
+// responsable/contactTel : réservés (admin_list_etablissements_full / etablissement_get_own
+// uniquement) — absents des lignes renvoyées par list_etablissements() (publique), donc
+// undefined -> '' ici pour ces appels, ce qui est le comportement voulu.
+function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable||'', contactTel:r.contact_tel||'', tel:r.tel, tel2:r.tel2||'', tel3:r.tel3||'', email:r.email, siteWeb:r.site_web||'', statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
+function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
@@ -120,6 +123,7 @@ async function espInsertEtablissement(row){
     p_type: row.type, p_responsable: row.responsable, p_tel: row.tel, p_email: row.email, p_password: row.password,
     p_date_inscription: row.date_inscription, p_filieres_proposees: row.filieres_proposees, p_photos: row.photos || [],
     p_categorie: row.categorie || null, p_sous_categorie: row.sous_categorie || null, p_secteur: row.secteur || null,
+    p_tel2: row.tel2 || null, p_tel3: row.tel3 || null, p_site_web: row.site_web || null,
   });
   if(error){ throw error; }
   if(!data){ throw new Error("Inscription refusée (e-mail déjà utilisé, ou champ obligatoire manquant)."); }
@@ -144,8 +148,12 @@ async function espEtabLoginRPC(email, password){
 // Récupération d'un compte établissement pré-inscrit (import en masse) via le
 // code unique remis hors-plateforme. L'établissement choisit à ce moment-là
 // son propre e-mail et mot de passe.
-async function espEtabClaimRPC(code, email, password){
-  const { data, error } = await supabaseClient.rpc('etablissement_claim_by_code', { p_code: code, p_email: email, p_password: password });
+async function espEtabClaimRPC(code, email, password, responsable, tel, tel2, tel3, siteWeb){
+  const { data, error } = await supabaseClient.rpc('etablissement_claim_by_code', {
+    p_code: code, p_email: email, p_password: password,
+    p_responsable: responsable || null, p_tel: tel || null, p_tel2: tel2 || null, p_tel3: tel3 || null,
+    p_site_web: siteWeb || null,
+  });
   if(error) throw error;
   return !!data;
 }
@@ -398,6 +406,16 @@ async function espAdminValiderPremiumRPC(adminPassword, etabId){
   });
   if(error) throw error;
   return !!data;
+}
+// Version complète (responsable, contact_tel, email/tel non masqués) réservée à l'espace
+// admin : contrairement à list_etablissements() (publique, masquée), jamais mise dans le
+// cache partagé espDB() — consommée séparément par la vue "Établissements" de admin.js.
+async function espAdminListEtablissementsFullRPC(adminPassword){
+  const { data, error } = await supabaseClient.rpc('admin_list_etablissements_full', {
+    p_admin_password: adminPassword,
+  });
+  if(error) throw error;
+  return data || [];
 }
 
 // ---------------- Admin : suppression et classification d'un établissement ----------------
