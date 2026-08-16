@@ -31,7 +31,7 @@ async function espAdminLogin(){
   espSetSession('admin', null, pass);
   platformUnlock();
 }
-function espAdminLogout(){ _espAdminEtabFull = null; platformLogout(); }
+function espAdminLogout(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; platformLogout(); }
 
 function espExportBackup(){
   const db = espDB();
@@ -139,10 +139,12 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
           </table></div>
         ` : ''}</div>
       </div>
+      <div id="esp-admin-demandes-inscription">${_espAdminDemandesInscription !== null ? espAdminDemandesInscriptionHtml(_espAdminDemandesInscription) : ''}</div>
       <div id="esp-admin-demandes-premium">${_espAdminEtabFull !== null ? espAdminDemandesPremiumHtml(_espAdminEtabFull) : ''}</div>
       <div id="esp-admin-etab-section">${_espAdminEtabFull !== null ? espAdminEtabSectionHtml(_espAdminEtabFull) : '<p class="esp-empty">Chargement des établissements…</p>'}</div>
     `;
     if(_espAdminEtabFull === null) espAdminEnsureEtabFullLoaded();
+    if(_espAdminDemandesInscription === null) espAdminEnsureDemandesInscriptionLoaded();
   } else if(sub === 'inspecteurs'){
     subHtml = `
       <table class="esp-table">
@@ -268,6 +270,33 @@ async function espAdminEnsureEtabFullLoaded(){
 // avec des données fraîches (y compris responsable/tel/email) au prochain rendu.
 function espAdminInvalidateEtabFull(){
   _espAdminEtabFull = null;
+}
+
+// Demandes d'inscription en attente (table demandes_inscription_etablissements,
+// distincte de etablissements) : null = pas encore chargé, [] = chargé et vide.
+let _espAdminDemandesInscription = null;
+let _espAdminDemandesInscriptionLoading = false;
+
+async function espAdminEnsureDemandesInscriptionLoaded(){
+  if(_espAdminDemandesInscription !== null || _espAdminDemandesInscriptionLoading) return;
+  _espAdminDemandesInscriptionLoading = true;
+  const session = espSession();
+  let rows;
+  try {
+    rows = await espAdminListDemandesInscriptionRPC(session.password);
+  } catch(err){
+    _espAdminDemandesInscriptionLoading = false;
+    if(err && /unauthorized/i.test(err.message||'')){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+    alert("Erreur lors du chargement des demandes d'inscription : " + err.message);
+    return;
+  }
+  _espAdminDemandesInscription = rows;
+  _espAdminDemandesInscriptionLoading = false;
+  const container = document.getElementById('esp-admin-demandes-inscription');
+  if(container) container.innerHTML = espAdminDemandesInscriptionHtml(_espAdminDemandesInscription);
+}
+function espAdminInvalidateDemandesInscription(){
+  _espAdminDemandesInscription = null;
 }
 
 function espAdminEtabFilteredList(list){
@@ -538,6 +567,51 @@ function espAdminDemandesPremiumHtml(list){
     </div>
   `;
 }
+// ---------------- Demandes d'inscription en attente (formulaire direct, à examiner avant import) ----------------
+function espAdminDemandesInscriptionHtml(list){
+  const demandes = list || [];
+  if(!demandes.length) return '';
+  return `
+    <div class="esp-card" style="margin-bottom:18px;">
+      <div class="esp-title" style="font-size:16px;">📝 Demandes d'inscription en attente (${demandes.length})</div>
+      <p class="esp-sub">Vérifie chaque demande (doublons non détectés automatiquement : variantes d'orthographe, etc.), puis copie la ligne au format d'import et colle-la dans le champ d'import ci-dessus. "Marquer comme traité" ne crée aucun établissement — l'import reste à faire séparément.</p>
+      ${demandes.map(d => `
+        <div class="esp-note-item" style="border-left-color:var(--orange, #ff7a1a);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span><b>${escapeHtml(d.nom)}</b> — ${[d.ville, d.region].filter(Boolean).map(escapeHtml).join(' · ')}${d.quartier ? ` · ${escapeHtml(d.quartier)}` : ''} · ${d.secteur === 'prive' ? 'Privé' : d.secteur === 'public' ? 'Public' : escapeHtml(d.secteur||'')}${d.responsable ? ` · Responsable : ${escapeHtml(d.responsable)}` : ''}${d.tel ? ` · Tél : ${escapeHtml(d.tel)}` : ''}${d.email ? ` · E-mail : ${escapeHtml(d.email)}` : ''} <span class="esp-sub">(demande du ${escapeHtml(d.dateDemande||'')})</span></span>
+          <span style="display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;">
+            <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminCopierDemandeLigne('${d.id}')">📋 Copier (format import)</button>
+            <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;" onclick="espAdminMarquerDemandeTraitee('${d.id}')">✔ Marquer comme traité</button>
+          </span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+function espAdminCopierDemandeLigne(id){
+  const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
+  if(!d) return;
+  const ligne = [d.nom, d.region||'', d.ville, d.quartier||'', d.secteur||'', d.responsable||'', d.tel||''].join(';');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ligne)
+      .then(() => alert('Ligne copiée, colle-la dans le champ d\'import ci-dessus :\n\n' + ligne))
+      .catch(() => prompt('Copie cette ligne pour l\'importer :', ligne));
+  } else {
+    prompt('Copie cette ligne pour l\'importer :', ligne);
+  }
+}
+async function espAdminMarquerDemandeTraitee(id){
+  const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
+  if(!d) return;
+  if(!confirm(`Marquer la demande de "${d.nom}" comme traitée ? Cela ne crée aucun établissement — assure-toi d'avoir déjà fait l'import si besoin.`)) return;
+  const session = espSession();
+  let ok;
+  try { ok = await espAdminMarquerDemandeTraiteeRPC(session.password, id); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Session expirée, ou demande déjà traitée. Merci de te reconnecter si besoin."); return; }
+  espAdminInvalidateDemandesInscription();
+  espRenderAdminDashboard('etablissements');
+}
+
 async function espAdminValiderPremium(id){
   const session = espSession();
   const db = espDB();

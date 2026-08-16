@@ -130,9 +130,35 @@ async function espInsertEtablissement(row){
   if(!data){ throw new Error("Inscription refusée (e-mail déjà utilisé, ou champ obligatoire manquant)."); }
 }
 // Vérification en temps réel (non bloquante) : un établissement existe-t-il déjà avec ce nom ?
-// Comparaison insensible à la casse et aux espaces, faite côté serveur (lower(trim(nom))).
+// Comparaison insensible à la casse et aux espaces, faite côté serveur (lower(trim(nom))),
+// contre etablissements ET les demandes d'inscription en attente.
 async function espEtabVerifierDoublonRPC(nom){
   const { data, error } = await supabaseClient.rpc('etablissement_verifier_doublon', { p_nom: nom });
+  if(error) throw error;
+  return !!data;
+}
+
+// ---------------- Demandes d'inscription en attente (admin) ----------------
+// Les inscriptions directes n'insèrent plus dans etablissements : elles créent une
+// demande que l'admin examine (doublons non détectés automatiquement) avant de
+// l'importer lui-même via le circuit d'import en masse existant.
+function espRowToDemandeInscription(r){
+  return {
+    id: r.id, nom: r.nom, region: r.region||'', ville: r.ville, quartier: r.quartier||'', type: r.type,
+    responsable: r.responsable||'', tel: r.tel||'', tel2: r.tel2||'', tel3: r.tel3||'', email: r.email,
+    siteWeb: r.site_web||'', contactTel: r.contact_tel||'', dateInscription: r.date_inscription,
+    filieresProposees: r.filieres_proposees||[], photos: r.photos||[],
+    categorie: r.categorie||'', sousCategorie: r.sous_categorie||'', secteur: r.secteur||'',
+    dateDemande: r.date_demande, statutDemande: r.statut_demande,
+  };
+}
+async function espAdminListDemandesInscriptionRPC(password){
+  const { data, error } = await supabaseClient.rpc('admin_list_demandes_inscription_etablissements', { p_admin_password: password });
+  if(error) throw error;
+  return (data || []).map(espRowToDemandeInscription);
+}
+async function espAdminMarquerDemandeTraiteeRPC(password, demandeId){
+  const { data, error } = await supabaseClient.rpc('admin_marquer_demande_traitee', { p_admin_password: password, p_demande_id: demandeId });
   if(error) throw error;
   return !!data;
 }
