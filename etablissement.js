@@ -278,10 +278,16 @@ async function espEtabRegister(){
     document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + escapeHtml(texte) + '</p>';
     return;
   }
-  db.etablissements.push(nouvelEtab);
-  espSaveDB(db);
-  espSetSession('etablissement', id, pass);
-  platformUnlock();
+  espEtabRegisterShowConfirmation();
+}
+function espEtabRegisterShowConfirmation(){
+  document.getElementById('esp-etablissement').innerHTML = `
+    <div class="esp-card" style="max-width:560px;margin:0 auto;">
+      <div class="esp-title">🏫 Espace Établissement</div>
+      <p class="esp-success">✅ Votre demande d'inscription a bien été enregistrée. Elle sera examinée par l'administrateur avant publication dans le catalogue. Vous recevrez vos codes de connexion une fois votre établissement validé.</p>
+      <button class="esp-btn esp-btn-primary" onclick="espBackToRoleSelect()">Retour à l'accueil</button>
+    </div>
+  `;
 }
 async function espEtabLogin(){
   const email = document.getElementById('esp-etab-email').value.trim();
