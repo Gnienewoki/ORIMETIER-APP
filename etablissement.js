@@ -15,7 +15,11 @@ function espRenderEtabAuth(mode){
         <p style="margin-top:6px;font-size:13px;">Votre établissement a reçu un code de récupération ? <span class="esp-toggle-link" onclick="espRenderEtabClaim()">Récupérer mon compte</span></p>
       ` : `
         <div class="esp-field-row">
-          <div class="esp-field"><label>Nom de l'établissement</label><input type="text" id="esp-etab-nom"></div>
+          <div class="esp-field">
+            <label>Nom de l'établissement</label>
+            <input type="text" id="esp-etab-nom">
+            <div id="esp-etab-nom-doublon-warning" class="esp-etab-doublon-warning" style="display:none;"></div>
+          </div>
           <div class="esp-field"><label>Catégorie d'enseignement</label>
             <select id="esp-etab-categorie" onchange="espEtabToggleSousCategorie()">
               <option value="technique">Enseignement technique et formation professionnelle</option>
@@ -89,6 +93,14 @@ function espRenderEtabAuth(mode){
   if(!isLogin){
     _espEtabFiliereRowCount = 0;
     _espEtabRegisterPhotos = [];
+    clearTimeout(_espEtabNomDoublonTimer);
+    const nomInput = document.getElementById('esp-etab-nom');
+    if(nomInput){
+      nomInput.addEventListener('input', espEtabNomDoublonCheck);
+      console.log('[esp-etab] listener doublon attaché sur #esp-etab-nom');
+    } else {
+      console.error('[esp-etab] #esp-etab-nom introuvable au moment de l\'attachement du listener');
+    }
     document.getElementById('esp-etab-filieres-rows').innerHTML = '';
     espEtabAddFiliereRow();
     espEtabAddFiliereRow();
@@ -96,6 +108,30 @@ function espRenderEtabAuth(mode){
     espEtabUpdateVilleOptions();
     espEtabToggleSousCategorie();
   }
+}
+
+// ---------------- Vérification de doublon en temps réel (avertissement non bloquant) ----------------
+let _espEtabNomDoublonTimer = null;
+function espEtabNomDoublonCheck(){
+  clearTimeout(_espEtabNomDoublonTimer);
+  const warnEl = document.getElementById('esp-etab-nom-doublon-warning');
+  const input = document.getElementById('esp-etab-nom');
+  if(!warnEl || !input) return;
+  const nom = input.value.trim();
+  if(!nom){ warnEl.style.display = 'none'; warnEl.textContent = ''; return; }
+  _espEtabNomDoublonTimer = setTimeout(async () => {
+    let doublon = false;
+    try { doublon = await espEtabVerifierDoublonRPC(nom); } catch(e){ console.error('espEtabNomDoublonCheck:', e); return; }
+    // Le nom a pu changer pendant l'appel réseau : on ignore une réponse devenue obsolète.
+    if(document.getElementById('esp-etab-nom').value.trim() !== nom) return;
+    if(doublon){
+      warnEl.textContent = "⚠️ Établissement déjà préinscrit, contacter le support pour récupérer vos codes de connexion. Tél : 07 87 63 34 81 - Email : gnienewoki@gmail.com";
+      warnEl.style.display = '';
+    } else {
+      warnEl.style.display = 'none';
+      warnEl.textContent = '';
+    }
+  }, 500);
 }
 
 // ---------------- Catégorie / Sous-catégorie (Sous-catégorie visible seulement si Enseignement supérieur) ----------------
@@ -237,7 +273,9 @@ async function espEtabRegister(){
   try {
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
-    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">Erreur lors de l\'inscription : ' + escapeHtml(e.message) + '</p>';
+    const msg = (e.message || '').trim();
+    const texte = msg.startsWith('DOUBLON:') ? msg.slice('DOUBLON:'.length).trim() : "Erreur lors de l'inscription : " + msg;
+    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + escapeHtml(texte) + '</p>';
     return;
   }
   db.etablissements.push(nouvelEtab);

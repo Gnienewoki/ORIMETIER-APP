@@ -129,6 +129,13 @@ async function espInsertEtablissement(row){
   if(error){ throw error; }
   if(!data){ throw new Error("Inscription refusée (e-mail déjà utilisé, ou champ obligatoire manquant)."); }
 }
+// Vérification en temps réel (non bloquante) : un établissement existe-t-il déjà avec ce nom ?
+// Comparaison insensible à la casse et aux espaces, faite côté serveur (lower(trim(nom))).
+async function espEtabVerifierDoublonRPC(nom){
+  const { data, error } = await supabaseClient.rpc('etablissement_verifier_doublon', { p_nom: nom });
+  if(error) throw error;
+  return !!data;
+}
 
 // ---------------- Connexion (vérifiée côté serveur, mot de passe jamais renvoyé) ----------------
 async function espEleveLoginRPC(tel, password){

@@ -544,6 +544,7 @@
   .esp-toggle-link{color:var(--orange-dark);cursor:pointer;font-weight:700;font-size:13px;}
   .esp-toggle-link:hover{text-decoration:underline;}
   .esp-error{color:#c0392b;font-size:13px;margin:4px 0 10px;font-weight:600;}
+  .esp-etab-doublon-warning{color:var(--orange-dark);font-size:12.5px;margin-top:4px;font-weight:600;}
   .esp-success{color:var(--green-dark);font-size:13px;margin:4px 0 10px;font-weight:600;}
   .esp-badge{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;text-transform:uppercase;letter-spacing:.03em;}
   .esp-badge.en_attente{background:#FDF1E1;color:#B5651D;}
