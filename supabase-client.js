@@ -36,24 +36,49 @@ function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
 function espRowToPrivateMessage(r){ return { id:r.id, expediteurId:r.expediteur_id, destinataireId:r.destinataire_id, texte:r.texte, date:r.date, lu:!!r.lu, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
 
+// ---------------- Pagination des RPC de listage (list_eleves / list_inspecteurs / list_etablissements) ----------------
+// PostgREST applique un plafond de lignes par requête (réglage "Max Rows" du projet
+// Supabase, ou LIMIT en base) — invisible dans ce fichier, et jamais garanti stable dans
+// le temps. Un simple .rpc(nom) tronque donc silencieusement le résultat dès que la table
+// dépasse ce plafond (constaté à 200 lignes sur etablissements le 2026-08-17, cause du
+// filtre Ville de general.html qui ne remontait que les établissements les plus anciens).
+// On récupère par lots de 1000 via .range(), triés par id pour une pagination stable
+// (sans ORDER BY, Postgres ne garantit pas le même ordre entre deux requêtes séparées),
+// jusqu'à ce qu'un lot renvoie moins que la taille demandée (dernier lot) — évite une
+// requête de plus pour rien quand la table tient déjà dans un seul lot.
+const ESP_PAGE_SIZE = 1000;
+async function espFetchAllRows(rpcName){
+  let all = [];
+  let from = 0;
+  while(true){
+    const { data, error } = await supabaseClient.rpc(rpcName).order('id', { ascending: true }).range(from, from + ESP_PAGE_SIZE - 1);
+    if(error) throw error;
+    const rows = data || [];
+    all = all.concat(rows);
+    if(rows.length < ESP_PAGE_SIZE) break;
+    from += ESP_PAGE_SIZE;
+  }
+  return all;
+}
+
 // ---------------- Chargement initial depuis Supabase (jamais les mots de passe) ----------------
 async function espLoadFromSupabase(){
   // eleves/inspecteurs/etablissements n'accordent pas de SELECT direct à la clé
   // publique (pas de grant anon) : on passe par des fonctions RPC dédiées qui ne
   // renvoient jamais la colonne "password", plutôt que par une lecture de table.
-  const [elevesRes, inspecteursRes, etabRes, notesRes, messagesRes] = await Promise.all([
-    supabaseClient.rpc('list_eleves'),
-    supabaseClient.rpc('list_inspecteurs'),
-    supabaseClient.rpc('list_etablissements'),
+  const [elevesRows, inspecteursRows, etabRows, notesRes, messagesRes] = await Promise.all([
+    espFetchAllRows('list_eleves'),
+    espFetchAllRows('list_inspecteurs'),
+    espFetchAllRows('list_etablissements'),
     supabaseClient.from('notes').select('*'),
     supabaseClient.from('messages_inspecteurs').select('*').order('created_at', { ascending: true }),
   ]);
-  [elevesRes, inspecteursRes, etabRes, notesRes, messagesRes].forEach(r => { if(r.error) throw r.error; });
+  [notesRes, messagesRes].forEach(r => { if(r.error) throw r.error; });
 
   _espCache = {
-    eleves: (elevesRes.data||[]).map(espRowToEleve),
-    inspecteurs: (inspecteursRes.data||[]).map(espRowToInspecteur),
-    etablissements: (etabRes.data||[]).map(espRowToEtab),
+    eleves: elevesRows.map(espRowToEleve),
+    inspecteurs: inspecteursRows.map(espRowToInspecteur),
+    etablissements: etabRows.map(espRowToEtab),
     notes: (notesRes.data||[]).map(espRowToNote),
     messages: (messagesRes.data||[]).map(espRowToMessage),
   };
