@@ -3,7 +3,7 @@
 -- ============================================================
 -- Harmonise le formulaire d'inscription directe (établissement NON
 -- pré-inscrit) avec le formulaire de récupération de compte : ajoute
--- tel2, tel3 et site_web à etablissement_register().
+-- tel2, tel3, site_web et le téléphone du responsable (contact_tel) à etablissement_register().
 --
 -- ⚠️ La version actuellement en production de cette fonction (avec
 -- p_photos/p_categorie/p_sous_categorie/p_secteur) n'existe dans aucun
@@ -12,7 +12,7 @@
 -- de l'ancienne version connue (supabase-migration.sql) et des noms de
 -- colonnes utilisés par ailleurs (photos, categorie, sous_categorie,
 -- secteur, site_web). Vérifier la définition réelle avant d'exécuter si
--- un doute existe. Les 3 nouveaux paramètres sont ajoutés en fin de
+-- un doute existe. Les 4 nouveaux paramètres sont ajoutés en fin de
 -- liste avec DEFAULT NULL : comme les appels RPC se font par paramètres
 -- nommés (PostgREST), les appels existants restent valides.
 -- ============================================================
@@ -22,7 +22,8 @@ CREATE OR REPLACE FUNCTION public.etablissement_register(
   p_responsable text, p_tel text, p_email text, p_password text, p_date_inscription text,
   p_filieres_proposees jsonb, p_photos jsonb DEFAULT '[]'::jsonb,
   p_categorie text DEFAULT NULL, p_sous_categorie text DEFAULT NULL, p_secteur text DEFAULT NULL,
-  p_tel2 text DEFAULT NULL, p_tel3 text DEFAULT NULL, p_site_web text DEFAULT NULL
+  p_tel2 text DEFAULT NULL, p_tel3 text DEFAULT NULL, p_site_web text DEFAULT NULL,
+  p_contact_tel text DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -37,10 +38,10 @@ begin
   if exists (select 1 from etablissements where email = p_email) then return false; end if;
 
   insert into etablissements(
-    id, nom, region, ville, quartier, type, responsable, tel, tel2, tel3, email, password,
+    id, nom, region, ville, quartier, type, responsable, tel, tel2, tel3, email, password, contact_tel,
     statut, active, date_inscription, filieres_proposees, photos, categorie, sous_categorie, secteur, site_web
   ) values (
-    p_id, p_nom, p_region, p_ville, p_quartier, p_type, p_responsable, p_tel, p_tel2, p_tel3, p_email, p_password,
+    p_id, p_nom, p_region, p_ville, p_quartier, p_type, p_responsable, p_tel, p_tel2, p_tel3, p_email, p_password, p_contact_tel,
     'en_attente', true, p_date_inscription, coalesce(p_filieres_proposees, '[]'::jsonb), coalesce(p_photos, '[]'::jsonb),
     p_categorie, p_sous_categorie, p_secteur, p_site_web
   );

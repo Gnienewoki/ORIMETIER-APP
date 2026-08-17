@@ -7,9 +7,10 @@
 --   - le nom du responsable (p_responsable)
 --   - ses numéros de contact public (p_tel, p_tel2, p_tel3)
 --   - son site web (p_site_web)
+--   - le téléphone du responsable, réservé à l'administration (p_contact_tel)
 -- Toute la logique de vérification existante (code à usage unique, e-mail
 -- déjà utilisé par un autre établissement) est conservée strictement à
--- l'identique. Les 5 nouveaux paramètres sont optionnels (DEFAULT NULL) :
+-- l'identique. Les 6 nouveaux paramètres sont optionnels (DEFAULT NULL) :
 -- les appels existants à 3 arguments (p_code, p_email, p_password) restent
 -- valides sans changement. Un champ laissé vide ne remplace pas une valeur
 -- déjà en base (utile si l'admin a déjà renseigné responsable/tel lors de la
@@ -19,7 +20,7 @@
 CREATE OR REPLACE FUNCTION public.etablissement_claim_by_code(
   p_code text, p_email text, p_password text,
   p_responsable text DEFAULT NULL, p_tel text DEFAULT NULL, p_tel2 text DEFAULT NULL, p_tel3 text DEFAULT NULL,
-  p_site_web text DEFAULT NULL
+  p_site_web text DEFAULT NULL, p_contact_tel text DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -44,7 +45,8 @@ begin
         tel = coalesce(nullif(trim(p_tel), ''), tel),
         tel2 = coalesce(nullif(trim(p_tel2), ''), tel2),
         tel3 = coalesce(nullif(trim(p_tel3), ''), tel3),
-        site_web = coalesce(nullif(trim(p_site_web), ''), site_web)
+        site_web = coalesce(nullif(trim(p_site_web), ''), site_web),
+        contact_tel = coalesce(nullif(trim(p_contact_tel), ''), contact_tel)
     where id = v_etab.id;
   return true;
 end;
