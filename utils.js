@@ -7,6 +7,21 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ---------------- Filières Enseignement Général : Cycle -> Diplôme (listes fermées + "Autre") ----------------
+// Valeurs prédéfinies uniquement : un "Autre" saisi en texte libre est stocké (nom/diplôme
+// de la filière restent des colonnes texte libres, cf. etablissement_add_filiere) mais ne
+// figure dans aucune de ces deux listes, donc n'apparaît jamais comme option de filtre
+// public (seules les valeurs prédéfinies ci-dessous sont proposées dans les filtres).
+const ESP_GENERAL_AUTRE = '__autre__';
+const ESP_GENERAL_CYCLES = ['1er cycle', '2nd cycle'];
+const ESP_GENERAL_DIPLOMES_PAR_CYCLE = {
+  '1er cycle': ['BEPC'],
+  '2nd cycle': ['BAC A1', 'BAC A2', 'BAC D', 'BAC C'],
+};
+function espGeneralDiplomesPourCycle(cycle){
+  return ESP_GENERAL_DIPLOMES_PAR_CYCLE[cycle] || [];
+}
+
 // ---------------- Établissement Premium : contact direct, site web, photos (visibles publiquement) ----------------
 // Ces informations ne sont visibles des visiteurs que si l'établissement a le
 // Premium activé par l'admin (etab.premium === true) — cf. tableau de bord établissement.

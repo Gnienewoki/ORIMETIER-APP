@@ -119,9 +119,18 @@
           <datalist id="dl-general-public-ville"></datalist>
         </div>
         <div class="filter-box">
-          <label for="f-general-public-filiere">Filière</label>
-          <input id="f-general-public-filiere" type="text" placeholder="Ex : Série A, Série C..." list="dl-general-public-filiere">
-          <datalist id="dl-general-public-filiere"></datalist>
+          <label for="f-general-public-cycle">Cycle</label>
+          <select id="f-general-public-cycle">
+            <option value="">Tous</option>
+            <option value="1er cycle">1er cycle</option>
+            <option value="2nd cycle">2nd cycle</option>
+          </select>
+        </div>
+        <div class="filter-box">
+          <label for="f-general-public-diplome">Diplôme</label>
+          <select id="f-general-public-diplome">
+            <option value="">Tous</option>
+          </select>
         </div>
       </div>
       <div class="meta">
@@ -130,7 +139,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
+            <tr><th>Établissement</th><th>Ville</th><th>Cycle</th><th>Diplôme</th><th>Contact établissement</th></tr>
           </thead>
           <tbody id="general-public-results"></tbody>
         </table>
@@ -147,9 +156,18 @@
           <datalist id="dl-general-prive-ville"></datalist>
         </div>
         <div class="filter-box">
-          <label for="f-general-prive-filiere">Filière</label>
-          <input id="f-general-prive-filiere" type="text" placeholder="Ex : Série A, Série C..." list="dl-general-prive-filiere">
-          <datalist id="dl-general-prive-filiere"></datalist>
+          <label for="f-general-prive-cycle">Cycle</label>
+          <select id="f-general-prive-cycle">
+            <option value="">Tous</option>
+            <option value="1er cycle">1er cycle</option>
+            <option value="2nd cycle">2nd cycle</option>
+          </select>
+        </div>
+        <div class="filter-box">
+          <label for="f-general-prive-diplome">Diplôme</label>
+          <select id="f-general-prive-diplome">
+            <option value="">Tous</option>
+          </select>
         </div>
       </div>
       <div class="meta">
@@ -158,7 +176,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
+            <tr><th>Établissement</th><th>Ville</th><th>Cycle</th><th>Diplôme</th><th>Contact établissement</th></tr>
           </thead>
           <tbody id="general-prive-results"></tbody>
         </table>

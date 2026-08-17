@@ -8,6 +8,10 @@ function espEtabGeneral(secteur){
   return (db.etablissements || []).filter(e => e.categorie === 'general' && e.secteur === secteur && e.statut === 'valide');
 }
 
+// Chaque filière stocke son Cycle dans "nom" et son Diplôme dans "diplome" (cf.
+// etablissement.js, saisie via menus déroulants Cycle -> Diplôme + "Autre" texte libre).
+// Un "Autre" personnalisé reste affiché ici (l'établissement l'a bien renseigné) mais ne
+// pourra jamais correspondre à un filtre Cycle/Diplôme (listes fermées, cf. utils.js).
 function espGeneralRows(secteur){
   const rows = [];
   espEtabGeneral(secteur).forEach(e => {
@@ -15,10 +19,10 @@ function espGeneralRows(secteur){
     const nom = espEtabNomCellHtml(e);
     const filieres = e.filieresProposees || [];
     if(!filieres.length){
-      rows.push({ nom, ville: e.ville, filiere: '—', contact });
+      rows.push({ nom, ville: e.ville, cycle: '—', diplome: '—', contact });
     } else {
       filieres.forEach(f => {
-        rows.push({ nom, ville: e.ville, filiere: f.diplome ? `${f.nom} (${f.diplome})` : f.nom, contact });
+        rows.push({ nom, ville: e.ville, cycle: f.nom || '—', diplome: f.diplome || '—', contact });
       });
     }
   });
@@ -33,6 +37,18 @@ function espFillGeneralDatalist(id, values){
   dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
+// ---------------- Filtre Diplôme dépendant du Cycle choisi (listes fermées, cf. utils.js) ----------------
+function espGeneralFilterCycleChange(secteur){
+  const prefix = 'general-' + secteur;
+  const cycleSelect = document.getElementById('f-' + prefix + '-cycle');
+  const diplomeSelect = document.getElementById('f-' + prefix + '-diplome');
+  if(!cycleSelect || !diplomeSelect) return;
+  const diplomes = espGeneralDiplomesPourCycle(cycleSelect.value);
+  diplomeSelect.innerHTML = '<option value="">Tous</option>'
+    + diplomes.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+  renderGeneralTable(secteur);
+}
+
 // ---------------- Rendu d'un des deux tableaux (public ou privé) ----------------
 function renderGeneralTable(secteur){
   const prefix = 'general-' + secteur;
@@ -41,30 +57,32 @@ function renderGeneralTable(secteur){
   const emptyEl = document.getElementById(prefix + '-empty-msg');
   if(!tbody) return;
 
-  // Suggestions à jour à chaque rendu (les établissements inscrits peuvent évoluer)
+  // Suggestions de ville à jour à chaque rendu (les établissements inscrits peuvent évoluer)
   const allForSector = espEtabGeneral(secteur);
   espFillGeneralDatalist('dl-' + prefix + '-ville', allForSector.map(e => e.ville));
-  const allFilieres = [];
-  allForSector.forEach(e => (e.filieresProposees||[]).forEach(f => allFilieres.push(f.nom)));
-  espFillGeneralDatalist('dl-' + prefix + '-filiere', allFilieres);
 
   const villeInput = document.getElementById('f-' + prefix + '-ville');
-  const filiereInput = document.getElementById('f-' + prefix + '-filiere');
+  const cycleSelect = document.getElementById('f-' + prefix + '-cycle');
+  const diplomeSelect = document.getElementById('f-' + prefix + '-diplome');
   const qVille = (villeInput ? villeInput.value : '').trim();
-  const qFiliere = (filiereInput ? filiereInput.value : '').trim();
+  const qCycle = cycleSelect ? cycleSelect.value : '';
+  const qDiplome = diplomeSelect ? diplomeSelect.value : '';
   const nVille = normalize(qVille);
-  const nFiliere = normalize(qFiliere);
 
+  // Comparaison exacte sur Cycle/Diplôme (listes fermées) : un "Autre" personnalisé ne
+  // correspond jamais à ces valeurs prédéfinies et n'apparaît donc que quand aucun filtre
+  // Cycle/Diplôme n'est actif, jamais comme résultat d'un filtre.
   const rows = espGeneralRows(secteur).filter(r =>
     (!nVille || normalize(r.ville||'').includes(nVille)) &&
-    (!nFiliere || normalize(r.filiere||'').includes(nFiliere))
+    (!qCycle || r.cycle === qCycle) &&
+    (!qDiplome || r.diplome === qDiplome)
   );
 
   tbody.innerHTML = '';
   const frag = document.createDocumentFragment();
   rows.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.nom}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${r.contact}</td>`;
+    tr.innerHTML = `<td>${r.nom}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.cycle)}</td><td>${escapeHtml(r.diplome)}</td><td>${r.contact}</td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
@@ -89,13 +107,17 @@ function espShowGeneralSubTab(tab){
 
 function initGeneral(){
   const searchPubVille = document.getElementById('f-general-public-ville');
-  const searchPubFiliere = document.getElementById('f-general-public-filiere');
+  const searchPubCycle = document.getElementById('f-general-public-cycle');
+  const searchPubDiplome = document.getElementById('f-general-public-diplome');
   const searchPrivVille = document.getElementById('f-general-prive-ville');
-  const searchPrivFiliere = document.getElementById('f-general-prive-filiere');
+  const searchPrivCycle = document.getElementById('f-general-prive-cycle');
+  const searchPrivDiplome = document.getElementById('f-general-prive-diplome');
   if(searchPubVille) searchPubVille.addEventListener('input', () => renderGeneralTable('public'));
-  if(searchPubFiliere) searchPubFiliere.addEventListener('input', () => renderGeneralTable('public'));
+  if(searchPubCycle) searchPubCycle.addEventListener('change', () => espGeneralFilterCycleChange('public'));
+  if(searchPubDiplome) searchPubDiplome.addEventListener('change', () => renderGeneralTable('public'));
   if(searchPrivVille) searchPrivVille.addEventListener('input', () => renderGeneralTable('prive'));
-  if(searchPrivFiliere) searchPrivFiliere.addEventListener('input', () => renderGeneralTable('prive'));
+  if(searchPrivCycle) searchPrivCycle.addEventListener('change', () => espGeneralFilterCycleChange('prive'));
+  if(searchPrivDiplome) searchPrivDiplome.addEventListener('change', () => renderGeneralTable('prive'));
 
   renderGeneralTable('public'); // onglet actif par défaut
 }

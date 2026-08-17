@@ -21,7 +21,7 @@ function espRenderEtabAuth(mode){
             <div id="esp-etab-nom-doublon-warning" class="esp-etab-doublon-warning" style="display:none;"></div>
           </div>
           <div class="esp-field"><label>Catégorie d'enseignement</label>
-            <select id="esp-etab-categorie" onchange="espEtabToggleSousCategorie()">
+            <select id="esp-etab-categorie" onchange="espEtabToggleSousCategorie();espEtabResetFiliereRows();">
               <option value="technique">Enseignement technique et formation professionnelle</option>
               <option value="superieur">Enseignement supérieur</option>
               <option value="general">Enseignement général</option>
@@ -159,8 +159,42 @@ function espEtabToggleVilleAutre(){
   row.style.display = villeSelect.value === '__autre__' ? '' : 'none';
 }
 
-// ---------------- Filières proposées dès l'inscription (jusqu'à 10, nom + diplôme préparé) ----------------
+// ---------------- Filières proposées dès l'inscription (jusqu'à 10) ----------------
+// Enseignement général : Cycle -> Diplôme en menus déroulants dépendants (+ "Autre" texte
+// libre chacun, cf. ESP_GENERAL_* dans utils.js). Autres catégories (technique, supérieur) :
+// nom + diplôme en texte libre, inchangé.
 let _espEtabFiliereRowCount = 0;
+function espEtabCurrentFiliereMode(){
+  const catSelect = document.getElementById('esp-etab-categorie');
+  return catSelect && catSelect.value === 'general' ? 'general' : 'libre';
+}
+function espEtabFiliereCycleOptionsHtml(){
+  return ESP_GENERAL_CYCLES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')
+    + `<option value="${ESP_GENERAL_AUTRE}">Autre (préciser)</option>`;
+}
+function espEtabFiliereRowGeneralHtml(idx){
+  return `
+    <div class="esp-field">
+      <select class="esp-etab-filiere-cycle" id="esp-etab-filiere-cycle-${idx}" onchange="espEtabFiliereCycleChange(${idx})">
+        <option value="">Cycle...</option>
+        ${espEtabFiliereCycleOptionsHtml()}
+      </select>
+      <input type="text" class="esp-etab-filiere-cycle-autre" id="esp-etab-filiere-cycle-autre-${idx}" placeholder="Précisez le cycle" style="display:none;margin-top:6px;">
+    </div>
+    <div class="esp-field">
+      <select class="esp-etab-filiere-diplome" id="esp-etab-filiere-diplome-select-${idx}" onchange="espEtabFiliereDiplomeChange(${idx})">
+        <option value="">Diplôme...</option>
+      </select>
+      <input type="text" class="esp-etab-filiere-diplome-autre" id="esp-etab-filiere-diplome-autre-${idx}" placeholder="Précisez le diplôme" style="display:none;margin-top:6px;">
+    </div>
+  `;
+}
+function espEtabFiliereRowLibreHtml(){
+  return `
+    <div class="esp-field"><input type="text" class="esp-etab-filiere-nom" placeholder="Nom de la filière"></div>
+    <div class="esp-field"><input type="text" class="esp-etab-filiere-diplome" placeholder="Diplôme préparé (Ex : CAP, BT, BTS, Licence...)"></div>
+  `;
+}
 function espEtabAddFiliereRow(){
   if(_espEtabFiliereRowCount >= 10) return;
   _espEtabFiliereRowCount++;
@@ -169,9 +203,8 @@ function espEtabAddFiliereRow(){
   const row = document.createElement('div');
   row.className = 'esp-field-row esp-etab-filiere-row';
   row.id = 'esp-etab-filiere-row-' + idx;
-  row.innerHTML = `
-    <div class="esp-field"><input type="text" class="esp-etab-filiere-nom" placeholder="Nom de la filière"></div>
-    <div class="esp-field"><input type="text" class="esp-etab-filiere-diplome" placeholder="Diplôme préparé (Ex : CAP, BT, BTS, Licence...)"></div>
+  const fieldsHtml = espEtabCurrentFiliereMode() === 'general' ? espEtabFiliereRowGeneralHtml(idx) : espEtabFiliereRowLibreHtml();
+  row.innerHTML = fieldsHtml + `
     <button type="button" class="esp-btn" style="padding:4px 10px;font-size:12px;align-self:center;" onclick="espEtabRemoveFiliereRow(${idx})" title="Retirer cette filière">✕</button>
   `;
   container.appendChild(row);
@@ -183,6 +216,55 @@ function espEtabRemoveFiliereRow(idx){
   if(row) row.remove();
   const addBtn = document.getElementById('esp-etab-add-filiere-btn');
   if(addBtn) addBtn.style.display = '';
+}
+// Catégorie changée après coup : les lignes déjà saisies ne correspondent plus forcément
+// au bon mode de saisie (texte libre <-> Cycle/Diplôme) — on repart de 3 lignes vides,
+// comme le fait déjà le changement de Région pour la Ville.
+function espEtabResetFiliereRows(){
+  const container = document.getElementById('esp-etab-filieres-rows');
+  if(!container) return;
+  container.innerHTML = '';
+  _espEtabFiliereRowCount = 0;
+  espEtabAddFiliereRow();
+  espEtabAddFiliereRow();
+  espEtabAddFiliereRow();
+}
+function espEtabFiliereCycleChange(idx){
+  const cycleSelect = document.getElementById('esp-etab-filiere-cycle-' + idx);
+  const cycleAutre = document.getElementById('esp-etab-filiere-cycle-autre-' + idx);
+  const diplomeSelect = document.getElementById('esp-etab-filiere-diplome-select-' + idx);
+  const diplomeAutre = document.getElementById('esp-etab-filiere-diplome-autre-' + idx);
+  if(!cycleSelect || !diplomeSelect) return;
+  const cycle = cycleSelect.value;
+  if(cycleAutre) cycleAutre.style.display = cycle === ESP_GENERAL_AUTRE ? '' : 'none';
+  const diplomes = cycle === ESP_GENERAL_AUTRE ? [] : espGeneralDiplomesPourCycle(cycle);
+  diplomeSelect.innerHTML = '<option value="">Diplôme...</option>'
+    + diplomes.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('')
+    + `<option value="${ESP_GENERAL_AUTRE}">Autre (préciser)</option>`;
+  if(diplomeAutre) diplomeAutre.style.display = 'none';
+}
+function espEtabFiliereDiplomeChange(idx){
+  const diplomeSelect = document.getElementById('esp-etab-filiere-diplome-select-' + idx);
+  const diplomeAutre = document.getElementById('esp-etab-filiere-diplome-autre-' + idx);
+  if(!diplomeSelect || !diplomeAutre) return;
+  diplomeAutre.style.display = diplomeSelect.value === ESP_GENERAL_AUTRE ? '' : 'none';
+}
+// Lit une ligne de filière (formulaire d'inscription) selon le mode courant et renvoie
+// {nom, diplome} ou null si incomplète — nom = Cycle, diplome = Diplôme en mode "general".
+function espEtabReadFiliereRow(row, mode){
+  if(mode === 'general'){
+    const cycleSelect = row.querySelector('.esp-etab-filiere-cycle');
+    const diplomeSelect = row.querySelector('.esp-etab-filiere-diplome');
+    if(!cycleSelect || !diplomeSelect) return null;
+    const cycleVal = cycleSelect.value;
+    const diplomeVal = diplomeSelect.value;
+    const nom = cycleVal === ESP_GENERAL_AUTRE ? (row.querySelector('.esp-etab-filiere-cycle-autre').value || '').trim() : cycleVal;
+    const diplome = diplomeVal === ESP_GENERAL_AUTRE ? (row.querySelector('.esp-etab-filiere-diplome-autre').value || '').trim() : diplomeVal;
+    return { nom, diplome };
+  }
+  const nom = row.querySelector('.esp-etab-filiere-nom').value.trim();
+  const diplome = row.querySelector('.esp-etab-filiere-diplome').value.trim();
+  return { nom, diplome };
 }
 
 // ---------------- Photos de l'établissement (jusqu'à 10, à l'inscription) ----------------
@@ -261,11 +343,11 @@ async function espEtabRegister(){
     return;
   }
   const filieresProposees = [];
+  const filiereMode = categorie === 'general' ? 'general' : 'libre';
   document.querySelectorAll('#esp-etab-filieres-rows .esp-etab-filiere-row').forEach(row => {
-    const fnom = row.querySelector('.esp-etab-filiere-nom').value.trim();
-    const fdiplome = row.querySelector('.esp-etab-filiere-diplome').value.trim();
-    if(fnom && fdiplome){
-      filieresProposees.push({ id: espUid(), nom: fnom, diplome: fdiplome, conditions: '', statut: 'en_attente', date: espDate() });
+    const f = espEtabReadFiliereRow(row, filiereMode);
+    if(f && f.nom && f.diplome){
+      filieresProposees.push({ id: espUid(), nom: f.nom, diplome: f.diplome, conditions: '', statut: 'en_attente', date: espDate() });
     }
   });
   const id = espUid();
@@ -531,10 +613,12 @@ function espRenderEtabDashboard(){
       `).join('') : `<p class="esp-empty">Aucune filière renseignée.</p>`}
       ${(etab.filieresProposees||[]).length < 10 ? `
         <div id="esp-etab-add-filiere-form" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:14px;">
-          <div class="esp-field-row">
-            <div class="esp-field"><input type="text" id="esp-etab-new-filiere-nom" placeholder="Nom de la filière"></div>
-            <div class="esp-field"><input type="text" id="esp-etab-new-filiere-diplome" placeholder="Diplôme préparé (Ex : CAP, BT, BTS, Licence...)"></div>
-          </div>
+          ${etab.categorie === 'general' ? espEtabFiliereGeneralFormHtml() : `
+            <div class="esp-field-row">
+              <div class="esp-field"><input type="text" id="esp-etab-new-filiere-nom" placeholder="Nom de la filière"></div>
+              <div class="esp-field"><input type="text" id="esp-etab-new-filiere-diplome" placeholder="Diplôme préparé (Ex : CAP, BT, BTS, Licence...)"></div>
+            </div>
+          `}
           <button class="esp-btn esp-btn-primary" onclick="espEtabAddFiliereDashboard()">+ Ajouter cette filière</button>
           <div id="esp-etab-add-filiere-msg"></div>
         </div>
@@ -604,14 +688,65 @@ async function espEtabSaveContactExtras(){
   }
 }
 
-// ---------------- Ajout libre d'une filière (sans validation admin, jusqu'à 10) ----------------
+// ---------------- Ajout d'une filière depuis le tableau de bord (jusqu'à 10) ----------------
+// Enseignement général : Cycle -> Diplôme en menus déroulants dépendants (+ "Autre"), comme
+// à l'inscription (cf. espEtabFiliereRowGeneralHtml). Autres catégories : texte libre inchangé.
+function espEtabFiliereGeneralFormHtml(){
+  return `
+    <div class="esp-field-row">
+      <div class="esp-field">
+        <select id="esp-etab-new-filiere-cycle" onchange="espEtabDashboardFiliereCycleChange()">
+          <option value="">Cycle...</option>
+          ${espEtabFiliereCycleOptionsHtml()}
+        </select>
+        <input type="text" id="esp-etab-new-filiere-cycle-autre" placeholder="Précisez le cycle" style="display:none;margin-top:6px;">
+      </div>
+      <div class="esp-field">
+        <select id="esp-etab-new-filiere-diplome-select" onchange="espEtabDashboardFiliereDiplomeChange()">
+          <option value="">Diplôme...</option>
+        </select>
+        <input type="text" id="esp-etab-new-filiere-diplome-autre" placeholder="Précisez le diplôme" style="display:none;margin-top:6px;">
+      </div>
+    </div>
+  `;
+}
+function espEtabDashboardFiliereCycleChange(){
+  const cycleSelect = document.getElementById('esp-etab-new-filiere-cycle');
+  const cycleAutre = document.getElementById('esp-etab-new-filiere-cycle-autre');
+  const diplomeSelect = document.getElementById('esp-etab-new-filiere-diplome-select');
+  const diplomeAutre = document.getElementById('esp-etab-new-filiere-diplome-autre');
+  if(!cycleSelect || !diplomeSelect) return;
+  const cycle = cycleSelect.value;
+  if(cycleAutre) cycleAutre.style.display = cycle === ESP_GENERAL_AUTRE ? '' : 'none';
+  const diplomes = cycle === ESP_GENERAL_AUTRE ? [] : espGeneralDiplomesPourCycle(cycle);
+  diplomeSelect.innerHTML = '<option value="">Diplôme...</option>'
+    + diplomes.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('')
+    + `<option value="${ESP_GENERAL_AUTRE}">Autre (préciser)</option>`;
+  if(diplomeAutre) diplomeAutre.style.display = 'none';
+}
+function espEtabDashboardFiliereDiplomeChange(){
+  const diplomeSelect = document.getElementById('esp-etab-new-filiere-diplome-select');
+  const diplomeAutre = document.getElementById('esp-etab-new-filiere-diplome-autre');
+  if(!diplomeSelect || !diplomeAutre) return;
+  diplomeAutre.style.display = diplomeSelect.value === ESP_GENERAL_AUTRE ? '' : 'none';
+}
 async function espEtabAddFiliereDashboard(){
   const session = espSession();
   const msgEl = document.getElementById('esp-etab-add-filiere-msg');
-  const nomEl = document.getElementById('esp-etab-new-filiere-nom');
-  const diplomeEl = document.getElementById('esp-etab-new-filiere-diplome');
-  const nom = nomEl.value.trim();
-  const diplome = diplomeEl.value.trim();
+  let nom, diplome;
+  if(_espEtabOwn && _espEtabOwn.categorie === 'general'){
+    const cycleSelect = document.getElementById('esp-etab-new-filiere-cycle');
+    const diplomeSelect = document.getElementById('esp-etab-new-filiere-diplome-select');
+    const cycleVal = cycleSelect ? cycleSelect.value : '';
+    const diplomeVal = diplomeSelect ? diplomeSelect.value : '';
+    nom = cycleVal === ESP_GENERAL_AUTRE ? (document.getElementById('esp-etab-new-filiere-cycle-autre').value || '').trim() : cycleVal;
+    diplome = diplomeVal === ESP_GENERAL_AUTRE ? (document.getElementById('esp-etab-new-filiere-diplome-autre').value || '').trim() : diplomeVal;
+  } else {
+    const nomEl = document.getElementById('esp-etab-new-filiere-nom');
+    const diplomeEl = document.getElementById('esp-etab-new-filiere-diplome');
+    nom = nomEl.value.trim();
+    diplome = diplomeEl.value.trim();
+  }
   if(!nom || !diplome){
     msgEl.innerHTML = '<p class="esp-error">Nom de la filière et diplôme préparé sont obligatoires.</p>';
     return;
