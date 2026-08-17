@@ -42,10 +42,14 @@ function espRowToPrivateMessage(r){ return { id:r.id, expediteurId:r.expediteur_
 // le temps. Un simple .rpc(nom) tronque donc silencieusement le résultat dès que la table
 // dépasse ce plafond (constaté à 200 lignes sur etablissements le 2026-08-17, cause du
 // filtre Ville de general.html qui ne remontait que les établissements les plus anciens).
-// On récupère par lots de 1000 via .range(), triés par id pour une pagination stable
-// (sans ORDER BY, Postgres ne garantit pas le même ordre entre deux requêtes séparées),
-// jusqu'à ce qu'un lot renvoie moins que la taille demandée (dernier lot) — évite une
-// requête de plus pour rien quand la table tient déjà dans un seul lot.
+// On récupère par lots via .range(), triés par id pour une pagination stable (sans
+// ORDER BY, Postgres ne garantit pas le même ordre entre deux requêtes séparées). On
+// avance à chaque tour du nombre de lignes RÉELLEMENT reçu (pas de ESP_PAGE_SIZE) : si
+// le plafond serveur (200 constaté) est plus bas que ce qu'on demande (1000), chaque
+// requête ne renverra jamais plus que ce plafond, quelle que soit la plage demandée — se
+// fier à "moins que demandé" pour arrêter reproduirait alors le troncage dès le premier
+// lot. On ne s'arrête que sur un lot réellement vide : correct quel que soit le plafond
+// serveur, sans avoir besoin de le connaître à l'avance.
 const ESP_PAGE_SIZE = 1000;
 async function espFetchAllRows(rpcName){
   let all = [];
@@ -54,9 +58,9 @@ async function espFetchAllRows(rpcName){
     const { data, error } = await supabaseClient.rpc(rpcName).order('id', { ascending: true }).range(from, from + ESP_PAGE_SIZE - 1);
     if(error) throw error;
     const rows = data || [];
+    if(rows.length === 0) break;
     all = all.concat(rows);
-    if(rows.length < ESP_PAGE_SIZE) break;
-    from += ESP_PAGE_SIZE;
+    from += rows.length;
   }
   return all;
 }
