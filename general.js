@@ -10,8 +10,9 @@ function espEtabGeneral(secteur){
 
 // Chaque filière stocke son Cycle dans "nom" et son Diplôme dans "diplome" (cf.
 // etablissement.js, saisie via menus déroulants Cycle -> Diplôme + "Autre" texte libre).
-// Un "Autre" personnalisé reste affiché ici (l'établissement l'a bien renseigné) mais ne
-// pourra jamais correspondre à un filtre Cycle/Diplôme (listes fermées, cf. utils.js).
+// Un "Autre" personnalisé reste affiché tel quel ici ; il ne ressort du filtre "Autre"
+// (cf. renderGeneralTable) que par exclusion des valeurs prédéfinies, jamais par
+// comparaison texte, puisque la valeur stockée n'est jamais littéralement "Autre".
 function espGeneralRows(secteur){
   const rows = [];
   espEtabGeneral(secteur).forEach(e => {
@@ -38,14 +39,18 @@ function espFillGeneralDatalist(id, values){
 }
 
 // ---------------- Filtre Diplôme dépendant du Cycle choisi (listes fermées, cf. utils.js) ----------------
+// Cycle = "" (Tous) ou "__autre__" : le diplôme prédéfini n'est pas rattaché à un cycle
+// précis, donc la liste proposée couvre tous les diplômes prédéfinis (tous cycles) + "Autre".
 function espGeneralFilterCycleChange(secteur){
   const prefix = 'general-' + secteur;
   const cycleSelect = document.getElementById('f-' + prefix + '-cycle');
   const diplomeSelect = document.getElementById('f-' + prefix + '-diplome');
   if(!cycleSelect || !diplomeSelect) return;
-  const diplomes = espGeneralDiplomesPourCycle(cycleSelect.value);
+  const cycle = cycleSelect.value;
+  const diplomes = (cycle && cycle !== ESP_GENERAL_AUTRE) ? espGeneralDiplomesPourCycle(cycle) : espGeneralTousDiplomesPredefinis();
   diplomeSelect.innerHTML = '<option value="">Tous</option>'
-    + diplomes.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+    + diplomes.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('')
+    + `<option value="${ESP_GENERAL_AUTRE}">Autre</option>`;
   renderGeneralTable(secteur);
 }
 
@@ -69,14 +74,32 @@ function renderGeneralTable(secteur){
   const qDiplome = diplomeSelect ? diplomeSelect.value : '';
   const nVille = normalize(qVille);
 
-  // Comparaison exacte sur Cycle/Diplôme (listes fermées) : un "Autre" personnalisé ne
-  // correspond jamais à ces valeurs prédéfinies et n'apparaît donc que quand aucun filtre
-  // Cycle/Diplôme n'est actif, jamais comme résultat d'un filtre.
-  const rows = espGeneralRows(secteur).filter(r =>
-    (!nVille || normalize(r.ville||'').includes(nVille)) &&
-    (!qCycle || r.cycle === qCycle) &&
-    (!qDiplome || r.diplome === qDiplome)
-  );
+  // Comparaison exacte sur Cycle/Diplôme (listes fermées). Le filtre "Autre" (valeur
+  // ESP_GENERAL_AUTRE) ne peut pas être une comparaison exacte : la valeur réellement
+  // stockée n'est jamais littéralement "Autre" mais le texte personnalisé saisi par
+  // l'établissement (cf. etablissement.js). On le détecte donc par exclusion : tout ce
+  // qui n'est ni une valeur prédéfinie ni la marque "—" (aucune filière renseignée).
+  const rows = espGeneralRows(secteur).filter(r => {
+    if(nVille && !normalize(r.ville||'').includes(nVille)) return false;
+    if(qCycle){
+      if(qCycle === ESP_GENERAL_AUTRE){
+        if(!r.cycle || r.cycle === '—' || ESP_GENERAL_CYCLES.includes(r.cycle)) return false;
+      } else if(r.cycle !== qCycle){
+        return false;
+      }
+    }
+    if(qDiplome){
+      if(qDiplome === ESP_GENERAL_AUTRE){
+        // Diplômes "connus" à exclure : ceux du cycle sélectionné si un cycle prédéfini
+        // est actif, sinon tous les diplômes prédéfinis (tous cycles confondus).
+        const diplomesConnus = (qCycle && qCycle !== ESP_GENERAL_AUTRE) ? espGeneralDiplomesPourCycle(qCycle) : espGeneralTousDiplomesPredefinis();
+        if(!r.diplome || r.diplome === '—' || diplomesConnus.includes(r.diplome)) return false;
+      } else if(r.diplome !== qDiplome){
+        return false;
+      }
+    }
+    return true;
+  });
 
   tbody.innerHTML = '';
   const frag = document.createDocumentFragment();

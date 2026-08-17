@@ -8,10 +8,10 @@ function escapeHtml(s){
 }
 
 // ---------------- Filières Enseignement Général : Cycle -> Diplôme (listes fermées + "Autre") ----------------
-// Valeurs prédéfinies uniquement : un "Autre" saisi en texte libre est stocké (nom/diplôme
-// de la filière restent des colonnes texte libres, cf. etablissement_add_filiere) mais ne
-// figure dans aucune de ces deux listes, donc n'apparaît jamais comme option de filtre
-// public (seules les valeurs prédéfinies ci-dessous sont proposées dans les filtres).
+// Un "Autre" saisi en texte libre à la saisie (nom/diplôme de la filière restent des
+// colonnes texte libres, cf. etablissement_add_filiere) est stocké tel quel, jamais
+// littéralement "Autre" — donc les filtres ci-dessous détectent un "Autre" par exclusion
+// (valeur absente des listes prédéfinies), pas par correspondance texte sur ce mot.
 const ESP_GENERAL_AUTRE = '__autre__';
 const ESP_GENERAL_CYCLES = ['1er cycle', '2nd cycle'];
 const ESP_GENERAL_DIPLOMES_PAR_CYCLE = {
@@ -20,6 +20,11 @@ const ESP_GENERAL_DIPLOMES_PAR_CYCLE = {
 };
 function espGeneralDiplomesPourCycle(cycle){
   return ESP_GENERAL_DIPLOMES_PAR_CYCLE[cycle] || [];
+}
+// Tous les diplômes prédéfinis, tous cycles confondus — sert à détecter un diplôme
+// "Autre" quand aucun Cycle précis n'est sélectionné dans le filtre (cf. general.js).
+function espGeneralTousDiplomesPredefinis(){
+  return Object.values(ESP_GENERAL_DIPLOMES_PAR_CYCLE).flat();
 }
 
 // ---------------- Établissement Premium : contact direct, site web, photos (visibles publiquement) ----------------
