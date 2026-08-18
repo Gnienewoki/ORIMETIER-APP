@@ -89,3 +89,28 @@ function espOpenEtabDetailModal(etabId){
   const tagsHtml = [e.ville, e.quartier, e.region].filter(Boolean).map(v => `<span class="esp-badge valide">${escapeHtml(v)}</span>`).join(' ');
   openModal(e.nom, tagsHtml, (infoHtml + filieresHtml + photosHtml + contactHtml) || '<p class="esp-empty">Aucune information supplémentaire.</p>');
 }
+
+// ---------------- Bandeau d'annonce admin (site-wide, toutes les pages) ----------------
+// Alimenté par la table Supabase "annonce" (ligne unique id=1, gérée depuis l'espace
+// admin). Appelée depuis auth.js (platformUnlock / platformUnlockGuest), une fois
+// #platform-wrap visible — jamais affichée sur l'écran de connexion. Pas de bouton fermer
+// côté utilisateur : elle reste tant que l'admin ne la retire pas ou n'en republie pas une.
+function espRenderAnnonceBar(){
+  const wrap = document.getElementById('platform-wrap');
+  if(!wrap) return;
+  const existing = document.getElementById('esp-annonce-bar');
+  if(existing) existing.remove();
+
+  const annonce = espDB().annonce;
+  if(!annonce || !annonce.active) return;
+  if(annonce.type === 'image' && !annonce.imageUrl) return;
+  if(annonce.type === 'texte' && !annonce.texte) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'esp-annonce-bar';
+  bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonce.type;
+  bar.innerHTML = annonce.type === 'image'
+    ? `<img src="${escapeHtml(annonce.imageUrl)}" alt="Annonce">`
+    : `<div class="esp-annonce-marquee"><span>📣 ${escapeHtml(annonce.texte)}</span></div>`;
+  wrap.insertBefore(bar, wrap.firstChild);
+}

@@ -34,6 +34,7 @@ function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', vill
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
+function espRowToAnnonce(r){ return { type:r.type, texte:r.texte||'', imageUrl:r.image_url||'', active:!!r.active, updatedAt:r.updated_at }; }
 function espRowToPrivateMessage(r){ return { id:r.id, expediteurId:r.expediteur_id, destinataireId:r.destinataire_id, texte:r.texte, date:r.date, lu:!!r.lu, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
 
 // ---------------- Pagination des RPC de listage (list_eleves / list_inspecteurs / list_etablissements) ----------------
@@ -70,14 +71,15 @@ async function espLoadFromSupabase(){
   // eleves/inspecteurs/etablissements n'accordent pas de SELECT direct à la clé
   // publique (pas de grant anon) : on passe par des fonctions RPC dédiées qui ne
   // renvoient jamais la colonne "password", plutôt que par une lecture de table.
-  const [elevesRows, inspecteursRows, etabRows, notesRes, messagesRes] = await Promise.all([
+  const [elevesRows, inspecteursRows, etabRows, notesRes, messagesRes, annonceRes] = await Promise.all([
     espFetchAllRows('list_eleves'),
     espFetchAllRows('list_inspecteurs'),
     espFetchAllRows('list_etablissements'),
     supabaseClient.from('notes').select('*'),
     supabaseClient.from('messages_inspecteurs').select('*').order('created_at', { ascending: true }),
+    supabaseClient.from('annonce').select('*').eq('id', 1).maybeSingle(),
   ]);
-  [notesRes, messagesRes].forEach(r => { if(r.error) throw r.error; });
+  [notesRes, messagesRes, annonceRes].forEach(r => { if(r.error) throw r.error; });
 
   _espCache = {
     eleves: elevesRows.map(espRowToEleve),
@@ -85,6 +87,7 @@ async function espLoadFromSupabase(){
     etablissements: etabRows.map(espRowToEtab),
     notes: (notesRes.data||[]).map(espRowToNote),
     messages: (messagesRes.data||[]).map(espRowToMessage),
+    annonce: annonceRes.data ? espRowToAnnonce(annonceRes.data) : null,
   };
 }
 
@@ -128,7 +131,7 @@ function espScheduleRefresh(){
 }
 
 function espDB(){
-  return _espCache || { eleves:[], inspecteurs:[], etablissements:[], notes:[], messages:[] };
+  return _espCache || { eleves:[], inspecteurs:[], etablissements:[], notes:[], messages:[], annonce:null };
 }
 // Reflète un changement dans le cache local (affichage immédiat), sans jamais envoyer
 // le tableau complet au serveur : chaque écriture réelle passe par une fonction dédiée ci-dessous.
@@ -321,6 +324,27 @@ async function espAdminUpsertLienFormationRPC(adminPassword, id, titre, descript
 }
 async function espAdminDeleteLienFormationRPC(adminPassword, id){
   const { data, error } = await supabaseClient.rpc('admin_delete_lien_formation', { p_admin_password: adminPassword, p_id: id });
+  if(error) throw error;
+  return !!data;
+}
+// ---------------- Bandeau d'annonce admin (site-wide) ----------------
+async function espUploadAnnonceImage(file){
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = 'annonces/' + Date.now().toString(36) + Math.random().toString(36).slice(2,8) + '.' + ext;
+  const { error } = await supabaseClient.storage.from('orimetier-chat').upload(path, file);
+  if(error) throw error;
+  const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
+  return data.publicUrl;
+}
+async function espAdminPublierAnnonceRPC(adminPassword, type, texte, imageUrl){
+  const { data, error } = await supabaseClient.rpc('admin_publier_annonce', {
+    p_admin_password: adminPassword, p_type: type, p_texte: texte || null, p_image_url: imageUrl || null,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espAdminRetirerAnnonceRPC(adminPassword){
+  const { data, error } = await supabaseClient.rpc('admin_retirer_annonce', { p_admin_password: adminPassword });
   if(error) throw error;
   return !!data;
 }

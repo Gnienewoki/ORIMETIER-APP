@@ -178,6 +178,7 @@ function platformUnlock(){
   gate.style.display = 'none';
   wrap.style.display = '';
   updateAuthBar();
+  espRenderAnnonceBar();
   const session = espSession();
   if(session && session.role === 'inspecteur'){
     // Charge les messages privés de l'inspecteur avant d'initialiser la page,
@@ -202,6 +203,7 @@ function platformUnlockGuest(){
   gate.style.display = 'none';
   wrap.style.display = '';
   updateAuthBar();
+  espRenderAnnonceBar();
   if(typeof window.pageInit === 'function') window.pageInit();
 }
 

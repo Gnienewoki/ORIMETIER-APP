@@ -249,6 +249,38 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       </table>
     `;
     if(_espAdminLiensFormation === null) espAdminEnsureLiensFormationLoaded();
+  } else if(sub === 'annonce'){
+    const annonce = db.annonce;
+    const type = _espAnnonceDraftType || (annonce ? annonce.type : 'texte');
+    const draftImageUrl = _espAnnonceDraftImageUrl || (annonce && annonce.type === 'image' ? annonce.imageUrl : '');
+    subHtml = `
+      <div class="esp-card" style="margin-bottom:18px;">
+        <div class="esp-title" style="font-size:16px;">📣 Bandeau d'annonce</div>
+        <p class="esp-sub">Une seule annonce à la fois, affichée discrètement sur toutes les pages tant qu'elle est active. ${annonce && annonce.active ? '<b>Actuellement active sur le site.</b>' : 'Aucune annonce active actuellement.'}</p>
+        <div class="esp-field-row">
+          <div class="esp-field">
+            <label>Format</label>
+            <select id="esp-annonce-type" onchange="espAdminAnnonceTypeChange(this.value)">
+              <option value="texte" ${type==='texte'?'selected':''}>Texte défilant</option>
+              <option value="image" ${type==='image'?'selected':''}>Affiche (image)</option>
+            </select>
+          </div>
+        </div>
+        <div id="esp-annonce-texte-field" class="esp-field" style="display:${type==='texte'?'':'none'};">
+          <label>Texte du bandeau</label>
+          <textarea id="esp-annonce-texte" rows="2">${escapeHtml(annonce && annonce.type==='texte' ? annonce.texte : '')}</textarea>
+        </div>
+        <div id="esp-annonce-image-field" class="esp-field" style="display:${type==='image'?'':'none'};">
+          <label>Affiche (image)</label>
+          <input type="file" id="esp-annonce-image-input" accept="image/*" onchange="espAdminAnnonceImageChange(this)">
+          <div id="esp-annonce-image-preview">${draftImageUrl ? `<img src="${escapeHtml(draftImageUrl)}" style="max-height:90px;border-radius:6px;margin-top:8px;display:block;">` : ''}</div>
+          <div id="esp-annonce-image-msg"></div>
+        </div>
+        <div id="esp-annonce-error"></div>
+        <button class="esp-btn esp-btn-primary" onclick="espAdminPublierAnnonce()">Publier</button>
+        ${annonce && annonce.active ? `<button class="esp-btn" onclick="espAdminRetirerAnnonce()">Retirer l'annonce</button>` : ''}
+      </div>
+    `;
   }
 
   document.getElementById('esp-admin').innerHTML = `
@@ -268,6 +300,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">🔍 Bannir un élève</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">💬 Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">🎯 Liens de formation</button>
+      <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">📣 Annonce${db.annonce && db.annonce.active ? ' 🟢' : ''}</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
@@ -660,6 +693,71 @@ async function espAdminDeleteLienFormation(id){
     return;
   }
   if(await espAdminFetchLiensFormation()) espRenderAdminDashboard('liens-formation');
+}
+
+// ---------------- Bandeau d'annonce admin (site-wide) ----------------
+// Alimentée par espDB().annonce (chargée avec le reste par espLoadFromSupabase()) : pas de
+// cache/chargement séparé nécessaire ici, contrairement aux liens de formation.
+let _espAnnonceDraftType = null;
+let _espAnnonceDraftImageUrl = null;
+
+function espAdminAnnonceTypeChange(value){
+  _espAnnonceDraftType = value;
+  espRenderAdminDashboard('annonce');
+}
+
+async function espAdminAnnonceImageChange(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('esp-annonce-image-msg');
+  if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
+  try {
+    _espAnnonceDraftImageUrl = await espUploadAnnonceImage(file);
+  } catch(e){
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi de l\'image : ' + escapeHtml(e.message) + '</p>';
+    input.value = '';
+    return;
+  }
+  input.value = '';
+  espRenderAdminDashboard('annonce');
+}
+
+async function espAdminPublierAnnonce(){
+  const session = espSession();
+  const type = document.getElementById('esp-annonce-type').value;
+  const texte = type === 'texte' ? document.getElementById('esp-annonce-texte').value.trim() : '';
+  const imageUrl = type === 'image' ? _espAnnonceDraftImageUrl : '';
+  const errEl = document.getElementById('esp-annonce-error');
+  errEl.innerHTML = '';
+  if(type === 'texte' && !texte){ errEl.innerHTML = '<p class="esp-error">Le texte du bandeau est obligatoire.</p>'; return; }
+  if(type === 'image' && !imageUrl){ errEl.innerHTML = '<p class="esp-error">Envoie une image avant de publier.</p>'; return; }
+  try {
+    const ok = await espAdminPublierAnnonceRPC(session.password, type, texte, imageUrl);
+    if(!ok){ errEl.innerHTML = "<p class=\"esp-error\">Impossible de publier l'annonce. Session expirée ?</p>"; return; }
+  } catch(e){
+    errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  _espAnnonceDraftType = null;
+  _espAnnonceDraftImageUrl = null;
+  await espLoadFromSupabase();
+  espRenderAnnonceBar();
+  espRenderAdminDashboard('annonce');
+}
+
+async function espAdminRetirerAnnonce(){
+  if(!confirm("Retirer l'annonce actuelle du site ?")) return;
+  const session = espSession();
+  try {
+    const ok = await espAdminRetirerAnnonceRPC(session.password);
+    if(!ok){ alert("Impossible de retirer l'annonce."); return; }
+  } catch(e){
+    alert('Erreur : ' + e.message);
+    return;
+  }
+  await espLoadFromSupabase();
+  espRenderAnnonceBar();
+  espRenderAdminDashboard('annonce');
 }
 
 // ---------------- Demandes d'activation du mode Premium (en attente de validation) ----------------
