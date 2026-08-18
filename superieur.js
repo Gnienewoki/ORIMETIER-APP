@@ -33,7 +33,7 @@ async function espLoadSuperieurPublicData(){
   (univFilRes.data || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
     .forEach(f => {
       if(universites[f.universite_code]){
-        universites[f.universite_code].push({ nom: f.nom, bac: f.bac, age: f.age, criteres: f.criteres });
+        universites[f.universite_code].push({ nom: f.nom, bac: f.bac, age: f.age, criteres: f.criteres, n: f.numero_source });
       }
     });
 
@@ -70,6 +70,92 @@ async function espLoadSuperieurPublicData(){
   filiereDebouches.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 
   return { universitesNoms, universites, debouchesFilieres, grandesEcoles, filiereDebouches };
+}
+
+// ---------------- Panel 3 : "Filières proches" (onglet Filière -> Débouchés) ----------------
+// Rapprochement en deux niveaux, calculé "à la demande" (au changement de filière
+// sélectionnée, jamais à chaque frappe) sur les données déjà chargées par
+// espLoadSuperieurPublicData() ou par le repli data-superieur.js — aucun nouvel appel Supabase.
+// Niveau 1 (prioritaire) : filières partageant le même numero_source (le "n" du tableau PDF
+// d'origine) qu'une université propose ensemble — signal fiable car il vient du document
+// source, pas d'une heuristique de texte.
+// Niveau 2 (repli) : ressemblance lexicale entre les noms, via un score de Jaccard sur les
+// mots significatifs normalisés (accents/casse retirés avec normalize() de utils.js, mots-
+// outils français filtrés, léger essuyage de suffixe pour absorber les accords singulier/
+// pluriel et masculin/féminin).
+const ES_STOPWORDS = new Set(['de','du','des','la','le','les','l','d','et','en','au','aux','un','une','a','ou','pour']);
+
+function espFiliereStem(tok){
+  if(tok.length > 4 && tok.endsWith('es')) return tok.slice(0, -2);
+  if(tok.length > 4 && (tok.endsWith('e') || tok.endsWith('s'))) return tok.slice(0, -1);
+  return tok;
+}
+
+function espFiliereTokens(nom){
+  return normalize(nom).split(/[^a-z0-9]+/).filter(t => t.length > 1 && !ES_STOPWORDS.has(t)).map(espFiliereStem);
+}
+
+function espFiliereJaccard(nomA, nomB){
+  const a = new Set(espFiliereTokens(nomA));
+  const b = new Set(espFiliereTokens(nomB));
+  const inter = [...a].filter(t => b.has(t));
+  const union = new Set([...a, ...b]);
+  return union.size ? inter.length / union.size : 0;
+}
+
+// Regroupe les noms de filières d'université par numero_source ("n"), et retient le n de
+// chaque filière pour retrouver ses éventuelles "sœurs" de niveau 1.
+function espFiliereSourceMap(universites){
+  const byN = {};
+  const nOfNom = {};
+  Object.values(universites).forEach(liste => {
+    liste.forEach(f => {
+      if(f.n == null) return;
+      nOfNom[f.nom] = f.n;
+      (byN[f.n] = byN[f.n] || new Set()).add(f.nom);
+    });
+  });
+  return { byN, nOfNom };
+}
+
+function espFilieresProches(nomCible, universites, grandesEcoles, max = 4){
+  const { byN, nOfNom } = espFiliereSourceMap(universites);
+  const n = nOfNom[nomCible];
+  const level1 = n != null
+    ? [...(byN[n] || [])].filter(nom => nom !== nomCible).sort((a, b) => a.localeCompare(b, 'fr'))
+    : [];
+
+  const toutesLesFilieres = new Set();
+  Object.values(universites).forEach(liste => liste.forEach(f => toutesLesFilieres.add(f.nom)));
+  Object.values(grandesEcoles).forEach(d => d.filieres.forEach(f => toutesLesFilieres.add(f.nom)));
+
+  const dejaRetenues = new Set([nomCible, ...level1]);
+  const level2 = [...toutesLesFilieres]
+    .filter(nom => !dejaRetenues.has(nom))
+    .map(nom => ({ nom, score: espFiliereJaccard(nomCible, nom) }))
+    .filter(r => r.score > 0)
+    .sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom, 'fr'))
+    .map(r => r.nom);
+
+  return [...level1, ...level2].slice(0, max);
+}
+
+// Mini-aperçu d'une filière proche : établissements publics qui la proposent, avec bac/âge
+// (et critères d'accès pour les universités, qui les recensent — les grandes écoles
+// recensent des débouchés, pas de critères d'accès détaillés).
+function espFiliereEtablissements(nom, universites, universitesNoms, grandesEcoles){
+  const rows = [];
+  Object.keys(universites).forEach(code => {
+    universites[code].forEach(f => {
+      if(f.nom === nom) rows.push({ etablissement: universitesNoms[code], bac: f.bac, age: f.age, criteres: f.criteres });
+    });
+  });
+  Object.entries(grandesEcoles).forEach(([ecoleNom, data]) => {
+    data.filieres.forEach(f => {
+      if(f.nom === nom) rows.push({ etablissement: ecoleNom, bac: f.bac, age: f.age, criteres: null });
+    });
+  });
+  return rows;
 }
 
 async function initSuperieur(){
@@ -212,6 +298,32 @@ async function initSuperieur(){
       <div class="debouches"><b>Débouchés :</b> ${f.debouches}</div>
     `;
     container.appendChild(card);
+
+    const proches = espFilieresProches(nom, universites, grandesEcoles);
+    if (proches.length) {
+      const section = document.createElement('div');
+      section.className = 'es-fp-section';
+      const grid = document.createElement('div');
+      grid.className = 'es-fp-grid';
+      proches.forEach(pNom => {
+        const etabs = espFiliereEtablissements(pNom, universites, universitesNoms, grandesEcoles);
+        const etabsHtml = etabs.length
+          ? etabs.map(e => `
+              <div class="es-fp-etab">
+                <div class="es-fp-etab-nom">${e.etablissement}</div>
+                <div class="es-fp-etab-meta">Bac ${e.bac} · Âge limite ${e.age}${e.criteres ? ' · ' + e.criteres : ''}</div>
+              </div>
+            `).join('')
+          : '<div class="es-fp-etab-meta">Aucun établissement public relevé pour cette filière.</div>';
+        const pCard = document.createElement('div');
+        pCard.className = 'es-fp-card';
+        pCard.innerHTML = `<div class="es-fp-nom">${pNom}</div>${etabsHtml}`;
+        grid.appendChild(pCard);
+      });
+      section.innerHTML = '<div class="es-fp-title">Filières proches</div>';
+      section.appendChild(grid);
+      container.appendChild(section);
+    }
   });
 
   // ---- Panels 4 et 5 : Universités privées / Grandes écoles privées ----
