@@ -1,5 +1,78 @@
 // ---------------- Enseignement supérieur (page superieur.html) ----------------
-function initSuperieur(){
+// Onglets "Universités publiques", "Grandes écoles publiques" et "Filière -> Débouchés" :
+// chargés depuis Supabase (tables universites/universite_filieres/debouches_filieres/
+// grandes_ecoles/grande_ecole_filieres), éditables sans toucher au code ni redéployer.
+// Repli automatique sur les dictionnaires statiques de data-superieur.js si Supabase est
+// indisponible (hors ligne, erreur réseau, table absente...), pour que ces onglets
+// continuent de fonctionner sans interruption visible. data-superieur.js reste chargé en
+// <script> dans superieur.html à cet effet.
+// N'affecte pas les onglets "Universités privées" / "Grandes écoles privées", qui
+// continuent de lire espDB().etablissements comme avant (table etablissements existante).
+async function espLoadSuperieurPublicData(){
+  const [univRes, univFilRes, debRes, geRes, geFilRes] = await Promise.all([
+    supabaseClient.from('universites').select('*'),
+    supabaseClient.from('universite_filieres').select('*'),
+    supabaseClient.from('debouches_filieres').select('*'),
+    supabaseClient.from('grandes_ecoles').select('*'),
+    supabaseClient.from('grande_ecole_filieres').select('*'),
+  ]);
+  [univRes, univFilRes, debRes, geRes, geFilRes].forEach(r => { if(r.error) throw r.error; });
+
+  const universitesRows = univRes.data || [];
+  const grandesEcolesRows = geRes.data || [];
+  if(universitesRows.length === 0 || grandesEcolesRows.length === 0){
+    throw new Error('Tables Supabase universites/grandes_ecoles vides ou introuvables');
+  }
+
+  const universitesNoms = {};
+  universitesRows.slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+    .forEach(u => { universitesNoms[u.code] = u.nom; });
+
+  const universites = {};
+  Object.keys(universitesNoms).forEach(code => (universites[code] = []));
+  (univFilRes.data || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+    .forEach(f => {
+      if(universites[f.universite_code]){
+        universites[f.universite_code].push({ nom: f.nom, bac: f.bac, age: f.age, criteres: f.criteres });
+      }
+    });
+
+  const debouchesFilieres = {};
+  (debRes.data || []).forEach(d => { debouchesFilieres[d.nom] = d.debouches; });
+
+  const grandesEcoles = {};
+  grandesEcolesRows.slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+    .forEach(e => { grandesEcoles[e.nom] = { tutelle: e.tutelle, filieres: [] }; });
+  (geFilRes.data || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+    .forEach(f => {
+      const ecole = grandesEcolesRows.find(e => e.id === f.grande_ecole_id);
+      if(ecole && grandesEcoles[ecole.nom]){
+        grandesEcoles[ecole.nom].filieres.push({ nom: f.nom, bac: f.bac, age: f.age, debouches: f.debouches });
+      }
+    });
+
+  const filiereDebouches = [];
+  const seen = new Set();
+  Object.keys(debouchesFilieres).forEach(nom => {
+    if(!seen.has(nom)){
+      seen.add(nom);
+      filiereDebouches.push({ nom, debouches: debouchesFilieres[nom], source: 'Universités publiques' });
+    }
+  });
+  Object.entries(grandesEcoles).forEach(([ecole, data]) => {
+    data.filieres.forEach(f => {
+      if(!seen.has(f.nom)){
+        seen.add(f.nom);
+        filiereDebouches.push({ nom: f.nom, debouches: f.debouches, source: 'Grande école : ' + ecole });
+      }
+    });
+  });
+  filiereDebouches.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+
+  return { universitesNoms, universites, debouchesFilieres, grandesEcoles, filiereDebouches };
+}
+
+async function initSuperieur(){
   // ---- Tabs ----
   document.querySelectorAll('.es-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -12,12 +85,27 @@ function initSuperieur(){
     });
   });
 
+  // ---- Chargement des données publiques (Supabase, repli sur data-superieur.js) ----
+  let universitesNoms = UNIVERSITES_NOMS;
+  let universites = UNIVERSITES;
+  let grandesEcoles = GRANDES_ECOLES;
+  let filiereDebouches = TOUTES_FILIERES_DEBOUCHES;
+  try {
+    const supData = await espLoadSuperieurPublicData();
+    universitesNoms = supData.universitesNoms;
+    universites = supData.universites;
+    grandesEcoles = supData.grandesEcoles;
+    filiereDebouches = supData.filiereDebouches;
+  } catch(e){
+    console.error('[superieur] échec du chargement Supabase, repli sur data-superieur.js', e);
+  }
+
   // ---- Panel 1 : Universités ----
   const selectUniv = document.getElementById('select-univ');
-  Object.keys(UNIVERSITES_NOMS).forEach(code => {
+  Object.keys(universitesNoms).forEach(code => {
     const opt = document.createElement('option');
     opt.value = code;
-    opt.textContent = `${code} — ${UNIVERSITES_NOMS[code]}`;
+    opt.textContent = `${code} — ${universitesNoms[code]}`;
     selectUniv.appendChild(opt);
   });
 
@@ -29,12 +117,12 @@ function initSuperieur(){
       container.innerHTML = '<div class="empty-state">Sélectionnez une université pour afficher ses filières et conditions d\'accès.</div>';
       return;
     }
-    const filieres = UNIVERSITES[code] || [];
+    const filieres = universites[code] || [];
     if (filieres.length === 0) {
       container.innerHTML = '<div class="empty-state">Aucune filière relevée pour cette université dans le document source.</div>';
       return;
     }
-    container.innerHTML = `<div class="school-header">${UNIVERSITES_NOMS[code]} — ${filieres.length} filière(s)</div>`;
+    container.innerHTML = `<div class="school-header">${universitesNoms[code]} — ${filieres.length} filière(s)</div>`;
     filieres.forEach(f => {
       const card = document.createElement('div');
       card.className = 'card';
@@ -52,7 +140,7 @@ function initSuperieur(){
 
   // ---- Panel 2 : Grandes écoles ----
   const selectEcole = document.getElementById('select-ecole');
-  Object.keys(GRANDES_ECOLES).forEach(nom => {
+  Object.keys(grandesEcoles).forEach(nom => {
     const opt = document.createElement('option');
     opt.value = nom;
     opt.textContent = nom;
@@ -67,7 +155,7 @@ function initSuperieur(){
       container.innerHTML = '<div class="empty-state">Sélectionnez une grande école pour afficher ses filières, conditions d\'accès et débouchés.</div>';
       return;
     }
-    const data = GRANDES_ECOLES[nom];
+    const data = grandesEcoles[nom];
     container.innerHTML = `<div class="school-header">${nom} <span style="opacity:.75">(${data.tutelle})</span></div>`;
     data.filieres.forEach(f => {
       const card = document.createElement('div');
@@ -91,7 +179,7 @@ function initSuperieur(){
   function populateFiliereSelect(filterText = '') {
     const current = selectFiliere.value;
     selectFiliere.innerHTML = '<option value="">— Sélectionner —</option>';
-    TOUTES_FILIERES_DEBOUCHES
+    filiereDebouches
       .filter(f => normalize(f.nom).includes(normalize(filterText)))
       .forEach(f => {
         const opt = document.createElement('option');
@@ -115,7 +203,7 @@ function initSuperieur(){
       container.innerHTML = '<div class="empty-state">Sélectionnez une filière pour afficher ses débouchés.</div>';
       return;
     }
-    const f = TOUTES_FILIERES_DEBOUCHES.find(x => x.nom === nom);
+    const f = filiereDebouches.find(x => x.nom === nom);
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
