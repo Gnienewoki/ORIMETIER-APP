@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
-<title>ORIMETIER — Espaces</title>
+<title>ORIMETIER — Formations</title>
 
 <!-- PWA : application installable sur téléphone/PC -->
 <link rel="manifest" href="manifest.json">
@@ -103,10 +103,57 @@
 
 <div class="esp-main" id="platform-wrap" style="display:none">
   <div class="esp-main-topbar"><div id="auth-bar" class="auth-bar"></div></div>
-    <h1 class="esp-page-title">🔐 Espaces</h1>
+    <h1 class="esp-page-title">🎯 Formations</h1>
 
     <div id="page-content">
-    <div id="espaces-dashboard-mount"></div>
+    <div class="es-header" style="text-align:left;background:none;padding:0;border:none;margin-bottom:14px;">
+      <p class="es-sub" style="color:var(--muted);">Liens et ressources de formation, classés par public.</p>
+    </div>
+
+    <div class="es-tabs">
+      <button class="es-tab-btn active" data-tab="lf-inspecteur">🧭 Formation Inspecteur</button>
+      <button class="es-tab-btn" data-tab="lf-eleve">🎒 Formation Élève</button>
+      <button class="es-tab-btn" data-tab="lf-etudiant">🎓 Formation Étudiant</button>
+      <button class="es-tab-btn" data-tab="lf-tous">🌐 Formation Tous</button>
+    </div>
+
+    <div class="es-main">
+
+      <!-- PANEL 1 : FORMATION INSPECTEUR -->
+      <section class="es-panel active" id="panel-lf-inspecteur">
+        <div class="school-header">Vous êtes inspecteur d'orientation, trouvez vos formations ici.</div>
+        <div class="results" id="results-lf-inspecteur">
+          <div class="empty-state">Chargement des liens de formation…</div>
+        </div>
+      </section>
+
+      <!-- PANEL 2 : FORMATION ELEVE -->
+      <section class="es-panel" id="panel-lf-eleve">
+        <div class="school-header">Vous êtes élève, trouvez votre formation ici.</div>
+        <div class="results" id="results-lf-eleve">
+          <div class="empty-state">Chargement des liens de formation…</div>
+        </div>
+      </section>
+
+      <!-- PANEL 3 : FORMATION ETUDIANT -->
+      <section class="es-panel" id="panel-lf-etudiant">
+        <div class="school-header">Vous êtes étudiant, trouvez votre formation ici.</div>
+        <div class="results" id="results-lf-etudiant">
+          <div class="empty-state">Chargement des liens de formation…</div>
+        </div>
+      </section>
+
+      <!-- PANEL 4 : FORMATION TOUS -->
+      <section class="es-panel" id="panel-lf-tous">
+        <div class="school-header">Formations ouvertes à tous.</div>
+        <div class="results" id="results-lf-tous">
+          <div class="empty-state">Chargement des liens de formation…</div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="es-footer">Liens de formation gérés par l'administration ORIMETIER.</div>
   </div>
 
 </div>
@@ -124,9 +171,6 @@
 
 <script src="utils.js"></script>
 <script src="data-riasec.js"></script>
-<script src="data-formations.js"></script>
-<script src="data-concours.js"></script>
-<script src="data-regions.js"></script>
 <script src="supabase-client.js"></script>
 <script src="auth.js"></script>
 <script src="admin.js"></script>
@@ -134,8 +178,7 @@
 <script src="eleve.js"></script>
 <script src="etablissement.js"></script>
 <script src="modal.js"></script>
-<script src="lycam.js"></script>
-<script src="espaces.js"></script>
+<script src="liens-formation.js"></script>
 <script src="bootstrap.js"></script>
 </body>
 </html>

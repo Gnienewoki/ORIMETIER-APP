@@ -310,6 +310,20 @@ async function espAdminDeleteMessageRPC(adminPassword, messageId){
   if(error) throw error;
   return !!data;
 }
+// p_id null = création, sinon mise à jour. Retourne l'id de la ligne (ou null si refusé).
+async function espAdminUpsertLienFormationRPC(adminPassword, id, titre, description, url, audience){
+  const { data, error } = await supabaseClient.rpc('admin_upsert_lien_formation', {
+    p_admin_password: adminPassword, p_id: id || null, p_titre: titre, p_description: description,
+    p_url: url, p_audience: audience,
+  });
+  if(error) throw error;
+  return data;
+}
+async function espAdminDeleteLienFormationRPC(adminPassword, id){
+  const { data, error } = await supabaseClient.rpc('admin_delete_lien_formation', { p_admin_password: adminPassword, p_id: id });
+  if(error) throw error;
+  return !!data;
+}
 async function espAdminSetInspecteurBanniRPC(adminPassword, inspecteurId, banni){
   const { data, error } = await supabaseClient.rpc('admin_set_inspecteur_banni', { p_admin_password: adminPassword, p_inspecteur_id: inspecteurId, p_banni: banni });
   if(error) throw error;

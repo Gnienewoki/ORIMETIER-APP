@@ -210,6 +210,45 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         <button class="esp-btn esp-btn-primary" id="esp-chat-send-btn" onclick="espAdminSendChatMessage()">Publier</button>
       </div>
     `;
+  } else if(sub === 'liens-formation'){
+    const liens = _espAdminLiensFormation || [];
+    const editing = _espLienFormationEditId != null ? liens.find(l => l.id === _espLienFormationEditId) : null;
+    subHtml = `
+      <div class="esp-card" style="margin-bottom:18px;">
+        <div class="esp-title" style="font-size:16px;">🎯 ${editing ? 'Modifier le lien' : 'Ajouter un lien de formation'}</div>
+        <p class="esp-sub">L'audience détermine dans quel onglet de la page "Formations" le lien apparaît.</p>
+        <div class="esp-field-row">
+          <div class="esp-field"><label>Titre</label><input type="text" id="esp-lf-titre" value="${escapeHtml(editing ? editing.titre : '')}"></div>
+          <div class="esp-field"><label>Audience</label>
+            <select id="esp-lf-audience">
+              ${['inspecteur','eleve','etudiant','tous'].map(a => `<option value="${a}" ${editing && editing.audience===a ? 'selected' : ''}>${espLienAudienceLabel(a)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="esp-field"><label>URL</label><input type="text" id="esp-lf-url" placeholder="https://..." value="${escapeHtml(editing ? editing.url : '')}"></div>
+        <div class="esp-field"><label>Description</label><textarea id="esp-lf-description" rows="2">${escapeHtml(editing ? editing.description : '')}</textarea></div>
+        <div id="esp-lf-error"></div>
+        <button class="esp-btn esp-btn-primary" onclick="espAdminSaveLienFormation()">${editing ? 'Enregistrer' : 'Publier'}</button>
+        ${editing ? `<button class="esp-btn" onclick="espAdminCancelEditLienFormation()">Annuler</button>` : ''}
+      </div>
+      <table class="esp-table">
+        <thead><tr><th>Titre</th><th>Audience</th><th>URL</th><th></th></tr></thead>
+        <tbody>
+        ${liens.length ? liens.map(l => `
+          <tr>
+            <td><b>${escapeHtml(l.titre)}</b><br><span class="esp-sub" style="font-size:11.5px;">${escapeHtml(l.description||'')}</span></td>
+            <td>${espLienAudienceLabel(l.audience)}</td>
+            <td><a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.url)}</a></td>
+            <td>
+              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminEditLienFormation(${l.id})">✏️ Modifier</button>
+              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminDeleteLienFormation(${l.id})">🗑️ Supprimer</button>
+            </td>
+          </tr>
+        `).join('') : `<tr><td colspan="4" class="esp-empty">Aucun lien de formation pour le moment.</td></tr>`}
+        </tbody>
+      </table>
+    `;
+    if(_espAdminLiensFormation === null) espAdminEnsureLiensFormationLoaded();
   }
 
   document.getElementById('esp-admin').innerHTML = `
@@ -228,6 +267,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='inspecteurs'?'active':''}" onclick="espRenderAdminDashboard('inspecteurs')">Comptes inspecteurs</button>
       <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">🔍 Bannir un élève</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">💬 Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
+      <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">🎯 Liens de formation</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
@@ -549,6 +589,77 @@ async function espAdminDeleteMessage(messageId){
   }
   await espLoadFromSupabase();
   espRenderAdminDashboard('chat');
+}
+
+// ---------------- Liens de formation (page liens-formation.html) ----------------
+// Table publique en lecture (comme universites/grandes_ecoles) : pas besoin de RPC pour
+// charger la liste ici, un select() direct suffit. null = pas encore chargé, [] = chargé et vide.
+let _espAdminLiensFormation = null;
+let _espAdminLiensFormationLoading = false;
+let _espLienFormationEditId = null;
+
+function espLienAudienceLabel(audience){
+  return { inspecteur: 'Inspecteur', eleve: 'Élève', etudiant: 'Étudiant', tous: 'Tous' }[audience] || audience;
+}
+
+// Récupère la liste à jour et remplace le cache d'un coup (jamais mis à null avant le
+// nouveau fetch) : la table affichée reste stable pendant le rechargement, sans repasser
+// par un état "vide" entre une mutation et l'arrivée des données fraîches.
+async function espAdminFetchLiensFormation(){
+  const { data, error } = await supabaseClient.from('liens_formation').select('*').order('ordre', { ascending: true });
+  if(error){ alert('Erreur lors du chargement des liens de formation : ' + error.message); return false; }
+  _espAdminLiensFormation = data || [];
+  return true;
+}
+
+async function espAdminEnsureLiensFormationLoaded(){
+  if(_espAdminLiensFormation !== null || _espAdminLiensFormationLoading) return;
+  _espAdminLiensFormationLoading = true;
+  await espAdminFetchLiensFormation();
+  _espAdminLiensFormationLoading = false;
+  espRenderAdminDashboard('liens-formation');
+}
+
+function espAdminEditLienFormation(id){
+  _espLienFormationEditId = id;
+  espRenderAdminDashboard('liens-formation');
+}
+function espAdminCancelEditLienFormation(){
+  _espLienFormationEditId = null;
+  espRenderAdminDashboard('liens-formation');
+}
+
+async function espAdminSaveLienFormation(){
+  const session = espSession();
+  const titre = document.getElementById('esp-lf-titre').value.trim();
+  const url = document.getElementById('esp-lf-url').value.trim();
+  const description = document.getElementById('esp-lf-description').value.trim();
+  const audience = document.getElementById('esp-lf-audience').value;
+  const errEl = document.getElementById('esp-lf-error');
+  errEl.innerHTML = '';
+  if(!titre || !url){ errEl.innerHTML = '<p class="esp-error">Titre et URL sont obligatoires.</p>'; return; }
+  try {
+    const id = await espAdminUpsertLienFormationRPC(session.password, _espLienFormationEditId, titre, description, url, audience);
+    if(!id){ errEl.innerHTML = "<p class=\"esp-error\">Impossible d'enregistrer ce lien. Session expirée ?</p>"; return; }
+  } catch(e){
+    errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  _espLienFormationEditId = null;
+  if(await espAdminFetchLiensFormation()) espRenderAdminDashboard('liens-formation');
+}
+
+async function espAdminDeleteLienFormation(id){
+  if(!confirm('Supprimer définitivement ce lien de formation ?')) return;
+  const session = espSession();
+  try {
+    const ok = await espAdminDeleteLienFormationRPC(session.password, id);
+    if(!ok){ alert("Impossible de supprimer ce lien."); return; }
+  } catch(e){
+    alert('Erreur : ' + e.message);
+    return;
+  }
+  if(await espAdminFetchLiensFormation()) espRenderAdminDashboard('liens-formation');
 }
 
 // ---------------- Demandes d'activation du mode Premium (en attente de validation) ----------------
