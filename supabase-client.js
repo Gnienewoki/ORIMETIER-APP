@@ -236,6 +236,16 @@ async function espAdminLoginRPC(password){
   return !!data;
 }
 
+// ---------------- Statistiques de visites (log brut, écriture publique) ----------------
+// Callable sans mot de passe (simple compteur de passage) : log_visite() côté base valide
+// p_page contre la liste fermée des 7 vraies pages du site et rejette silencieusement
+// (retourne false) toute autre valeur, donc pas besoin de revalider ici.
+async function espLogVisiteRPC(page){
+  const { data, error } = await supabaseClient.rpc('log_visite', { p_page: page });
+  if(error) throw error;
+  return !!data;
+}
+
 // ---------------- Actions d'écriture sécurisées (vérifient l'identité côté serveur) ----------------
 async function espSaveRiasecRPC(eleveId, password, riasec){
   const { data, error } = await supabaseClient.rpc('eleve_save_riasec', { p_id: eleveId, p_password: password, p_riasec: riasec });

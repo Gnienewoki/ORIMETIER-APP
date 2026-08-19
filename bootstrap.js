@@ -127,7 +127,24 @@ if(_espDoitJouerAnimation){
   sessionStorage.setItem('orimetier_splash_shown', '1');
 }
 
+// ---------------- Compteur de visites (statistiques admin, 1 log par chargement de page) ----------------
+// Liste fermée des 7 vraies pages du site (menu latéral) — test.html en est exclu
+// volontairement, ce n'est pas une page consultée en tant que telle. Doit rester
+// synchronisée avec la liste acceptée par log_visite() côté Supabase.
+const ESP_VISITE_PAGES = ['index.html', 'general.html', 'superieur.html', 'concours.html', 'eleves.html', 'espaces.html', 'liens-formation.html'];
+
+// Fire-and-forget : jamais attendu, ne doit jamais retarder ni bloquer le chargement de
+// la page, et un échec (réseau, RLS, etc.) ne doit jamais remonter à l'utilisateur — au
+// pire un avertissement en console (même convention que l'enregistrement du service
+// worker plus haut dans ce fichier), rien de visible sur la page.
+function espLogVisiteCourante(){
+  const page = _espEstPageAccueil ? 'index.html' : (_espPath.split('/').pop() || '');
+  if(!ESP_VISITE_PAGES.includes(page)) return;
+  espLogVisiteRPC(page).catch(e => console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) :', e));
+}
+
 (async function espBootstrap(){
+  espLogVisiteCourante();
   try {
     await espLoadFromSupabase();
   } catch(e){
