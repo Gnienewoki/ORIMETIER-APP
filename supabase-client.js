@@ -34,7 +34,7 @@ function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', vill
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
-function espRowToAnnonce(r){ return { type:r.type, texte:r.texte||'', imageUrl:r.image_url||'', active:!!r.active, updatedAt:r.updated_at }; }
+function espRowToAnnonce(r){ return { id:r.id, type:r.type, texte:r.texte||'', imageUrl:r.image_url||'', active:!!r.active, updatedAt:r.updated_at }; }
 function espRowToPrivateMessage(r){ return { id:r.id, expediteurId:r.expediteur_id, destinataireId:r.destinataire_id, texte:r.texte, date:r.date, lu:!!r.lu, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
 
 // ---------------- Pagination des RPC de listage (list_eleves / list_inspecteurs / list_etablissements) ----------------
@@ -77,7 +77,7 @@ async function espLoadFromSupabase(){
     espFetchAllRows('list_etablissements'),
     supabaseClient.from('notes').select('*'),
     supabaseClient.from('messages_inspecteurs').select('*').order('created_at', { ascending: true }),
-    supabaseClient.from('annonce').select('*').eq('id', 1).maybeSingle(),
+    supabaseClient.from('annonce').select('*').eq('active', true).order('created_at', { ascending: true }),
   ]);
   [notesRes, messagesRes, annonceRes].forEach(r => { if(r.error) throw r.error; });
 
@@ -87,7 +87,7 @@ async function espLoadFromSupabase(){
     etablissements: etabRows.map(espRowToEtab),
     notes: (notesRes.data||[]).map(espRowToNote),
     messages: (messagesRes.data||[]).map(espRowToMessage),
-    annonce: annonceRes.data ? espRowToAnnonce(annonceRes.data) : null,
+    annonces: (annonceRes.data||[]).map(espRowToAnnonce),
   };
 }
 
@@ -131,7 +131,7 @@ function espScheduleRefresh(){
 }
 
 function espDB(){
-  return _espCache || { eleves:[], inspecteurs:[], etablissements:[], notes:[], messages:[], annonce:null };
+  return _espCache || { eleves:[], inspecteurs:[], etablissements:[], notes:[], messages:[], annonces:[] };
 }
 // Reflète un changement dans le cache local (affichage immédiat), sans jamais envoyer
 // le tableau complet au serveur : chaque écriture réelle passe par une fonction dédiée ci-dessous.
@@ -336,15 +336,24 @@ async function espUploadAnnonceImage(file){
   const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
   return data.publicUrl;
 }
-async function espAdminPublierAnnonceRPC(adminPassword, type, texte, imageUrl){
-  const { data, error } = await supabaseClient.rpc('admin_publier_annonce', {
-    p_admin_password: adminPassword, p_type: type, p_texte: texte || null, p_image_url: imageUrl || null,
+// p_id null = création (publiée immédiatement), sinon modification du contenu d'une
+// annonce précise (son statut actif/inactif n'est pas touché). Retourne l'id de la ligne
+// créée/modifiée, ou null si refusé (mot de passe invalide, contenu manquant, ou déjà 5
+// annonces actives lors d'une création).
+async function espAdminUpsertAnnonceRPC(adminPassword, id, type, texte, imageUrl){
+  const { data, error } = await supabaseClient.rpc('admin_upsert_annonce', {
+    p_admin_password: adminPassword, p_id: id || null, p_type: type, p_texte: texte || null, p_image_url: imageUrl || null,
   });
+  if(error) throw error;
+  return data;
+}
+async function espAdminSetAnnonceActiveRPC(adminPassword, id, active){
+  const { data, error } = await supabaseClient.rpc('admin_set_annonce_active', { p_admin_password: adminPassword, p_id: id, p_active: active });
   if(error) throw error;
   return !!data;
 }
-async function espAdminRetirerAnnonceRPC(adminPassword){
-  const { data, error } = await supabaseClient.rpc('admin_retirer_annonce', { p_admin_password: adminPassword });
+async function espAdminSupprimerAnnonceRPC(adminPassword, id){
+  const { data, error } = await supabaseClient.rpc('admin_supprimer_annonce', { p_admin_password: adminPassword, p_id: id });
   if(error) throw error;
   return !!data;
 }

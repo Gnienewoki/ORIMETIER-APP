@@ -250,13 +250,17 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
     `;
     if(_espAdminLiensFormation === null) espAdminEnsureLiensFormationLoaded();
   } else if(sub === 'annonce'){
-    const annonce = db.annonce;
-    const type = _espAnnonceDraftType || (annonce ? annonce.type : 'texte');
-    const draftImageUrl = _espAnnonceDraftImageUrl || (annonce && annonce.type === 'image' ? annonce.imageUrl : '');
+    if(_espAdminAnnonces === null) espAdminEnsureAnnoncesLoaded();
+    const annonces = _espAdminAnnonces || [];
+    const activeCount = annonces.filter(a => a.active).length;
+    const editing = _espAnnonceEditId != null ? annonces.find(a => a.id === _espAnnonceEditId) : null;
+    const formOpen = _espAnnonceFormMode === 'create' || _espAnnonceFormMode === 'edit';
+    const type = _espAnnonceDraftType || (editing ? editing.type : 'texte');
+    const draftImageUrl = _espAnnonceDraftImageUrl || (editing && editing.type === 'image' ? editing.imageUrl : '');
     subHtml = `
+      ${formOpen ? `
       <div class="esp-card" style="margin-bottom:18px;">
-        <div class="esp-title" style="font-size:16px;">📣 Bandeau d'annonce</div>
-        <p class="esp-sub">Une seule annonce à la fois, affichée discrètement sur toutes les pages tant qu'elle est active. ${annonce && annonce.active ? '<b>Actuellement active sur le site.</b>' : 'Aucune annonce active actuellement.'}</p>
+        <div class="esp-title" style="font-size:16px;">📣 ${_espAnnonceFormMode === 'edit' ? "Modifier l'annonce" : 'Nouvelle annonce'}</div>
         <div class="esp-field-row">
           <div class="esp-field">
             <label>Format</label>
@@ -268,7 +272,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         </div>
         <div id="esp-annonce-texte-field" class="esp-field" style="display:${type==='texte'?'':'none'};">
           <label>Texte du bandeau</label>
-          <textarea id="esp-annonce-texte" rows="2">${escapeHtml(annonce && annonce.type==='texte' ? annonce.texte : '')}</textarea>
+          <textarea id="esp-annonce-texte" rows="2">${escapeHtml(editing && editing.type==='texte' ? editing.texte : '')}</textarea>
         </div>
         <div id="esp-annonce-image-field" class="esp-field" style="display:${type==='image'?'':'none'};">
           <label>Affiche (image)</label>
@@ -277,8 +281,36 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
           <div id="esp-annonce-image-msg"></div>
         </div>
         <div id="esp-annonce-error"></div>
-        <button class="esp-btn esp-btn-primary" onclick="espAdminPublierAnnonce()">Publier</button>
-        ${annonce && annonce.active ? `<button class="esp-btn" onclick="espAdminRetirerAnnonce()">Retirer l'annonce</button>` : ''}
+        <button class="esp-btn esp-btn-primary" onclick="espAdminSaveAnnonce()">${_espAnnonceFormMode === 'edit' ? 'Enregistrer' : 'Publier'}</button>
+        <button class="esp-btn" onclick="espAdminCancelAnnonceForm()">Annuler</button>
+      </div>
+      ` : ''}
+      <div class="esp-card">
+        <div class="esp-title" style="font-size:16px;">📣 Bandeau d'annonce — ${activeCount}/5 annonces actives</div>
+        <p class="esp-sub">Jusqu'à 5 annonces (texte ou image) peuvent être actives en même temps : elles défilent alors en rotation, une à la fois, sur toutes les pages.</p>
+        ${!formOpen ? (activeCount >= 5
+            ? `<p class="esp-sub"><b>5 annonces actives déjà en rotation.</b> Désactives-en une pour pouvoir en ajouter une nouvelle.</p>`
+            : `<button class="esp-btn esp-btn-primary" onclick="espAdminNewAnnonce()">+ Ajouter une annonce</button>`) : ''}
+        <table class="esp-table" style="margin-top:12px;">
+          <thead><tr><th>Contenu</th><th>Statut</th><th></th></tr></thead>
+          <tbody>
+          ${annonces.length ? annonces.map(a => `
+            <tr>
+              <td>${a.type === 'image'
+                  ? `<img src="${escapeHtml(a.imageUrl)}" alt="Annonce" style="max-height:50px;border-radius:4px;display:block;">`
+                  : `<span>${escapeHtml(a.texte)}</span>`}</td>
+              <td>${a.active ? '<span class="esp-badge valide">🟢 Active</span>' : '<span class="esp-badge">⚪ Inactive</span>'}</td>
+              <td>
+                <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminEditAnnonce(${a.id})">✏️ Modifier</button>
+                ${a.active
+                    ? `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleAnnonceActive(${a.id}, false)">⏸️ Désactiver</button>`
+                    : `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleAnnonceActive(${a.id}, true)">▶️ Activer</button>
+                       <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminDeleteAnnonce(${a.id})">🗑️ Supprimer</button>`}
+              </td>
+            </tr>
+          `).join('') : `<tr><td colspan="3" class="esp-empty">Aucune annonce pour le moment.</td></tr>`}
+          </tbody>
+        </table>
       </div>
     `;
   }
@@ -300,7 +332,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">🔍 Bannir un élève</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">💬 Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">🎯 Liens de formation</button>
-      <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">📣 Annonce${db.annonce && db.annonce.active ? ' 🟢' : ''}</button>
+      <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">📣 Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
@@ -695,11 +727,53 @@ async function espAdminDeleteLienFormation(id){
   if(await espAdminFetchLiensFormation()) espRenderAdminDashboard('liens-formation');
 }
 
-// ---------------- Bandeau d'annonce admin (site-wide) ----------------
-// Alimentée par espDB().annonce (chargée avec le reste par espLoadFromSupabase()) : pas de
-// cache/chargement séparé nécessaire ici, contrairement aux liens de formation.
+// ---------------- Bandeau d'annonce admin (site-wide, jusqu'à 5 actives en rotation) ----------------
+// Liste complète (actives + inactives) chargée à la demande pour l'admin, séparément du
+// cache espDB().annonces qui ne contient que les annonces actives (chargées avec le reste
+// par espLoadFromSupabase(), utilisées par la barre publique). Même pattern que les liens
+// de formation (_espAdminLiensFormation).
+let _espAdminAnnonces = null;
+let _espAdminAnnoncesLoading = false;
+let _espAnnonceFormMode = null; // null | 'create' | 'edit'
+let _espAnnonceEditId = null;
 let _espAnnonceDraftType = null;
 let _espAnnonceDraftImageUrl = null;
+
+async function espAdminFetchAnnonces(){
+  const { data, error } = await supabaseClient.from('annonce').select('*').order('id', { ascending: true });
+  if(error){ alert('Erreur lors du chargement des annonces : ' + error.message); return false; }
+  _espAdminAnnonces = (data || []).map(espRowToAnnonce);
+  return true;
+}
+async function espAdminEnsureAnnoncesLoaded(){
+  if(_espAdminAnnonces !== null || _espAdminAnnoncesLoading) return;
+  _espAdminAnnoncesLoading = true;
+  await espAdminFetchAnnonces();
+  _espAdminAnnoncesLoading = false;
+  espRenderAdminDashboard('annonce');
+}
+
+function espAdminNewAnnonce(){
+  _espAnnonceFormMode = 'create';
+  _espAnnonceEditId = null;
+  _espAnnonceDraftType = null;
+  _espAnnonceDraftImageUrl = null;
+  espRenderAdminDashboard('annonce');
+}
+function espAdminEditAnnonce(id){
+  _espAnnonceFormMode = 'edit';
+  _espAnnonceEditId = id;
+  _espAnnonceDraftType = null;
+  _espAnnonceDraftImageUrl = null;
+  espRenderAdminDashboard('annonce');
+}
+function espAdminCancelAnnonceForm(){
+  _espAnnonceFormMode = null;
+  _espAnnonceEditId = null;
+  _espAnnonceDraftType = null;
+  _espAnnonceDraftImageUrl = null;
+  espRenderAdminDashboard('annonce');
+}
 
 function espAdminAnnonceTypeChange(value){
   _espAnnonceDraftType = value;
@@ -722,7 +796,7 @@ async function espAdminAnnonceImageChange(input){
   espRenderAdminDashboard('annonce');
 }
 
-async function espAdminPublierAnnonce(){
+async function espAdminSaveAnnonce(){
   const session = espSession();
   const type = document.getElementById('esp-annonce-type').value;
   const texte = type === 'texte' ? document.getElementById('esp-annonce-texte').value.trim() : '';
@@ -732,31 +806,54 @@ async function espAdminPublierAnnonce(){
   if(type === 'texte' && !texte){ errEl.innerHTML = '<p class="esp-error">Le texte du bandeau est obligatoire.</p>'; return; }
   if(type === 'image' && !imageUrl){ errEl.innerHTML = '<p class="esp-error">Envoie une image avant de publier.</p>'; return; }
   try {
-    const ok = await espAdminPublierAnnonceRPC(session.password, type, texte, imageUrl);
-    if(!ok){ errEl.innerHTML = "<p class=\"esp-error\">Impossible de publier l'annonce. Session expirée ?</p>"; return; }
+    const id = await espAdminUpsertAnnonceRPC(session.password, _espAnnonceEditId, type, texte, imageUrl);
+    if(!id){
+      errEl.innerHTML = _espAnnonceEditId
+        ? "<p class=\"esp-error\">Impossible d'enregistrer cette annonce. Session expirée ?</p>"
+        : "<p class=\"esp-error\">Impossible de publier : 5 annonces sont déjà actives, désactives-en une d'abord.</p>";
+      return;
+    }
   } catch(e){
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
+  _espAnnonceFormMode = null;
+  _espAnnonceEditId = null;
   _espAnnonceDraftType = null;
   _espAnnonceDraftImageUrl = null;
-  await espLoadFromSupabase();
+  await Promise.all([espLoadFromSupabase(), espAdminFetchAnnonces()]);
   espRenderAnnonceBar();
   espRenderAdminDashboard('annonce');
 }
 
-async function espAdminRetirerAnnonce(){
-  if(!confirm("Retirer l'annonce actuelle du site ?")) return;
+async function espAdminToggleAnnonceActive(id, active){
   const session = espSession();
   try {
-    const ok = await espAdminRetirerAnnonceRPC(session.password);
-    if(!ok){ alert("Impossible de retirer l'annonce."); return; }
+    const ok = await espAdminSetAnnonceActiveRPC(session.password, id, active);
+    if(!ok){
+      alert(active ? "Impossible d'activer : 5 annonces sont déjà actives." : "Impossible de désactiver cette annonce.");
+      return;
+    }
   } catch(e){
     alert('Erreur : ' + e.message);
     return;
   }
-  await espLoadFromSupabase();
+  await Promise.all([espLoadFromSupabase(), espAdminFetchAnnonces()]);
   espRenderAnnonceBar();
+  espRenderAdminDashboard('annonce');
+}
+
+async function espAdminDeleteAnnonce(id){
+  if(!confirm('Supprimer définitivement cette annonce ?')) return;
+  const session = espSession();
+  try {
+    const ok = await espAdminSupprimerAnnonceRPC(session.password, id);
+    if(!ok){ alert("Impossible de supprimer cette annonce (encore active ?)."); return; }
+  } catch(e){
+    alert('Erreur : ' + e.message);
+    return;
+  }
+  await espAdminFetchAnnonces();
   espRenderAdminDashboard('annonce');
 }
 

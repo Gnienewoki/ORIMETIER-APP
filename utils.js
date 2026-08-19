@@ -91,26 +91,54 @@ function espOpenEtabDetailModal(etabId){
 }
 
 // ---------------- Bandeau d'annonce admin (site-wide, toutes les pages) ----------------
-// Alimenté par la table Supabase "annonce" (ligne unique id=1, gérée depuis l'espace
-// admin). Appelée depuis auth.js (platformUnlock / platformUnlockGuest), une fois
+// Alimenté par la table Supabase "annonce" (jusqu'à 5 lignes actives, gérées depuis
+// l'espace admin) : une seule annonce affichée à la fois, en rotation toutes les
+// ESP_ANNONCE_ROTATION_MS tant que plusieurs sont actives (pas de rotation s'il n'y en a
+// qu'une). Appelée depuis auth.js (platformUnlock / platformUnlockGuest), une fois
 // #platform-wrap visible — jamais affichée sur l'écran de connexion. Pas de bouton fermer
-// côté utilisateur : elle reste tant que l'admin ne la retire pas ou n'en republie pas une.
+// côté utilisateur : elle reste tant que l'admin n'a pas désactivé toutes les annonces.
+const ESP_ANNONCE_ROTATION_MS = 7000;
+let _espAnnonceRotationTimer = null;
+
+// Coupe la rotation en cours, s'il y en a une : appelé avant chaque (re)rendu de la barre
+// (pour ne jamais empiler plusieurs setInterval) et au déchargement de la page, pour ne
+// pas laisser tourner un timer inutilement.
+function espStopAnnonceRotation(){
+  if(_espAnnonceRotationTimer){ clearInterval(_espAnnonceRotationTimer); _espAnnonceRotationTimer = null; }
+}
+window.addEventListener('pagehide', espStopAnnonceRotation);
+
+function espAnnonceBarHtml(annonce){
+  return annonce.type === 'image'
+    ? `<img src="${escapeHtml(annonce.imageUrl)}" alt="Annonce">`
+    : `<div class="esp-annonce-marquee"><span>📣 ${escapeHtml(annonce.texte)}</span></div>`;
+}
+
 function espRenderAnnonceBar(){
+  espStopAnnonceRotation();
   const wrap = document.getElementById('platform-wrap');
   if(!wrap) return;
   const existing = document.getElementById('esp-annonce-bar');
   if(existing) existing.remove();
 
-  const annonce = espDB().annonce;
-  if(!annonce || !annonce.active) return;
-  if(annonce.type === 'image' && !annonce.imageUrl) return;
-  if(annonce.type === 'texte' && !annonce.texte) return;
+  const annonces = (espDB().annonces || []).filter(a =>
+    a.active && ((a.type === 'image' && a.imageUrl) || (a.type === 'texte' && a.texte))
+  );
+  if(!annonces.length) return;
 
   const bar = document.createElement('div');
   bar.id = 'esp-annonce-bar';
-  bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonce.type;
-  bar.innerHTML = annonce.type === 'image'
-    ? `<img src="${escapeHtml(annonce.imageUrl)}" alt="Annonce">`
-    : `<div class="esp-annonce-marquee"><span>📣 ${escapeHtml(annonce.texte)}</span></div>`;
   wrap.insertBefore(bar, wrap.firstChild);
+
+  let index = 0;
+  bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonces[index].type;
+  bar.innerHTML = espAnnonceBarHtml(annonces[index]);
+
+  if(annonces.length > 1){
+    _espAnnonceRotationTimer = setInterval(() => {
+      index = (index + 1) % annonces.length;
+      bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonces[index].type;
+      bar.innerHTML = espAnnonceBarHtml(annonces[index]);
+    }, ESP_ANNONCE_ROTATION_MS);
+  }
 }
