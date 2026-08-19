@@ -92,19 +92,34 @@ function espOpenEtabDetailModal(etabId){
 
 // ---------------- Bandeau d'annonce admin (site-wide, toutes les pages) ----------------
 // Alimenté par la table Supabase "annonce" (jusqu'à 5 lignes actives, gérées depuis
-// l'espace admin) : une seule annonce affichée à la fois, en rotation toutes les
-// ESP_ANNONCE_ROTATION_MS tant que plusieurs sont actives (pas de rotation s'il n'y en a
-// qu'une). Appelée depuis auth.js (platformUnlock / platformUnlockGuest), une fois
-// #platform-wrap visible — jamais affichée sur l'écran de connexion. Pas de bouton fermer
-// côté utilisateur : elle reste tant que l'admin n'a pas désactivé toutes les annonces.
-const ESP_ANNONCE_ROTATION_MS = 7000;
+// l'espace admin) : une seule annonce affichée à la fois, en rotation tant que plusieurs
+// sont actives (pas de rotation s'il n'y en a qu'une). Appelée depuis auth.js
+// (platformUnlock / platformUnlockGuest), une fois #platform-wrap visible — jamais
+// affichée sur l'écran de connexion. Pas de bouton fermer côté utilisateur : elle reste
+// tant que l'admin n'a pas désactivé toutes les annonces.
+//
+// Timing de la rotation : les annonces image restent ESP_ANNONCE_ROTATION_MS (délai fixe,
+// une image se regarde d'un coup, pas besoin de plus). Les annonces texte, elles,
+// défilent en marquee CSS — leur temps d'affichage doit correspondre au temps réel que
+// met le défilement à faire sortir tout le texte par la gauche, sinon un texte long est
+// coupé en cours de route. On ne peut pas se fier à un setInterval à durée fixe pour ça
+// (un texte plus long parcourt une plus grande distance dans le même temps, donc défile
+// plus vite ET n'a pas le temps de finir) : à la place, on mesure la largeur réelle du
+// texte rendu (span.scrollWidth, qui inclut le padding-left:100% de départ hors écran),
+// on en déduit sa durée à vitesse de défilement constante (ESP_ANNONCE_SCROLL_SPEED_PX_S),
+// on applique cette durée à l'animation CSS elle-même (animation-duration en ligne, pour
+// que la vitesse reste identique quelle que soit la longueur), et on programme le passage
+// à l'annonce suivante avec un setTimeout (auto-reprogrammé à chaque annonce, plutôt qu'un
+// setInterval à cadence unique) réglé sur cette même durée.
+const ESP_ANNONCE_ROTATION_MS = 7000; // délai fixe pour les annonces image
+const ESP_ANNONCE_SCROLL_SPEED_PX_S = 60; // vitesse de défilement du texte (px/s) — plus petit = plus lent
 let _espAnnonceRotationTimer = null;
 
 // Coupe la rotation en cours, s'il y en a une : appelé avant chaque (re)rendu de la barre
-// (pour ne jamais empiler plusieurs setInterval) et au déchargement de la page, pour ne
-// pas laisser tourner un timer inutilement.
+// (pour ne jamais empiler plusieurs timers) et au déchargement de la page, pour ne pas
+// laisser tourner un timer inutilement.
 function espStopAnnonceRotation(){
-  if(_espAnnonceRotationTimer){ clearInterval(_espAnnonceRotationTimer); _espAnnonceRotationTimer = null; }
+  if(_espAnnonceRotationTimer){ clearTimeout(_espAnnonceRotationTimer); _espAnnonceRotationTimer = null; }
 }
 window.addEventListener('pagehide', espStopAnnonceRotation);
 
@@ -112,6 +127,20 @@ function espAnnonceBarHtml(annonce){
   return annonce.type === 'image'
     ? `<img src="${escapeHtml(annonce.imageUrl)}" alt="Annonce">`
     : `<div class="esp-annonce-marquee"><span>📣 ${escapeHtml(annonce.texte)}</span></div>`;
+}
+
+// À appeler une fois le HTML de l'annonce texte injecté dans `bar` (span déjà dans le
+// DOM, donc scrollWidth mesurable). Fixe la durée de l'animation CSS et retourne combien
+// de temps garder cette annonce à l'écran avant de passer à la suivante (durée du
+// défilement + petite marge, avec un plancher à ESP_ANNONCE_ROTATION_MS pour qu'un texte
+// très court ne soit pas remplacé plus vite qu'une image).
+function espAnnonceTexteDurationMs(bar){
+  const span = bar.querySelector('.esp-annonce-marquee span');
+  if(!span) return ESP_ANNONCE_ROTATION_MS;
+  const distancePx = span.scrollWidth;
+  const scrollMs = (distancePx / ESP_ANNONCE_SCROLL_SPEED_PX_S) * 1000;
+  span.style.animationDuration = (scrollMs / 1000) + 's';
+  return Math.max(ESP_ANNONCE_ROTATION_MS, scrollMs + 400);
 }
 
 function espRenderAnnonceBar(){
@@ -131,14 +160,21 @@ function espRenderAnnonceBar(){
   wrap.insertBefore(bar, wrap.firstChild);
 
   let index = 0;
-  bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonces[index].type;
-  bar.innerHTML = espAnnonceBarHtml(annonces[index]);
-
-  if(annonces.length > 1){
-    _espAnnonceRotationTimer = setInterval(() => {
-      index = (index + 1) % annonces.length;
-      bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonces[index].type;
-      bar.innerHTML = espAnnonceBarHtml(annonces[index]);
-    }, ESP_ANNONCE_ROTATION_MS);
+  function showCurrent(){
+    const annonce = annonces[index];
+    bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonce.type;
+    bar.innerHTML = espAnnonceBarHtml(annonce);
+    // Toujours recalculée pour une annonce texte (même sans rotation, s'il n'y en a
+    // qu'une seule active) : c'est elle qui fixe la vitesse de défilement CSS, pour
+    // qu'elle reste la même quelle que soit la longueur du texte.
+    const texteDurationMs = annonce.type === 'texte' ? espAnnonceTexteDurationMs(bar) : null;
+    if(annonces.length > 1){
+      const delay = annonce.type === 'texte' ? texteDurationMs : ESP_ANNONCE_ROTATION_MS;
+      _espAnnonceRotationTimer = setTimeout(() => {
+        index = (index + 1) % annonces.length;
+        showCurrent();
+      }, delay);
+    }
   }
+  showCurrent();
 }
