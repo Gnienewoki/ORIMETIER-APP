@@ -245,6 +245,15 @@ async function espLogVisiteRPC(page){
   if(error) throw error;
   return !!data;
 }
+// Statistiques agrégées (jour/page/nombre de visites), réservées à l'admin. Lève une
+// erreur "unauthorized" (via l'exception SQL) sur mot de passe invalide — géré côté
+// appelant comme les autres listes admin (admin_get_visite_stats côté base agrège déjà,
+// on ne fait que renvoyer les lignes telles quelles).
+async function espAdminGetVisiteStatsRPC(adminPassword){
+  const { data, error } = await supabaseClient.rpc('admin_get_visite_stats', { p_admin_password: adminPassword });
+  if(error) throw error;
+  return data || [];
+}
 
 // ---------------- Actions d'écriture sécurisées (vérifient l'identité côté serveur) ----------------
 async function espSaveRiasecRPC(eleveId, password, riasec){

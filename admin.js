@@ -313,6 +313,53 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         </table>
       </div>
     `;
+  } else if(sub === 'statistiques'){
+    if(_espAdminVisiteStats === null) espAdminEnsureVisiteStatsLoaded();
+    const allRows = _espAdminVisiteStats || [];
+    const pages = [...new Set(allRows.map(r => r.page))].sort();
+    const periode = _espVisiteFiltrePeriode;
+    let rows = allRows;
+    if(_espVisiteFiltrePage !== 'toutes') rows = rows.filter(r => r.page === _espVisiteFiltrePage);
+    if(periode > 0){
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - periode);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      rows = rows.filter(r => r.jour >= cutoffStr);
+    }
+    const total = rows.reduce((n, r) => n + Number(r.visites), 0);
+    subHtml = `
+      <div class="esp-card">
+        <div class="esp-title" style="font-size:16px;">📊 Statistiques de visites</div>
+        <p class="esp-sub">Chaque chargement de page compte comme une visite (pas de distinction visiteur unique/répété, ni par rôle).</p>
+        <div class="esp-field-row">
+          <div class="esp-field">
+            <label>Page</label>
+            <select onchange="espAdminVisiteFiltrePage(this.value)">
+              <option value="toutes" ${_espVisiteFiltrePage==='toutes'?'selected':''}>Toutes les pages</option>
+              ${pages.map(p => `<option value="${escapeHtml(p)}" ${_espVisiteFiltrePage===p?'selected':''}>${escapeHtml(espVisitePageLabel(p))}</option>`).join('')}
+            </select>
+          </div>
+          <div class="esp-field">
+            <label>Période</label>
+            <select onchange="espAdminVisiteFiltrePeriode(this.value)">
+              <option value="7" ${periode===7?'selected':''}>7 derniers jours</option>
+              <option value="30" ${periode===30?'selected':''}>30 derniers jours</option>
+              <option value="90" ${periode===90?'selected':''}>90 derniers jours</option>
+              <option value="0" ${periode===0?'selected':''}>Tout l'historique</option>
+            </select>
+          </div>
+        </div>
+        <p class="esp-sub"><b>${total}</b> visite${total > 1 ? 's' : ''} sur la sélection actuelle.</p>
+        <table class="esp-table">
+          <thead><tr><th>Jour</th><th>Page</th><th>Visites</th></tr></thead>
+          <tbody>
+          ${rows.length ? rows.map(r => `
+            <tr><td>${escapeHtml(espFormatJourFr(r.jour))}</td><td>${escapeHtml(espVisitePageLabel(r.page))}</td><td>${r.visites}</td></tr>
+          `).join('') : `<tr><td colspan="3" class="esp-empty">Aucune visite enregistrée sur cette sélection.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   document.getElementById('esp-admin').innerHTML = `
@@ -333,6 +380,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">💬 Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">🎯 Liens de formation</button>
       <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">📣 Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
+      <button class="esp-subtab-btn ${sub==='statistiques'?'active':''}" onclick="espRenderAdminDashboard('statistiques')">📊 Statistiques</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
@@ -855,6 +903,63 @@ async function espAdminDeleteAnnonce(id){
   }
   await espAdminFetchAnnonces();
   espRenderAdminDashboard('annonce');
+}
+
+// ---------------- Statistiques de visites (log brut, agrégées jour/page côté SQL) ----------------
+// null = pas encore chargé, [] = chargé et vide. Chargé une seule fois par session admin
+// (pas de mutation possible depuis cet écran, donc pas besoin d'invalidation comme pour
+// les annonces/liens de formation) ; les filtres page/période ne font que retraiter en JS
+// les lignes déjà en cache, sans recharger depuis Supabase.
+let _espAdminVisiteStats = null;
+let _espAdminVisiteStatsLoading = false;
+let _espVisiteFiltrePage = 'toutes';
+let _espVisiteFiltrePeriode = 30; // en jours ; 0 = tout l'historique
+
+async function espAdminEnsureVisiteStatsLoaded(){
+  if(_espAdminVisiteStats !== null || _espAdminVisiteStatsLoading) return;
+  _espAdminVisiteStatsLoading = true;
+  const session = espSession();
+  let rows;
+  try {
+    rows = await espAdminGetVisiteStatsRPC(session.password);
+  } catch(err){
+    _espAdminVisiteStatsLoading = false;
+    if(err && /unauthorized/i.test(err.message||'')){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+    alert("Erreur lors du chargement des statistiques de visites : " + err.message);
+    return;
+  }
+  _espAdminVisiteStats = rows;
+  _espAdminVisiteStatsLoading = false;
+  espRenderAdminDashboard('statistiques');
+}
+
+function espAdminVisiteFiltrePage(value){
+  _espVisiteFiltrePage = value;
+  espRenderAdminDashboard('statistiques');
+}
+function espAdminVisiteFiltrePeriode(value){
+  _espVisiteFiltrePeriode = parseInt(value, 10) || 0;
+  espRenderAdminDashboard('statistiques');
+}
+
+// Reprend les libellés déjà utilisés dans le menu latéral (cf. index.html etc.), pour que
+// le tableau reste lisible plutôt que d'afficher les noms de fichiers bruts.
+function espVisitePageLabel(page){
+  return {
+    'index.html': '🎓 Enseignement Technique et Formation Professionnelle',
+    'general.html': '🏫 Enseignement Général',
+    'superieur.html': '🏛️ Enseignement supérieur',
+    'concours.html': '📋 Concours et Écoles de formation initiale',
+    'liens-formation.html': '🎯 Formations',
+    'eleves.html': '👥 Élèves inscrits',
+    'espaces.html': '🔐 Espaces',
+  }[page] || page;
+}
+// "2026-08-19" (date Postgres, renvoyée telle quelle par PostgREST) -> "19/08/2026",
+// même convention JJ/MM/AAAA que date_inscription ailleurs dans l'app.
+function espFormatJourFr(jour){
+  const [y, m, d] = String(jour).split('-');
+  return (y && m && d) ? `${d}/${m}/${y}` : jour;
 }
 
 // ---------------- Demandes d'activation du mode Premium (en attente de validation) ----------------
