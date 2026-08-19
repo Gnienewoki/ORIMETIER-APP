@@ -2,10 +2,8 @@
 // Onglets "Universités publiques", "Grandes écoles publiques" et "Filière -> Débouchés" :
 // chargés depuis Supabase (tables universites/universite_filieres/debouches_filieres/
 // grandes_ecoles/grande_ecole_filieres), éditables sans toucher au code ni redéployer.
-// Repli automatique sur les dictionnaires statiques de data-superieur.js si Supabase est
-// indisponible (hors ligne, erreur réseau, table absente...), pour que ces onglets
-// continuent de fonctionner sans interruption visible. data-superieur.js reste chargé en
-// <script> dans superieur.html à cet effet.
+// Un échec de chargement ici n'est pas rattrapé (comme le reste du bootstrap) : ces
+// onglets restent vides et silencieux plutôt que d'afficher un message d'erreur dédié.
 // N'affecte pas les onglets "Universités privées" / "Grandes écoles privées", qui
 // continuent de lire espDB().etablissements comme avant (table etablissements existante).
 async function espLoadSuperieurPublicData(){
@@ -171,20 +169,8 @@ async function initSuperieur(){
     });
   });
 
-  // ---- Chargement des données publiques (Supabase, repli sur data-superieur.js) ----
-  let universitesNoms = UNIVERSITES_NOMS;
-  let universites = UNIVERSITES;
-  let grandesEcoles = GRANDES_ECOLES;
-  let filiereDebouches = TOUTES_FILIERES_DEBOUCHES;
-  try {
-    const supData = await espLoadSuperieurPublicData();
-    universitesNoms = supData.universitesNoms;
-    universites = supData.universites;
-    grandesEcoles = supData.grandesEcoles;
-    filiereDebouches = supData.filiereDebouches;
-  } catch(e){
-    console.error('[superieur] échec du chargement Supabase, repli sur data-superieur.js', e);
-  }
+  // ---- Chargement des données publiques (Supabase) ----
+  const { universitesNoms, universites, grandesEcoles, filiereDebouches } = await espLoadSuperieurPublicData();
 
   // ---- Panel 1 : Universités ----
   const selectUniv = document.getElementById('select-univ');
