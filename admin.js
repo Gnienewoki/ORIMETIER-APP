@@ -69,7 +69,7 @@ function espImportBackup(input){
       };
       const ok = await espRestoreBackupRPC(session.password, payload);
       if(!ok){ alert("Mot de passe administrateur invalide ou session expirée."); return; }
-      await espLoadFromSupabase();
+      await espLoadFromSupabase(true);
       alert("Sauvegarde importée avec succès.");
       espRenderAdminDashboard('overview');
     } catch(err){
@@ -687,7 +687,7 @@ async function espAdminSendChatMessage(){
   input.value = '';
   espChatClearAttachment('esp-chat-file-input');
   _espReplyTarget = null;
-  await espLoadFromSupabase();
+  await espLoadFromSupabase(true);
   espRenderAdminDashboard('chat');
 }
 async function espAdminDeleteMessage(messageId){
@@ -700,7 +700,7 @@ async function espAdminDeleteMessage(messageId){
     alert('Erreur : ' + e.message);
     return;
   }
-  await espLoadFromSupabase();
+  await espLoadFromSupabase(true);
   espRenderAdminDashboard('chat');
 }
 
@@ -869,7 +869,7 @@ async function espAdminSaveAnnonce(){
   _espAnnonceEditId = null;
   _espAnnonceDraftType = null;
   _espAnnonceDraftImageUrl = null;
-  await Promise.all([espLoadFromSupabase(), espAdminFetchAnnonces()]);
+  await Promise.all([espLoadFromSupabase(true), espAdminFetchAnnonces()]);
   espRenderAnnonceBar();
   espRenderAdminDashboard('annonce');
 }
@@ -886,7 +886,7 @@ async function espAdminToggleAnnonceActive(id, active){
     alert('Erreur : ' + e.message);
     return;
   }
-  await Promise.all([espLoadFromSupabase(), espAdminFetchAnnonces()]);
+  await Promise.all([espLoadFromSupabase(true), espAdminFetchAnnonces()]);
   espRenderAnnonceBar();
   espRenderAdminDashboard('annonce');
 }
@@ -1360,7 +1360,7 @@ async function espAdminImportEtab(){
     resultEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
     return;
   }
-  await espLoadFromSupabase();
+  await espLoadFromSupabase(true);
   const importedRows = rows.filter(r => r.resultat === 'importe');
   const skippedRows = rows.filter(r => r.resultat === 'ignore');
   const actuallyInserted = espDB().etablissements.length - countBefore;

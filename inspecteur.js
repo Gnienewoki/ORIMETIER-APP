@@ -232,7 +232,7 @@ async function espSendChatMessage(){
   input.value = '';
   espChatClearAttachment('esp-chat-file-input');
   _espReplyTarget = null;
-  await espLoadFromSupabase();
+  await espLoadFromSupabase(true);
   espRenderInspecteurDashboard('chat');
 }
 

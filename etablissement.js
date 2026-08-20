@@ -449,7 +449,7 @@ async function espEtabClaim(){
     errEl.innerHTML = '<p class="esp-error">Code invalide, déjà utilisé, ou e-mail déjà associé à un autre établissement.</p>';
     return;
   }
-  try { await espLoadFromSupabase(); } catch(e){}
+  try { await espLoadFromSupabase(true); } catch(e){}
   // Le compte vient d'être réclamé : on retrouve son id fraîchement mis à jour dans le cache.
   const db = espDB();
   const etab = (db.etablissements || []).find(e => e.email === email);
@@ -486,7 +486,7 @@ async function espEtabEnsureOwnLoaded(){
 // dispersés qui finissent par diverger.
 async function espEtabRefreshOwnAndDashboard(){
   _espEtabOwn = null;
-  try { await espLoadFromSupabase(); } catch(e){}
+  try { await espLoadFromSupabase(true); } catch(e){}
   espRenderEtabDashboard();
 }
 

@@ -43,15 +43,18 @@ function espRowToPrivateMessage(r){ return { id:r.id, expediteurId:r.expediteur_
 // le temps. Un simple .rpc(nom) tronque donc silencieusement le résultat dès que la table
 // dépasse ce plafond (constaté à 200 lignes sur etablissements le 2026-08-17, cause du
 // filtre Ville de general.html qui ne remontait que les établissements les plus anciens).
+// Le plafond serveur ("Max Rows", réglage du projet Supabase) est configuré à 10000 :
+// on demande donc des lots de 5000 pour couvrir les ~4200 établissements actuels en une
+// seule requête (au lieu de 5-6 lots de 1000 auparavant, source de lenteur au chargement).
 // On récupère par lots via .range(), triés par id pour une pagination stable (sans
 // ORDER BY, Postgres ne garantit pas le même ordre entre deux requêtes séparées). On
 // avance à chaque tour du nombre de lignes RÉELLEMENT reçu (pas de ESP_PAGE_SIZE) : si
-// le plafond serveur (200 constaté) est plus bas que ce qu'on demande (1000), chaque
-// requête ne renverra jamais plus que ce plafond, quelle que soit la plage demandée — se
-// fier à "moins que demandé" pour arrêter reproduirait alors le troncage dès le premier
-// lot. On ne s'arrête que sur un lot réellement vide : correct quel que soit le plafond
-// serveur, sans avoir besoin de le connaître à l'avance.
-const ESP_PAGE_SIZE = 1000;
+// le plafond serveur devient un jour plus bas que ce qu'on demande, chaque requête ne
+// renverra jamais plus que ce plafond, quelle que soit la plage demandée — se fier à
+// "moins que demandé" pour arrêter reproduirait alors un troncage silencieux. On ne
+// s'arrête que sur un lot réellement vide : correct quel que soit le plafond serveur,
+// sans avoir besoin de le connaître à l'avance.
+const ESP_PAGE_SIZE = 5000;
 async function espFetchAllRows(rpcName){
   let all = [];
   let from = 0;
@@ -67,7 +70,27 @@ async function espFetchAllRows(rpcName){
 }
 
 // ---------------- Chargement initial depuis Supabase (jamais les mots de passe) ----------------
-async function espLoadFromSupabase(){
+// Mise en cache sessionStorage : la navigation entre les 7 pages du site est un rechargement
+// complet du navigateur (pas de single-page app), donc sans cache chaque page relance
+// intégralement ce chargement, même quand rien n'a changé depuis la page précédente — source
+// de lenteur constatée en navigation. sessionStorage est propre à l'onglet et vidé à sa
+// fermeture (contrairement à localStorage) : le cache dure "le temps de la session", jamais
+// au-delà. forceRefresh=true (utilisé après toute mutation : envoi de message, publication
+// d'annonce, réclamation d'établissement...) contourne le cache et le régénère avec les
+// données fraîches, pour que l'auteur d'une action voie immédiatement son propre effet.
+const ESP_CACHE_KEY = 'esp_data_cache_v1';
+
+async function espLoadFromSupabase(forceRefresh){
+  if(!forceRefresh){
+    try {
+      const cached = sessionStorage.getItem(ESP_CACHE_KEY);
+      if(cached){ _espCache = JSON.parse(cached); return; }
+    } catch(e){
+      // sessionStorage indisponible, quota dépassé, ou JSON corrompu : on ignore le cache
+      // et on retombe simplement sur un chargement réseau normal, sans jamais bloquer l'utilisateur.
+    }
+  }
+
   // eleves/inspecteurs/etablissements n'accordent pas de SELECT direct à la clé
   // publique (pas de grant anon) : on passe par des fonctions RPC dédiées qui ne
   // renvoient jamais la colonne "password", plutôt que par une lecture de table.
@@ -89,6 +112,11 @@ async function espLoadFromSupabase(){
     messages: (messagesRes.data||[]).map(espRowToMessage),
     annonces: (annonceRes.data||[]).map(espRowToAnnonce),
   };
+
+  try { sessionStorage.setItem(ESP_CACHE_KEY, JSON.stringify(_espCache)); } catch(e){
+    // Quota sessionStorage dépassé ou stockage indisponible (navigation privée stricte, etc.) :
+    // pas grave, l'app continue de fonctionner, simplement sans bénéficier du cache.
+  }
 }
 
 // ---------------- Messagerie privée (1-à-1 entre inspecteurs) ----------------
