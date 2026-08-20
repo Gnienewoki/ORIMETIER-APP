@@ -148,7 +148,12 @@ function espScheduleRefresh(){
   clearTimeout(_espRefreshTimer);
   _espRefreshTimer = setTimeout(async () => {
     try {
-      await espLoadFromSupabase();
+      // forceRefresh=true impératif ici : ce rafraîchissement est déclenché par un changement
+      // RÉEL détecté en base (postgres_changes). Sans le forcer, on relirait le cache
+      // sessionStorage (potentiellement antérieur à ce changement), ce qui annulerait
+      // silencieusement l'effet du temps réel — au pire faisant "disparaître" un compte
+      // fraîchement créé si le cache local ne le contenait pas encore.
+      await espLoadFromSupabase(true);
       const session = espSession();
       if(session && session.role === 'inspecteur') await espLoadPrivateMessages();
       // Ne rafraîchit l'écran que si la page courante déclare un rafraîchissement

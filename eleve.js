@@ -217,7 +217,7 @@ function espEleveSearchEtablissements(){
     return `
       <div class="esp-note-item" style="border-left-color:var(--green-dark);">
         <b>${espEtabNomCellHtml(e)}</b> — ${[e.ville, e.quartier, e.region].filter(Boolean).map(escapeHtml).join(' · ')}<br>
-        <span class="esp-sub">${escapeHtml(e.type)} · ${escapeHtml(e.tel)} · ${escapeHtml(e.email)}</span>
+        <span class="esp-sub">${escapeHtml(e.type)} · ${espEtabContactCellHtml(e)}</span>
         ${filieresValidees.length ? `
           <div style="margin-top:6px;">
             ${filieresValidees.map(f => `<span class="esp-badge valide" style="margin:2px 4px 2px 0;">${escapeHtml(f.nom)} (${escapeHtml(f.diplome)})</span>`).join('')}
