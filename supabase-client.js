@@ -13,7 +13,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 // ⚠️ Remplace ces trois valeurs par celles de TON compte EmailJS (emailjs.com)
 const EMAILJS_PUBLIC_KEY = 'mqDopJTLtKzHrGnmn';
 const EMAILJS_SERVICE_ID = 'service_ng3gj85';
-const EMAILJS_TEMPLATE_ID = 'ffteslj';
+const EMAILJS_TEMPLATE_ID = 'template_x477zij';
 if(window.emailjs) window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
 // Cache local synchronisé avec Supabase (rempli par espLoadFromSupabase())
