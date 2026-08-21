@@ -136,6 +136,8 @@ function espRenderInspecteurDashboard(sub){
     subHtml = `<div id="esp-priv-tab-container">${espRenderPrivateTab()}</div>`;
   } else if(sub === 'lycam'){
     subHtml = `<div id="esp-lycam-tab-container"><p class="esp-empty">Chargement...</p></div>`;
+  } else if(sub === 'mbti'){
+    subHtml = `<div id="esp-mbti-tab-container"><p class="esp-empty">Chargement...</p></div>`;
   }
 
   document.getElementById('esp-inspecteur').innerHTML = `
@@ -182,7 +184,7 @@ function espRenderInspecteurDashboard(sub){
       </div>
       <div class="esp-insp-future-btns">
         <button class="esp-btn" onclick="espRenderInspecteurDashboard('lycam')">🧪 Test LYCAM</button>
-        <button class="esp-btn" disabled title="Bientôt disponible">🧭 MBTI</button>
+        <button class="esp-btn" onclick="espRenderInspecteurDashboard('mbti')">🧭 MBTI</button>
         <button class="esp-btn" disabled title="Bientôt disponible">📚 Formations</button>
       </div>
     </div>
@@ -205,6 +207,9 @@ function espRenderInspecteurDashboard(sub){
   }
   if(sub === 'lycam'){
     espLycamInitTab();
+  }
+  if(sub === 'mbti'){
+    espMbtiInitTab();
   }
 }
 

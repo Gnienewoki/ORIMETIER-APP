@@ -510,6 +510,41 @@ async function espLycamDeleteSessionRPC(inspecteurId, password, sessionId){
   return !!data;
 }
 
+// ---------------- Conversion des lignes MBTI (snake_case) <-> camelCase ----------------
+function espRowToMbtiSession(r){ return { id:r.id, inspecteurId:r.inspecteur_id, nom:r.nom, createdAt:r.created_at }; }
+function espRowToMbtiResultat(r){ return { id:r.id, sessionId:r.session_id, inspecteurId:r.inspecteur_id, nom:r.nom, prenom:r.prenom, naissance:r.naissance, classe:r.classe, scores:r.scores, typeLetters:r.type_letters, hierarchie:r.hierarchie, egalites:r.egalites, createdAt:r.created_at }; }
+
+// ---------------- Test MBTI : sessions et résultats (espace inspecteur) ----------------
+async function espMbtiCreateSessionRPC(inspecteurId, password, nom){
+  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_create_session', { p_inspecteur_id: inspecteurId, p_password: password, p_nom: nom });
+  if(error) throw error;
+  return data || null; // id de la session créée, ou null si échec
+}
+async function espMbtiSaveResultRPC(inspecteurId, password, sessionId, eleve, scores, typeLetters, hierarchie, egalites){
+  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_save_result', {
+    p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId,
+    p_nom: eleve.nom, p_prenom: eleve.prenom, p_naissance: eleve.naissance, p_classe: eleve.classe,
+    p_scores: scores, p_type_letters: typeLetters, p_hierarchie: hierarchie, p_egalites: egalites,
+  });
+  if(error) throw error;
+  return !!data;
+}
+async function espMbtiListSessionsRPC(inspecteurId, password){
+  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_list_sessions', { p_inspecteur_id: inspecteurId, p_password: password });
+  if(error) throw error;
+  return (data || []).map(espRowToMbtiSession);
+}
+async function espMbtiListResultsRPC(inspecteurId, password, sessionId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_list_results', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
+  if(error) throw error;
+  return (data || []).map(espRowToMbtiResultat);
+}
+async function espMbtiDeleteSessionRPC(inspecteurId, password, sessionId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_delete_session', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
+  if(error) throw error;
+  return !!data;
+}
+
 // ---------------- Établissement : photos et modification des informations générales ----------------
 async function espUploadEtabPhoto(file){
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
