@@ -48,47 +48,135 @@ function espEtabContactCellHtml(e){
 }
 // Fiche détaillée dans la fenêtre modale générique (cf. modal.js). Nécessite le markup
 // #modal-overlay présent sur la page. Toujours visibles : nom, ville, quartier, région,
-// type, catégorie, filières proposées (validées). Réservés au Premium : contact direct,
-// site web, photos — ces champs sont déjà renvoyés à null par la RPC list_etablissements
-// quand premium=false, donc rien à filtrer côté client au-delà du test e.premium.
+// type, catégorie, secteur, filières proposées (validées). Réservés au Premium : contact
+// direct, site web, photos — ces champs sont déjà renvoyés à null par la RPC
+// list_etablissements quand premium=false, donc rien à filtrer côté client au-delà du
+// test e.premium. Tags header en classe "tag" (cf. style.css .modal-header .tag) : même
+// pattern déjà utilisé par les fiches métier/concours (formations.js, concours.js), pour
+// rester cohérent plutôt que d'utiliser esp-badge (pensé pour un fond clair, pas le
+// dégradé du header modal).
 function espOpenEtabDetailModal(etabId){
   const db = espDB();
   const e = (db.etablissements || []).find(x => x.id === etabId);
   if(!e || typeof openModal !== 'function') return;
 
-  const infoLines = [];
-  if(e.type) infoLines.push(`<b>Type :</b> ${escapeHtml(e.type)}`);
-  const categorieLabel = typeof espEtabCategorieLabel === 'function' ? espEtabCategorieLabel(e) : '—';
-  if(categorieLabel && categorieLabel !== '—') infoLines.push(`<b>Catégorie :</b> ${categorieLabel}`);
-  const infoHtml = infoLines.length ? `<p class="esp-sub" style="line-height:1.9;">${infoLines.join('<br>')}</p>` : '';
+  const categorieParts = [];
+  if(e.categorie) categorieParts.push(ESP_ETAB_CATEGORIE_LABELS[e.categorie] || e.categorie);
+  if(e.sousCategorie) categorieParts.push(ESP_ETAB_SOUS_CATEGORIE_LABELS[e.sousCategorie] || e.sousCategorie);
+  const categorieLabel = categorieParts.join(' · ');
+  const secteurLabel = e.secteur ? (ESP_ETAB_SECTEUR_LABELS[e.secteur] || e.secteur) : '';
+
+  const headerBadges = [];
+  if(categorieLabel) headerBadges.push(`<span class="tag">${escapeHtml(categorieLabel)}</span>`);
+  if(secteurLabel) headerBadges.push(`<span class="tag">${escapeHtml(secteurLabel)}</span>`);
+  [e.ville, e.quartier, e.region].filter(Boolean).forEach(v => headerBadges.push(`<span class="tag">${escapeHtml(v)}</span>`));
+  const tagsHtml = headerBadges.join('');
+
+  const typeHtml = e.type ? `<p class="esp-sub" style="margin-bottom:18px;">Type : ${escapeHtml(e.type)}</p>` : '';
 
   const filieresValidees = (e.filieresProposees || []).filter(f => f.statut === 'valide');
   const filieresHtml = filieresValidees.length ? `
-    <div style="margin-bottom:14px;">
-      <b style="font-size:13px;">Filières proposées :</b>
-      <ul style="margin:6px 0 0;padding-left:18px;">
-        ${filieresValidees.map(f => `<li>${escapeHtml(f.nom)}${f.diplome ? ` (${escapeHtml(f.diplome)})` : ''}</li>`).join('')}
-      </ul>
+    <h3>Filières proposées</h3>
+    <div class="esp-fiche-filieres">
+      ${filieresValidees.map(f => `<span class="esp-fiche-filiere-chip">${escapeHtml(f.nom)}${f.diplome ? ` <b>${escapeHtml(f.diplome)}</b>` : ''}</span>`).join('')}
     </div>
   ` : '';
 
   const photos = e.premium ? (e.photos || []) : [];
+  _espFichePhotos = photos;
+  _espFichePhotosNom = e.nom;
+  _espLightboxIndex = -1;
   const photosHtml = photos.length ? `
-    <div class="esp-etab-photos-grid" style="margin-bottom:14px;">
-      ${photos.map(u => `<div class="esp-etab-photo-thumb"><img src="${escapeHtml(u)}" alt="Photo de ${escapeHtml(e.nom)}"></div>`).join('')}
+    <h3>Photos</h3>
+    <div class="esp-fiche-photos">
+      ${photos.map((u,i) => `<button type="button" class="esp-fiche-photo" onclick="espEtabLightboxOpen(${i})" aria-label="Agrandir la photo ${i+1} de ${escapeHtml(e.nom)}"><img src="${escapeHtml(u)}" alt="Photo de ${escapeHtml(e.nom)}" loading="lazy"></button>`).join('')}
     </div>
   ` : '';
+
   const contactLines = [];
   if(e.premium && e.email) contactLines.push(`✉️ <a href="mailto:${escapeHtml(e.email)}">${escapeHtml(e.email)}</a>`);
   if(e.premium && e.tel) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel)}">${escapeHtml(e.tel)}</a>`);
   if(e.premium && e.tel2) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel2)}">${escapeHtml(e.tel2)}</a>`);
   if(e.premium && e.tel3) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel3)}">${escapeHtml(e.tel3)}</a>`);
   if(e.premium && e.siteWeb) contactLines.push(`🌐 <a href="${escapeHtml(e.siteWeb)}" target="_blank" rel="noopener">${escapeHtml(e.siteWeb)}</a>`);
-  const contactHtml = contactLines.length ? `<p class="esp-sub" style="line-height:1.9;">${contactLines.join('<br>')}</p>` : '';
+  const contactHtml = contactLines.length ? `
+    <h3>Contact</h3>
+    <div class="esp-fiche-contact">
+      ${contactLines.map(l => `<div class="esp-fiche-contact-row">${l}</div>`).join('')}
+    </div>
+  ` : '';
 
-  const tagsHtml = [e.ville, e.quartier, e.region].filter(Boolean).map(v => `<span class="esp-badge valide">${escapeHtml(v)}</span>`).join(' ');
-  openModal(e.nom, tagsHtml, (infoHtml + filieresHtml + photosHtml + contactHtml) || '<p class="esp-empty">Aucune information supplémentaire.</p>');
+  const bodyHtml = typeHtml + filieresHtml + photosHtml + contactHtml;
+  openModal(e.nom, tagsHtml, bodyHtml || '<p class="esp-empty">Aucune information supplémentaire.</p>');
 }
+
+// ---------------- Lightbox photos (fiche établissement) : vanilla JS, sans dépendance ----------------
+// DOM créée à la volée et ajoutée une seule fois à document.body (pas de markup statique à
+// dupliquer dans chaque page HTML qui inclut ce script). État courant : _espFichePhotos
+// (tableau d'URLs de la fiche ouverte) + _espLightboxIndex (-1 = fermée).
+let _espFichePhotos = [];
+let _espFichePhotosNom = '';
+let _espLightboxIndex = -1;
+
+function espEtabLightboxEnsureDom(){
+  if(document.getElementById('esp-lightbox-overlay')) return;
+  const div = document.createElement('div');
+  div.id = 'esp-lightbox-overlay';
+  div.className = 'esp-lightbox-overlay';
+  div.innerHTML = `
+    <button type="button" class="esp-lightbox-close" aria-label="Fermer">✕</button>
+    <button type="button" class="esp-lightbox-nav esp-lightbox-prev" aria-label="Photo précédente">‹</button>
+    <img class="esp-lightbox-img" id="esp-lightbox-img" alt="">
+    <button type="button" class="esp-lightbox-nav esp-lightbox-next" aria-label="Photo suivante">›</button>
+    <div class="esp-lightbox-counter" id="esp-lightbox-counter"></div>
+  `;
+  div.addEventListener('click', ev => { if(ev.target === div) espEtabLightboxClose(); });
+  div.querySelector('.esp-lightbox-close').addEventListener('click', espEtabLightboxClose);
+  div.querySelector('.esp-lightbox-prev').addEventListener('click', () => espEtabLightboxNav(-1));
+  div.querySelector('.esp-lightbox-next').addEventListener('click', () => espEtabLightboxNav(1));
+  document.body.appendChild(div);
+}
+function espEtabLightboxRender(){
+  const img = document.getElementById('esp-lightbox-img');
+  const counter = document.getElementById('esp-lightbox-counter');
+  const overlay = document.getElementById('esp-lightbox-overlay');
+  if(!img || _espLightboxIndex < 0) return;
+  img.src = _espFichePhotos[_espLightboxIndex];
+  img.alt = `Photo de ${_espFichePhotosNom}`;
+  const multi = _espFichePhotos.length > 1;
+  overlay.classList.toggle('single', !multi);
+  counter.textContent = multi ? `${_espLightboxIndex + 1} / ${_espFichePhotos.length}` : '';
+}
+function espEtabLightboxOpen(index){
+  if(!_espFichePhotos.length) return;
+  espEtabLightboxEnsureDom();
+  _espLightboxIndex = index;
+  espEtabLightboxRender();
+  document.getElementById('esp-lightbox-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function espEtabLightboxNav(delta){
+  if(_espLightboxIndex < 0) return;
+  const n = _espFichePhotos.length;
+  _espLightboxIndex = (_espLightboxIndex + delta + n) % n;
+  espEtabLightboxRender();
+}
+function espEtabLightboxClose(){
+  const overlay = document.getElementById('esp-lightbox-overlay');
+  if(overlay) overlay.classList.remove('open');
+  _espLightboxIndex = -1;
+  const modalOverlay = document.getElementById('modal-overlay');
+  document.body.style.overflow = (modalOverlay && modalOverlay.classList.contains('open')) ? 'hidden' : '';
+}
+// Enregistré avant modal.js (utils.js est chargé en premier dans toutes les pages) : quand
+// la lightbox est ouverte, stopImmediatePropagation() empêche l'écouteur Échap de modal.js
+// de fermer la fiche en même temps — une première pression ferme seulement la lightbox.
+document.addEventListener('keydown', ev => {
+  if(_espLightboxIndex < 0) return;
+  if(ev.key === 'Escape'){ espEtabLightboxClose(); ev.stopImmediatePropagation(); }
+  else if(ev.key === 'ArrowLeft') espEtabLightboxNav(-1);
+  else if(ev.key === 'ArrowRight') espEtabLightboxNav(1);
+});
 
 // ---------------- Bandeau d'annonce admin (site-wide, toutes les pages) ----------------
 // Alimenté par la table Supabase "annonce" (jusqu'à 5 lignes actives, gérées depuis
