@@ -1,7 +1,11 @@
   :root{
     --bg:#fffaf3; --panel:#ffffff; --border:#f0d9b5; --text:#1f2b22;
     --muted:#6b7d70; --orange:#ff7a1a; --orange-dark:#e8650a;
-    --green:#1f9d55; --green-dark:#157a40;
+    --green:#1f9d55; --green-dark:#157a40; --green-pale:#c9f2d8;
+    --blue-pale-bg:#dbeafe; --blue-pale-fg:#1e40af;
+    --amber-pale-bg:#fef3c7; --amber-pale-fg:#92400e;
+    --pink-pale-bg:#fce7f3; --pink-pale-fg:#9d174d;
+    --chip-red:#e0473d; --chip-orange:#ff7a1a; --chip-blue:#2f6fed; --chip-green:#1f9d55;
   }
   *{box-sizing:border-box;}
   body{
@@ -829,26 +833,93 @@
 .esp-etab-photo-remove:hover{ background:rgba(192,57,43,0.9); }
 
 /* ---------------- Fiche établissement (modal détail, cf. utils.js espOpenEtabDetailModal) ---------------- */
-.esp-fiche-filieres{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
-.esp-fiche-filiere-chip{
-  background:var(--bg); border:1.5px solid var(--border); border-radius:20px;
-  padding:6px 14px; font-size:13.5px; color:var(--text);
+/* Bandeau plein en haut (remplace le modal-header générique, masqué via openModal(...,true))
+   : négatif de la marge de .modal-body pour venir border à border, .modal-card ayant déjà
+   overflow:hidden les coins hauts se retrouvent arrondis automatiquement. */
+.esp-fiche-bandeau{
+  background:var(--green); color:#fff; position:relative;
+  margin:-24px -26px 20px; padding:22px 52px 20px 26px;
 }
-.esp-fiche-filiere-chip b{ color:var(--green-dark); }
+.esp-fiche-bandeau .modal-close{ background:rgba(255,255,255,0.2); }
+.esp-fiche-bandeau .modal-close:hover{ background:rgba(255,255,255,0.35); }
+.esp-fiche-bandeau-top{ display:flex; align-items:center; gap:14px; }
+.esp-fiche-logo{
+  width:54px; height:54px; border-radius:14px; object-fit:cover; flex-shrink:0;
+  border:2px solid rgba(255,255,255,0.5); background:#fff;
+}
+.esp-fiche-nom{ margin:0; font-size:21px; font-weight:800; line-height:1.25; color:#fff; }
+.esp-fiche-categorie{ margin:4px 0 0; font-size:13px; font-weight:600; color:var(--green-pale); }
+
+.esp-fiche-pastilles{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+.esp-fiche-pastille{
+  display:flex; align-items:center; gap:8px; border-radius:12px; padding:9px 13px;
+  font-size:12.5px; flex:1 1 160px;
+}
+.esp-fiche-pastille-icon{ font-size:17px; line-height:1; }
+.esp-fiche-pastille-body{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.esp-fiche-pastille-body b{ font-size:11px; text-transform:uppercase; letter-spacing:.04em; opacity:.75; }
+.esp-fiche-pastille-body span, .esp-fiche-pastille-body a{
+  font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.esp-fiche-pastille-body a{ text-decoration:none; }
+.esp-fiche-pastille-body a:hover{ text-decoration:underline; }
+.esp-fiche-pastille--blue{ background:var(--blue-pale-bg); color:var(--blue-pale-fg); }
+.esp-fiche-pastille--amber{ background:var(--amber-pale-bg); color:var(--amber-pale-fg); }
+.esp-fiche-pastille--pink{ background:var(--pink-pale-bg); color:var(--pink-pale-fg); }
+
+.esp-fiche-filieres{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
+.esp-fiche-filiere-pill{
+  border-radius:999px; padding:7px 16px; font-size:13.5px; font-weight:600; color:#fff;
+}
+.esp-fiche-filiere-pill b{ font-weight:800; }
+.esp-fiche-filiere-pill--red{ background:var(--chip-red); }
+.esp-fiche-filiere-pill--orange{ background:var(--chip-orange); }
+.esp-fiche-filiere-pill--blue{ background:var(--chip-blue); }
+
 .esp-fiche-photos{
   display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:10px;
 }
 .esp-fiche-photo{
   padding:0; border:1.5px solid var(--border); background:none; cursor:pointer;
-  aspect-ratio:1/1; border-radius:12px; overflow:hidden;
+  aspect-ratio:1/1; border-radius:12px; overflow:hidden; position:relative;
   transition:transform .15s ease, box-shadow .15s ease;
 }
 .esp-fiche-photo:hover{ transform:scale(1.04); box-shadow:0 6px 16px rgba(0,0,0,0.15); }
 .esp-fiche-photo img{ width:100%; height:100%; object-fit:cover; display:block; }
-.esp-fiche-contact{ display:flex; flex-direction:column; gap:8px; }
-.esp-fiche-contact-row{ font-size:14.5px; color:var(--text); }
-.esp-fiche-contact-row a{ color:var(--green-dark); font-weight:700; text-decoration:none; }
-.esp-fiche-contact-row a:hover{ text-decoration:underline; }
+.esp-fiche-photo-more{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(10,14,10,0.6); color:#fff; font-size:17px; font-weight:800;
+}
+
+.esp-fiche-contact-section{ background:var(--bg); border-radius:14px; padding:16px; margin-top:22px; }
+.esp-fiche-contact-section h3{ margin-top:0 !important; }
+.esp-fiche-contact-header{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.esp-badge-premium{
+  background:var(--pink-pale-bg); color:var(--pink-pale-fg); font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.04em; padding:4px 10px; border-radius:20px; flex-shrink:0;
+}
+.esp-fiche-contact-email{ margin:2px 0 12px; font-size:14px; }
+.esp-fiche-contact-email a{ color:var(--green-dark); font-weight:700; text-decoration:none; }
+.esp-fiche-contact-email a:hover{ text-decoration:underline; }
+.esp-fiche-contact-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+.esp-fiche-contact-bloc{
+  display:flex; align-items:center; gap:8px; border-radius:12px; padding:12px 14px;
+}
+.esp-fiche-contact-icon{ font-size:16px; }
+.esp-fiche-contact-bloc a{ color:#fff; font-weight:700; font-size:14px; text-decoration:none; }
+.esp-fiche-contact-bloc a:hover{ text-decoration:underline; }
+.esp-fiche-contact-bloc--red{ background:var(--chip-red); }
+.esp-fiche-contact-bloc--green{ background:var(--chip-green); }
+.esp-fiche-contact-bloc--blue{ background:var(--chip-blue); }
+
+@media (max-width:640px){
+  /* .modal-card gagne son propre padding(22px 16px) en dessous de 640px (cf. règle plus
+     bas), qui s'ajoute à celui de .modal-body : il faut annuler les deux pour que le
+     bandeau atteigne réellement le bord arrondi de la carte. */
+  .esp-fiche-bandeau{ margin:-46px -42px 18px; padding:20px 46px 18px 42px; }
+  .esp-fiche-logo{ width:46px; height:46px; border-radius:12px; }
+  .esp-fiche-nom{ font-size:18px; }
+}
 
 /* ---------------- Lightbox photos (fiche établissement) : plein écran, vanilla JS ---------------- */
 .esp-lightbox-overlay{

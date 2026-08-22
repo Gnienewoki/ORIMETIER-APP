@@ -79,6 +79,12 @@ function espRenderEtabAuth(mode){
           <button type="button" class="esp-btn" id="esp-etab-add-filiere-btn" onclick="espEtabAddFiliereRow()">+ Ajouter une filière</button>
         </p>
         <div class="esp-field" style="margin-bottom:8px;">
+          <label>Logo de l'établissement (facultatif)</label>
+        </div>
+        <div id="esp-etab-logo-preview" class="esp-etab-photos-grid"></div>
+        <input type="file" id="esp-etab-logo-input" accept="image/*" onchange="espEtabRegisterLogoChange(this)">
+        <div id="esp-etab-logo-msg"></div>
+        <div class="esp-field" style="margin:14px 0 8px;">
           <label id="esp-etab-photos-label">Photos de l'établissement (0/10)</label>
         </div>
         <div id="esp-etab-photos-preview" class="esp-etab-photos-grid"></div>
@@ -93,6 +99,7 @@ function espRenderEtabAuth(mode){
   if(!isLogin){
     _espEtabFiliereRowCount = 0;
     _espEtabRegisterPhotos = [];
+    _espEtabRegisterLogo = null;
     clearTimeout(_espEtabNomDoublonTimer);
     const nomInput = document.getElementById('esp-etab-nom');
     if(nomInput){
@@ -267,6 +274,37 @@ function espEtabReadFiliereRow(row, mode){
   return { nom, diplome };
 }
 
+// ---------------- Logo de l'établissement (un seul fichier, à l'inscription) ----------------
+let _espEtabRegisterLogo = null;
+async function espEtabRegisterLogoChange(input){
+  const file = (input.files || [])[0];
+  input.value = '';
+  if(!file) return;
+  const msgEl = document.getElementById('esp-etab-logo-msg');
+  if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
+  try {
+    _espEtabRegisterLogo = await espUploadEtabLogo(file);
+    if(msgEl) msgEl.innerHTML = '';
+  } catch(e){
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi du logo : ' + escapeHtml(e.message) + '</p>';
+  }
+  espEtabRenderRegisterLogo();
+}
+function espEtabRemoveRegisterLogo(){
+  _espEtabRegisterLogo = null;
+  espEtabRenderRegisterLogo();
+}
+function espEtabRenderRegisterLogo(){
+  const el = document.getElementById('esp-etab-logo-preview');
+  if(!el) return;
+  el.innerHTML = _espEtabRegisterLogo ? `
+    <div class="esp-etab-photo-thumb">
+      <img src="${escapeHtml(_espEtabRegisterLogo)}" alt="Logo établissement">
+      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterLogo()" title="Retirer">✕</span>
+    </div>
+  ` : '';
+}
+
 // ---------------- Photos de l'établissement (jusqu'à 10, à l'inscription) ----------------
 let _espEtabRegisterPhotos = [];
 async function espEtabRegisterPhotosChange(input){
@@ -351,7 +389,7 @@ async function espEtabRegister(){
     }
   });
   const id = espUid();
-  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, contactTel, tel, tel2, tel3, siteWeb, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), categorie, sousCategorie, secteur };
+  const nouvelEtab = { id, nom, region, ville, quartier, type, responsable, contactTel, tel, tel2, tel3, siteWeb, email, password:pass, statut:'en_attente', active:true, dateInscription:espDate(), filieresProposees, photos: _espEtabRegisterPhotos.slice(0,10), logoUrl: _espEtabRegisterLogo, categorie, sousCategorie, secteur };
   try {
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
@@ -557,7 +595,7 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">📷 Photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
+      <div class="esp-title" style="font-size:15px;">🖼️ Logo & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
       ${!etab.premium ? `
         <p class="esp-sub">Fonctionnalité réservée aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
         ${etab.demandePremium ? `
@@ -567,7 +605,20 @@ function espRenderEtabDashboard(){
           <div id="esp-etab-premium-msg"></div>
         `}
       ` : `
-        <div class="esp-title" style="font-size:14px;">Mes photos (${(etab.photos||[]).length}/10)</div>
+        <div class="esp-title" style="font-size:14px;">Logo</div>
+        <p class="esp-sub" style="margin-bottom:10px;">Affiché dans le médaillon de votre fiche établissement.</p>
+        <div id="esp-etab-logo-dash-preview" class="esp-etab-photos-grid">
+          ${etab.logoUrl ? `
+            <div class="esp-etab-photo-thumb">
+              <img src="${escapeHtml(etab.logoUrl)}" alt="Logo établissement">
+              <span class="esp-etab-photo-remove" onclick="espEtabRemoveLogo()" title="Retirer">✕</span>
+            </div>
+          ` : ''}
+        </div>
+        ${!etab.logoUrl ? `<input type="file" id="esp-etab-logo-dash-input" accept="image/*" onchange="espEtabDashboardLogoChange(this)">` : ''}
+        <div id="esp-etab-logo-dash-msg"></div>
+
+        <div class="esp-title" style="font-size:14px;margin-top:18px;border-top:1px dashed var(--border);padding-top:14px;">Mes photos (${(etab.photos||[]).length}/10)</div>
         <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
         <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
           ${(etab.photos||[]).map((u,i) => `
@@ -823,6 +874,35 @@ async function espEtabRemovePhoto(idx){
   updated.splice(idx, 1);
   try {
     const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
+    if(!ok) return;
+    await espEtabRefreshOwnAndDashboard();
+  } catch(e){}
+}
+
+// ---------------- Logo (modifiable après inscription, y compris pour un compte réclamé) ----------------
+async function espEtabDashboardLogoChange(input){
+  const session = espSession();
+  const file = (input.files || [])[0];
+  input.value = '';
+  if(!file) return;
+  const msgEl = document.getElementById('esp-etab-logo-dash-msg');
+  if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
+  let url;
+  try { url = await espUploadEtabLogo(file); }
+  catch(e){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>'; return; }
+  try {
+    const ok = await espEtabUpdateLogoRPC(session.id, session.password, url);
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    await espEtabRefreshOwnAndDashboard();
+  } catch(e){
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+  }
+}
+async function espEtabRemoveLogo(){
+  const session = espSession();
+  if(!_espEtabOwn) return;
+  try {
+    const ok = await espEtabUpdateLogoRPC(session.id, session.password, null);
     if(!ok) return;
     await espEtabRefreshOwnAndDashboard();
   } catch(e){}

@@ -993,6 +993,13 @@ function espAdminDemandesInscriptionHtml(list){
             <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminCopierDemandeLigne('${d.id}')">📋 Copier (format import)</button>
             <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;" onclick="espAdminMarquerDemandeTraitee('${d.id}')">✔ Marquer comme traité</button>
           </span>
+          ${((d.photos && d.photos.length) || d.logoUrl) ? `
+            <div style="width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);">
+              <span class="esp-sub" style="margin:0;">🖼️ ${d.logoUrl ? 'Logo' : ''}${d.logoUrl && (d.photos||[]).length ? ' + ' : ''}${(d.photos||[]).length ? (d.photos.length + ' photo(s)') : ''} en attente de liaison, une fois l'établissement importé :</span>
+              <input type="text" id="esp-admin-lien-etab-id-${d.id}" placeholder="ID établissement importé" style="flex:1;min-width:160px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
+              <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminLierPhotosLogoDemande('${d.id}')">🔗 Lier logo/photos &amp; marquer traité</button>
+            </div>
+          ` : ''}
         </div>
       `).join('')}
     </div>
@@ -1020,6 +1027,26 @@ async function espAdminMarquerDemandeTraitee(id){
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Session expirée, ou demande déjà traitée. Merci de te reconnecter si besoin."); return; }
   espAdminInvalidateDemandesInscription();
+  espRenderAdminDashboard('etablissements');
+}
+
+// Recopie le logo/les photos d'une demande vers l'établissement fraîchement créé par
+// l'import texte (les deux actions sont aujourd'hui indépendantes — cf. diagnostic — donc
+// l'admin doit coller ici l'id de l'établissement qu'il vient d'importer) et marque la
+// demande traitée dans la foulée.
+async function espAdminLierPhotosLogoDemande(demandeId){
+  const input = document.getElementById('esp-admin-lien-etab-id-' + demandeId);
+  const etabId = input ? input.value.trim() : '';
+  if(!etabId){ alert("Indique l'id de l'établissement fraîchement importé."); return; }
+  const session = espSession();
+  let ok;
+  try { ok = await espAdminLierPhotosLogoDemandeRPC(session.password, demandeId, etabId); }
+  catch(err){ alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Échec : demande déjà traitée, ou aucun établissement trouvé avec cet id. Vérifie l'id copié depuis le résultat de l'import."); return; }
+  alert('✅ Logo/photos liés à l\'établissement, et demande marquée comme traitée.');
+  espAdminInvalidateEtabFull();
+  espAdminInvalidateDemandesInscription();
+  await espLoadFromSupabase(true);
   espRenderAdminDashboard('etablissements');
 }
 

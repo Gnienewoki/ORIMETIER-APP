@@ -29,8 +29,8 @@ function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, 
 // responsable/contactTel : réservés (admin_list_etablissements_full / etablissement_get_own
 // uniquement) — absents des lignes renvoyées par list_etablissements() (publique), donc
 // undefined -> '' ici pour ces appels, ce qui est le comportement voulu.
-function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable||'', contactTel:r.contact_tel||'', tel:r.tel, tel2:r.tel2||'', tel3:r.tel3||'', email:r.email, siteWeb:r.site_web||'', statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
-function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, contact_tel:e.contactTel||null, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
+function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable||'', contactTel:r.contact_tel||'', tel:r.tel, tel2:r.tel2||'', tel3:r.tel3||'', email:r.email, siteWeb:r.site_web||'', statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], logoUrl:r.logo_url||'', categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
+function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, contact_tel:e.contactTel||null, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], logo_url:e.logoUrl||null, categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
@@ -189,7 +189,7 @@ async function espInsertEtablissement(row){
     p_date_inscription: row.date_inscription, p_filieres_proposees: row.filieres_proposees, p_photos: row.photos || [],
     p_categorie: row.categorie || null, p_sous_categorie: row.sous_categorie || null, p_secteur: row.secteur || null,
     p_tel2: row.tel2 || null, p_tel3: row.tel3 || null, p_site_web: row.site_web || null,
-    p_contact_tel: row.contact_tel || null,
+    p_contact_tel: row.contact_tel || null, p_logo_url: row.logo_url || null,
   });
   if(error){ throw error; }
   if(!data){ throw new Error("Inscription refusée (e-mail déjà utilisé, ou champ obligatoire manquant)."); }
@@ -212,7 +212,7 @@ function espRowToDemandeInscription(r){
     id: r.id, nom: r.nom, region: r.region||'', ville: r.ville, quartier: r.quartier||'', type: r.type,
     responsable: r.responsable||'', tel: r.tel||'', tel2: r.tel2||'', tel3: r.tel3||'', email: r.email,
     siteWeb: r.site_web||'', contactTel: r.contact_tel||'', dateInscription: r.date_inscription,
-    filieresProposees: r.filieres_proposees||[], photos: r.photos||[],
+    filieresProposees: r.filieres_proposees||[], photos: r.photos||[], logoUrl: r.logo_url||'',
     categorie: r.categorie||'', sousCategorie: r.sous_categorie||'', secteur: r.secteur||'',
     dateDemande: r.date_demande, statutDemande: r.statut_demande,
   };
@@ -224,6 +224,16 @@ async function espAdminListDemandesInscriptionRPC(password){
 }
 async function espAdminMarquerDemandeTraiteeRPC(password, demandeId){
   const { data, error } = await supabaseClient.rpc('admin_marquer_demande_traitee', { p_admin_password: password, p_demande_id: demandeId });
+  if(error) throw error;
+  return !!data;
+}
+// Recopie photos/logo_url d'une demande vers l'établissement fraîchement importé (import
+// texte, cf. admin_bulk_import_etablissements) et marque la demande traitée en une seule
+// opération — cf. supabase-migration-2026-08-22-lien-demande-etablissement.sql.
+async function espAdminLierPhotosLogoDemandeRPC(password, demandeId, etablissementId){
+  const { data, error } = await supabaseClient.rpc('admin_lier_photos_logo_demande', {
+    p_admin_password: password, p_demande_id: demandeId, p_etablissement_id: etablissementId,
+  });
   if(error) throw error;
   return !!data;
 }
@@ -565,6 +575,23 @@ async function espEtabUpdateInfoRPC(etabId, password, nom, type, responsable, te
 async function espEtabUpdatePhotosRPC(etabId, password, photos){
   const { data, error } = await supabaseClient.rpc('etablissement_update_photos', {
     p_etab_id: etabId, p_password: password, p_photos: photos,
+  });
+  if(error) throw error;
+  return !!data;
+}
+// Logo (un seul fichier, contrairement aux photos) : même bucket/dossier que les photos
+// d'établissement, même mécanisme d'upload.
+async function espUploadEtabLogo(file){
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = 'etablissements/logo-' + Date.now().toString(36) + Math.random().toString(36).slice(2,8) + '.' + ext;
+  const { error } = await supabaseClient.storage.from('orimetier-chat').upload(path, file);
+  if(error) throw error;
+  const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
+  return data.publicUrl;
+}
+async function espEtabUpdateLogoRPC(etabId, password, logoUrl){
+  const { data, error } = await supabaseClient.rpc('etablissement_update_logo', {
+    p_etab_id: etabId, p_password: password, p_logo_url: logoUrl || null,
   });
   if(error) throw error;
   return !!data;

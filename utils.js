@@ -46,15 +46,13 @@ function espEtabContactCellHtml(e){
   if(!direct) return escapeHtml(base);
   return `${escapeHtml(base)}<br><span class="esp-badge valide" style="margin-top:2px;">Contact direct</span> ${escapeHtml(direct)}`;
 }
-// Fiche détaillée dans la fenêtre modale générique (cf. modal.js). Nécessite le markup
-// #modal-overlay présent sur la page. Toujours visibles : nom, ville, quartier, région,
-// type, catégorie, secteur, filières proposées (validées). Réservés au Premium : contact
-// direct, site web, photos — ces champs sont déjà renvoyés à null par la RPC
-// list_etablissements quand premium=false, donc rien à filtrer côté client au-delà du
-// test e.premium. Tags header en classe "tag" (cf. style.css .modal-header .tag) : même
-// pattern déjà utilisé par les fiches métier/concours (formations.js, concours.js), pour
-// rester cohérent plutôt que d'utiliser esp-badge (pensé pour un fond clair, pas le
-// dégradé du header modal).
+// Fiche détaillée dans la fenêtre modale générique (cf. modal.js), avec un bandeau
+// personnalisé (logo + nom + catégorie) qui remplace l'en-tête générique en dégradé
+// orange-vert (openModal(...,true) masque cet en-tête — cf. modal.js). Toujours visibles :
+// nom, catégorie, filières proposées (validées), secteur, région/ville/quartier. Réservés
+// au Premium : logo, photos, tel/tel2/tel3, email, site web — ces champs sont déjà renvoyés
+// à null/vide par la RPC list_etablissements quand premium=false, donc rien à filtrer côté
+// client au-delà du test e.premium (ceinture et bretelles).
 function espOpenEtabDetailModal(etabId){
   const db = espDB();
   const e = (db.etablissements || []).find(x => x.id === etabId);
@@ -65,49 +63,88 @@ function espOpenEtabDetailModal(etabId){
   if(e.sousCategorie) categorieParts.push(ESP_ETAB_SOUS_CATEGORIE_LABELS[e.sousCategorie] || e.sousCategorie);
   const categorieLabel = categorieParts.join(' · ');
   const secteurLabel = e.secteur ? (ESP_ETAB_SECTEUR_LABELS[e.secteur] || e.secteur) : '';
+  const localisationLabel = [e.ville, e.quartier, e.region].filter(Boolean).join(' · ');
 
-  const headerBadges = [];
-  if(categorieLabel) headerBadges.push(`<span class="tag">${escapeHtml(categorieLabel)}</span>`);
-  if(secteurLabel) headerBadges.push(`<span class="tag">${escapeHtml(secteurLabel)}</span>`);
-  [e.ville, e.quartier, e.region].filter(Boolean).forEach(v => headerBadges.push(`<span class="tag">${escapeHtml(v)}</span>`));
-  const tagsHtml = headerBadges.join('');
+  // ---------------- Bandeau : logo (Premium uniquement, jamais de médaillon vide) + nom + catégorie ----------------
+  const logoHtml = (e.premium && e.logoUrl)
+    ? `<img class="esp-fiche-logo" src="${escapeHtml(e.logoUrl)}" alt="Logo de ${escapeHtml(e.nom)}">`
+    : '';
+  const bandeauHtml = `
+    <div class="esp-fiche-bandeau">
+      <button type="button" class="modal-close" onclick="closeModal()" aria-label="Fermer">✕</button>
+      <div class="esp-fiche-bandeau-top">
+        ${logoHtml}
+        <div>
+          <h2 class="esp-fiche-nom">${escapeHtml(e.nom)}</h2>
+          ${categorieLabel ? `<p class="esp-fiche-categorie">${escapeHtml(categorieLabel)}</p>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ---------------- Pastilles : localisation (toujours), secteur (toujours), site web (Premium) ----------------
+  const pastilles = [];
+  if(localisationLabel){
+    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--blue"><span class="esp-fiche-pastille-icon">📍</span><span class="esp-fiche-pastille-body"><b>Localisation</b><span>${escapeHtml(localisationLabel)}</span></span></div>`);
+  }
+  if(secteurLabel){
+    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--amber"><span class="esp-fiche-pastille-icon">🏢</span><span class="esp-fiche-pastille-body"><b>Secteur</b><span>${escapeHtml(secteurLabel)}</span></span></div>`);
+  }
+  if(e.premium && e.siteWeb){
+    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--pink"><span class="esp-fiche-pastille-icon">🌐</span><span class="esp-fiche-pastille-body"><b>Site web</b><a href="${escapeHtml(e.siteWeb)}" target="_blank" rel="noopener">${escapeHtml(e.siteWeb)}</a></span></div>`);
+  }
+  const pastillesHtml = pastilles.length ? `<div class="esp-fiche-pastilles">${pastilles.join('')}</div>` : '';
 
   const typeHtml = e.type ? `<p class="esp-sub" style="margin-bottom:18px;">Type : ${escapeHtml(e.type)}</p>` : '';
 
+  // ---------------- Filières proposées (validées) : pills pleines, couleurs en alternance ----------------
   const filieresValidees = (e.filieresProposees || []).filter(f => f.statut === 'valide');
+  const filiereCouleurs = ['esp-fiche-filiere-pill--red', 'esp-fiche-filiere-pill--orange', 'esp-fiche-filiere-pill--blue'];
   const filieresHtml = filieresValidees.length ? `
     <h3>Filières proposées</h3>
     <div class="esp-fiche-filieres">
-      ${filieresValidees.map(f => `<span class="esp-fiche-filiere-chip">${escapeHtml(f.nom)}${f.diplome ? ` <b>${escapeHtml(f.diplome)}</b>` : ''}</span>`).join('')}
+      ${filieresValidees.map((f,i) => `<span class="esp-fiche-filiere-pill ${filiereCouleurs[i % filiereCouleurs.length]}">${escapeHtml(f.nom)}${f.diplome ? ` <b>${escapeHtml(f.diplome)}</b>` : ''}</span>`).join('')}
     </div>
   ` : '';
 
+  // ---------------- Photos (Premium) : grille de vignettes, pastille "+N" sur la dernière si troncature ----------------
   const photos = e.premium ? (e.photos || []) : [];
   _espFichePhotos = photos;
   _espFichePhotosNom = e.nom;
   _espLightboxIndex = -1;
+  const ESP_FICHE_PHOTOS_MAX_VISIBLE = 6;
+  const photosRestantes = photos.length - ESP_FICHE_PHOTOS_MAX_VISIBLE;
   const photosHtml = photos.length ? `
     <h3>Photos</h3>
     <div class="esp-fiche-photos">
-      ${photos.map((u,i) => `<button type="button" class="esp-fiche-photo" onclick="espEtabLightboxOpen(${i})" aria-label="Agrandir la photo ${i+1} de ${escapeHtml(e.nom)}"><img src="${escapeHtml(u)}" alt="Photo de ${escapeHtml(e.nom)}" loading="lazy"></button>`).join('')}
+      ${photos.slice(0, ESP_FICHE_PHOTOS_MAX_VISIBLE).map((u,i) => {
+        const dernier = i === ESP_FICHE_PHOTOS_MAX_VISIBLE - 1;
+        const overlay = (dernier && photosRestantes > 0) ? `<span class="esp-fiche-photo-more">+${photosRestantes}</span>` : '';
+        return `<button type="button" class="esp-fiche-photo" onclick="espEtabLightboxOpen(${i})" aria-label="Agrandir la photo ${i+1} de ${escapeHtml(e.nom)}"><img src="${escapeHtml(u)}" alt="Photo de ${escapeHtml(e.nom)}" loading="lazy">${overlay}</button>`;
+      }).join('')}
     </div>
   ` : '';
 
-  const contactLines = [];
-  if(e.premium && e.email) contactLines.push(`✉️ <a href="mailto:${escapeHtml(e.email)}">${escapeHtml(e.email)}</a>`);
-  if(e.premium && e.tel) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel)}">${escapeHtml(e.tel)}</a>`);
-  if(e.premium && e.tel2) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel2)}">${escapeHtml(e.tel2)}</a>`);
-  if(e.premium && e.tel3) contactLines.push(`📞 <a href="tel:${escapeHtml(e.tel3)}">${escapeHtml(e.tel3)}</a>`);
-  if(e.premium && e.siteWeb) contactLines.push(`🌐 <a href="${escapeHtml(e.siteWeb)}" target="_blank" rel="noopener">${escapeHtml(e.siteWeb)}</a>`);
-  const contactHtml = contactLines.length ? `
-    <h3>Contact</h3>
-    <div class="esp-fiche-contact">
-      ${contactLines.map(l => `<div class="esp-fiche-contact-row">${l}</div>`).join('')}
+  // ---------------- Contact (Premium) : fond gris, badge Premium, 3 blocs colorés tel/tel2/tel3 ----------------
+  const contactCouleurs = ['red', 'green', 'blue'];
+  const contactBlocs = [e.tel, e.tel2, e.tel3]
+    .map((num, i) => (e.premium && num) ? `<div class="esp-fiche-contact-bloc esp-fiche-contact-bloc--${contactCouleurs[i]}"><span class="esp-fiche-contact-icon">📞</span><a href="tel:${escapeHtml(num)}">${escapeHtml(num)}</a></div>` : '')
+    .filter(Boolean);
+  const emailHtml = (e.premium && e.email) ? `<p class="esp-fiche-contact-email">✉️ <a href="mailto:${escapeHtml(e.email)}">${escapeHtml(e.email)}</a></p>` : '';
+  const contactHtml = (contactBlocs.length || emailHtml) ? `
+    <div class="esp-fiche-contact-section">
+      <div class="esp-fiche-contact-header">
+        <h3>Contact</h3>
+        <span class="esp-badge-premium">Premium</span>
+      </div>
+      ${emailHtml}
+      ${contactBlocs.length ? `<div class="esp-fiche-contact-grid">${contactBlocs.join('')}</div>` : ''}
     </div>
   ` : '';
 
-  const bodyHtml = typeHtml + filieresHtml + photosHtml + contactHtml;
-  openModal(e.nom, tagsHtml, bodyHtml || '<p class="esp-empty">Aucune information supplémentaire.</p>');
+  const contenuHtml = pastillesHtml + typeHtml + filieresHtml + photosHtml + contactHtml;
+  const bodyHtml = bandeauHtml + `<div class="esp-fiche-contenu">${contenuHtml || '<p class="esp-empty">Aucune information supplémentaire.</p>'}</div>`;
+  openModal('', '', bodyHtml, true);
 }
 
 // ---------------- Lightbox photos (fiche établissement) : vanilla JS, sans dépendance ----------------
