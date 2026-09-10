@@ -158,6 +158,14 @@ function espLogVisiteCourante(){
 (async function espBootstrap(){
   espLogVisiteCourante();
 
+  // Message de patience : n'apparaît que si le chargement traîne (cold start
+  // Render) ET que l'écran de chargement est encore affiché à l'écran.
+  setTimeout(() => {
+    const loader = document.getElementById('esp-loading');
+    const hint = document.getElementById('esp-loading-hint');
+    if(loader && hint && loader.offsetParent !== null) hint.hidden = false;
+  }, 4000);
+
   // Chargement Supabase lancé tout de suite mais jamais "throw" : l'erreur
   // éventuelle est renvoyée comme valeur, pour décider ensuite quoi en faire.
   const chargement = espLoadFromSupabase().then(() => null, (e) => { console.error(e); return e; });

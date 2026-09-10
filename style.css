@@ -1222,6 +1222,38 @@
   .o-skeleton{ animation:none; background:var(--border); }
 }
 
+/* ---- Écran de chargement de marque (remplace le texte "Connexion à la base…") ---- */
+.o-loading{ padding:28px 8px 8px; text-align:center; }
+.o-loading-badge{
+  width:44px; height:44px; margin:0 auto 24px;
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--orange),var(--green));
+  box-shadow:0 3px 10px rgba(0,0,0,0.15);
+  animation:o-loading-pulse 1.5s ease-in-out infinite;
+}
+@keyframes o-loading-pulse{
+  0%,100%{ transform:rotate(45deg) scale(.85); opacity:.6; }
+  50%    { transform:rotate(45deg) scale(1);   opacity:1;  }
+}
+.o-loading-bars{
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  max-width:420px; margin:0 auto;
+}
+.o-loading-bars .o-skeleton{ height:20px; border-radius:var(--r-sm); }
+.o-loading-bars .o-skeleton:nth-child(1){ width:100%; }
+.o-loading-bars .o-skeleton:nth-child(2){ width:82%; }
+.o-loading-bars .o-skeleton:nth-child(3){ width:93%; }
+.o-loading-bars .o-skeleton:nth-child(4){ width:68%; }
+.o-loading-bars .o-skeleton:nth-child(5){ width:88%; }
+.o-loading-hint{
+  margin:22px auto 0; max-width:390px;
+  font-size:13px; color:var(--muted); line-height:1.55;
+  animation:o-fade-in .3s ease both;
+}
+@media (prefers-reduced-motion: reduce){
+  .o-loading-badge{ animation:none; opacity:1; transform:rotate(45deg); }
+}
+
 /* ---- Icônes Lucide : cadrage cohérent avec le texte ---- */
 .o-ico{
   display:inline-block; width:1em; height:1em; vertical-align:-0.14em;

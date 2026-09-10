@@ -13,7 +13,7 @@
 // venus, et déclenche le rechargement automatique (voir "controllerchange"
 // dans bootstrap.js) pour qu'ils récupèrent la nouvelle version sans rien
 // avoir à faire.
-const CACHE_NAME = 'orimetier-shell-v5';
+const CACHE_NAME = 'orimetier-shell-v6';
 
 // Liste exhaustive et vérifiée des fichiers réellement servis par le site
 // (aucune entrée fantôme : un seul 404 dans un cache.addAll classique fait
