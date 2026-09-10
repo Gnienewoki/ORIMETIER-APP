@@ -1,9 +1,9 @@
 function espRenderEleveAuth(mode){
   const isLogin = mode === 'login';
   document.getElementById('esp-eleve').innerHTML = `
-    <button class="esp-back" onclick="espBackToRoleSelect()">← Retour</button>
+    <button class="esp-back" onclick="espBackToRoleSelect()">${icon('arrow-left')}Retour</button>
     <div class="esp-card" style="max-width:520px;margin:0 auto;">
-      <div class="esp-title">🎓 Espace Élève</div>
+      <div class="esp-title">${icon('graduation-cap')}Espace Élève</div>
       <p class="esp-sub">${isLogin ? 'Connectez-vous avec votre numéro de téléphone et votre mot de passe.' : 'Créez votre compte élève pour sauvegarder votre profil RIASEC et suivre vos recommandations.'}</p>
       <div id="esp-eleve-error"></div>
       ${isLogin ? `
@@ -31,6 +31,7 @@ function espRenderEleveAuth(mode){
       `}
     </div>
   `;
+  espRefreshIcons();
 }
 async function espEleveRegister(){
   const nom = document.getElementById('esp-eleve-nom').value.trim();
@@ -98,7 +99,7 @@ function espRenderEleveDashboard(sub){
   if(sub === 'profil'){
     subHtml = `
       <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">Mon profil d'orientation RIASEC</div>
+        <div class="esp-title" style="font-size:16px;">${icon('compass')}Mon profil d'orientation RIASEC</div>
         ${r ? `
           <div class="riasec-code-wrap" style="margin:14px 0;">
             <div class="riasec-code-letters">${r.top3.map(l => `<div class="riasec-code-letter" style="background:${RIASEC_COLORS[l]}">${l}</div>`).join('')}</div>
@@ -112,24 +113,33 @@ function espRenderEleveDashboard(sub){
               <span class="riasec-bar-pct">${s.pct}%</span>
             </div>
           `).join('')}</div>
-          <a class="esp-btn" href="test.html">🔁 Repasser le test</a>
+          <a class="esp-btn" href="test.html">${icon('rotate-cw')}Repasser le test</a>
         ` : `
-          <p class="esp-empty">Vous n'avez pas encore de profil RIASEC sauvegardé.</p>
-          <a class="esp-btn esp-btn-primary" href="test.html">🧭 Passer le test d'orientation</a>
+          <div class="o-empty">
+            <div class="o-empty__icon">${icon('compass', { lg: true })}</div>
+            <p class="o-empty__title">Pas encore de profil RIASEC</p>
+            <p class="o-empty__text">Passe le test d'orientation pour découvrir ton code Holland et le sauvegarder ici.</p>
+            <a class="o-empty__action" href="test.html">${icon('compass')}<span>Passer le test d'orientation</span></a>
+          </div>
         `}
       </div>
 
       <div class="esp-card">
-        <div class="esp-title" style="font-size:15px;">Notes et recommandations de mon inspecteur d'orientation</div>
+        <div class="esp-title" style="font-size:15px;">${icon('sticky-note')}Notes et recommandations de mon inspecteur d'orientation</div>
         ${notes.length ? notes.map(n => `
           <div class="esp-note-item">${escapeHtml(n.texte)}<small>${escapeHtml(n.inspecteurNom)} — ${escapeHtml(n.date)}</small></div>
-        `).join('') : `<p class="esp-empty">Aucune note pour le moment.</p>`}
+        `).join('') : `
+          <div class="o-empty">
+            <div class="o-empty__icon">${icon('sticky-note', { lg: true })}</div>
+            <p class="o-empty__text">Aucune note de ton inspecteur d'orientation pour le moment.</p>
+          </div>
+        `}
       </div>
     `;
   } else if(sub === 'etablissements'){
     subHtml = `
       <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">🏫 Trouver un établissement</div>
+        <div class="esp-title" style="font-size:16px;">${icon('school')}Trouver un établissement</div>
         <p class="esp-sub">Recherche combinable par région, ville, quartier et filière proposée.</p>
         <div class="esp-field-row">
           <div class="esp-field"><label>Région</label>
@@ -145,43 +155,61 @@ function espRenderEleveDashboard(sub){
           </div>
         </div>
         <div class="esp-field-row">
-          <div class="esp-field"><label>Quartier</label><input type="text" id="esp-eleve-etab-quartier" placeholder="Ex : Cocody" oninput="espEleveSearchEtablissements()"></div>
-          <div class="esp-field"><label>Filière</label><input type="text" id="esp-eleve-etab-filiere" placeholder="Ex : BAC F2" oninput="espEleveSearchEtablissements()"></div>
+          <div class="esp-field"><label>Quartier</label><input type="text" id="esp-eleve-etab-quartier" placeholder="Ex : Cocody" oninput="espEleveSearchEtabDebounced()"></div>
+          <div class="esp-field"><label>Filière</label><input type="text" id="esp-eleve-etab-filiere" placeholder="Ex : BAC F2" oninput="espEleveSearchEtabDebounced()"></div>
         </div>
         <div id="esp-eleve-etab-results" style="margin-top:14px;"></div>
       </div>
     `;
   }
 
+  const infosLigne = [eleve.classe, eleve.etablissement, eleve.tel].filter(Boolean).map(escapeHtml).join(' · ');
+
   document.getElementById('esp-eleve').innerHTML = `
     <div class="esp-user-header">
-      <span class="esp-user-name">🎓 ${escapeHtml(eleve.nom)} ${escapeHtml(eleve.prenoms||'')}</span>
-      <button class="esp-btn" onclick="espEleveLogout()">Déconnexion</button>
+      <span class="esp-user-name">${icon('graduation-cap')}${escapeHtml((eleve.nom + ' ' + (eleve.prenoms||'')).trim())}</span>
+      <button class="esp-btn" onclick="espEleveLogout()">${icon('log-out')}Déconnexion</button>
     </div>
-    <div class="esp-card">
-      <p class="esp-sub" style="margin-bottom:0;">${escapeHtml(eleve.classe)} · ${escapeHtml(eleve.etablissement)} · ${escapeHtml(eleve.tel)}</p>
-    </div>
+    ${infosLigne ? `<div class="esp-card"><p class="esp-sub" style="margin-bottom:0;">${infosLigne}</p></div>` : ''}
 
     <div class="esp-card" id="esp-eleve-email-card">
       ${eleve.email ? `
-        <p class="esp-sub" style="margin:0;">📧 E-mail de récupération : <b>${escapeHtml(eleve.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('eleve')">Modifier</span></p>
+        <p class="esp-sub" style="margin:0;">${icon('mail')}E-mail de récupération : <b>${escapeHtml(eleve.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('eleve')">Modifier</span></p>
       ` : `
-        <p class="esp-sub" style="margin:0 0 8px;">⚠️ Aucun e-mail enregistré — en cas de mot de passe oublié, tu ne pourras pas le réinitialiser toi-même. <span class="esp-toggle-link" onclick="espShowEmailForm('eleve')">Ajouter mon e-mail</span></p>
+        <p class="esp-sub" style="margin:0 0 8px;">${icon('triangle-alert')}Aucun e-mail enregistré — en cas de mot de passe oublié, tu ne pourras pas le réinitialiser toi-même. <span class="esp-toggle-link" onclick="espShowEmailForm('eleve')">Ajouter mon e-mail</span></p>
       `}
       <div id="esp-eleve-email-form"></div>
     </div>
 
     <div class="esp-subtabs">
-      <button class="esp-subtab-btn ${sub==='profil'?'active':''}" onclick="espRenderEleveDashboard('profil')">🎓 Mon profil</button>
-      <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderEleveDashboard('etablissements')">🏫 Trouver un établissement</button>
+      <button class="esp-subtab-btn ${sub==='profil'?'active':''}" onclick="espRenderEleveDashboard('profil')">${icon('circle-user-round')}Mon profil</button>
+      <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderEleveDashboard('etablissements')">${icon('school')}Trouver un établissement</button>
     </div>
     ${subHtml}
   `;
+  espRefreshIcons();
 
   if(sub === 'etablissements'){
     espEleveEtabPopulateVilles();
     espEleveSearchEtablissements();
   }
+}
+
+// Recherche d'établissement : anti-rebond sur les champs texte (quartier, filière).
+// Déclaration de fonction (et non const) : les gestionnaires inline oninput="..."
+// ne voient pas les const/let de portée script, seulement les fonctions globales.
+let _espEleveSearchEtabTimer = null;
+function espEleveSearchEtabDebounced(){
+  clearTimeout(_espEleveSearchEtabTimer);
+  _espEleveSearchEtabTimer = setTimeout(espEleveSearchEtablissements, 180);
+}
+
+function espEleveResetEtabFilters(){
+  ['esp-eleve-etab-region','esp-eleve-etab-ville','esp-eleve-etab-quartier','esp-eleve-etab-filiere'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  espEleveSearchEtablissements();
 }
 
 // ---------------- Recherche d'établissement (région, ville, quartier, filière combinables) ----------------
@@ -225,7 +253,15 @@ function espEleveSearchEtablissements(){
         ` : ''}
       </div>
     `;
-  }).join('') : `<p class="esp-empty">Aucun établissement ne correspond à ces critères.</p>`;
+  }).join('') : `
+    <div class="o-empty">
+      <div class="o-empty__icon">${icon('search-x', { lg: true })}</div>
+      <p class="o-empty__title">Aucun établissement</p>
+      <p class="o-empty__text">Aucun établissement ne correspond à ces critères. Élargis ta recherche.</p>
+      <button type="button" class="o-empty__action" onclick="espEleveResetEtabFilters()">${icon('filter-x')}<span>Réinitialiser</span></button>
+    </div>
+  `;
+  espRefreshIcons();
 }
 
 // ---------------- ÉTABLISSEMENT ----------------

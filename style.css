@@ -533,10 +533,13 @@
     padding:20px 22px;margin-bottom:16px;
     box-shadow:0 2px 10px rgba(0,0,0,0.04);
   }
-  .esp-back{background:none;border:none;color:var(--green-dark);font-weight:700;cursor:pointer;font-size:13.5px;padding:0;margin-bottom:14px;}
+  .esp-back{display:inline-flex;align-items:center;gap:5px;background:none;border:none;color:var(--green-dark);font-weight:700;cursor:pointer;font-size:13.5px;padding:0;margin-bottom:14px;font-family:inherit;}
+  .esp-back svg{width:15px;height:15px;}
   .esp-back:hover{text-decoration:underline;}
   .esp-title{font-size:19px;font-weight:800;color:var(--text);margin:0 0 4px;}
+  .esp-title svg{width:19px;height:19px;vertical-align:-3px;margin-right:7px;color:var(--green-dark);}
   .esp-sub{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .esp-sub svg{width:15px;height:15px;vertical-align:-3px;margin-right:6px;color:var(--green-dark);}
   .esp-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
   .esp-field label{display:block;font-size:12px;font-weight:700;color:var(--green-dark);margin-bottom:4px;}
   .esp-field input, .esp-field select, .esp-field textarea{
@@ -545,11 +548,14 @@
   .esp-field textarea{resize:vertical;min-height:70px;}
   .esp-field input:focus, .esp-field select:focus, .esp-field textarea:focus{outline:none;border-color:var(--orange);}
   .esp-btn{
+    display:inline-flex;align-items:center;gap:7px;
     background:var(--panel);border:2px solid var(--border);color:var(--green-dark);
     padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;transition:all .15s;font-family:inherit;
+    text-decoration:none;
   }
+  .esp-btn svg{width:15px;height:15px;flex-shrink:0;}
   .esp-btn:hover{border-color:var(--orange);}
-  .esp-btn-primary{background:linear-gradient(90deg,var(--orange-dark),var(--green-dark));color:#fff;border-color:transparent;}
+  .esp-btn-primary{background:var(--grad-brand);color:#fff;border-color:transparent;}
   .esp-btn-danger{border-color:#d9534f;color:#d9534f;}
   .esp-btn-danger:hover{background:#d9534f;color:#fff;}
   .esp-toggle-link{color:var(--orange-dark);cursor:pointer;font-weight:700;font-size:13px;}
@@ -573,14 +579,17 @@
     background:var(--panel);border:2px solid var(--border);color:var(--green-dark);
     padding:7px 14px;border-radius:16px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;
   }
-  .esp-subtab-btn.active{background:linear-gradient(90deg,var(--orange-dark),var(--green-dark));color:#fff;border-color:transparent;}
+  .esp-subtab-btn{display:inline-flex;align-items:center;gap:6px;}
+  .esp-subtab-btn svg{width:14px;height:14px;flex-shrink:0;}
+  .esp-subtab-btn.active{background:var(--grad-brand);color:#fff;border-color:transparent;}
   table.esp-table{width:100%;border-collapse:collapse;font-size:13px;}
   table.esp-table th{text-align:left;padding:8px 10px;background:var(--bg);border-bottom:2px solid var(--border);font-size:11.5px;text-transform:uppercase;color:var(--muted);}
   table.esp-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
   table.esp-table tr:hover td{background:#fffaf3;}
   .esp-empty{color:var(--muted);font-style:italic;font-size:13.5px;padding:14px 0;}
   .esp-user-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
-  .esp-user-name{font-size:16px;font-weight:800;color:var(--text);}
+  .esp-user-name{display:inline-flex;align-items:center;gap:8px;font-size:16px;font-weight:800;color:var(--text);}
+  .esp-user-name svg{width:18px;height:18px;color:var(--green-dark);flex-shrink:0;}
   .esp-note-item{background:var(--bg);border-left:3px solid var(--orange-dark);border-radius:12px;padding:8px 12px;margin-bottom:8px;font-size:13px;}
   .esp-note-item small{display:block;color:var(--muted);font-size:11px;margin-top:3px;}
   @media (max-width:640px){
@@ -1207,7 +1216,9 @@
   background:var(--orange); color:#fff; border:none; cursor:pointer;
   padding:9px 18px; border-radius:var(--r-sm); font-size:var(--fs-sm);
   font-weight:700; font-family:inherit; transition:background .15s;
+  text-decoration:none;
 }
+.o-empty__action svg{ width:15px; height:15px; }
 .o-empty__action:hover{ background:var(--orange-dark); }
 
 /* ---- Pagination (annuaire des filières, etc.) ---- */
