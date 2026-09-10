@@ -44,8 +44,8 @@ async function initLiensFormation(){
       card.className = 'card';
       card.innerHTML = `
         <h3><a href="${l.url}" target="_blank" rel="noopener">${l.titre}</a></h3>
-        <p style="margin:6px 0 10px;color:var(--es-muted);font-size:.9rem;line-height:1.5;">${l.description || ''}</p>
-        <a href="${l.url}" target="_blank" rel="noopener" style="color:var(--es-orange);font-weight:700;font-size:.85rem;">Ouvrir le lien ↗</a>
+        <p style="margin:6px 0 10px;color:var(--muted);font-size:.9rem;line-height:1.5;">${l.description || ''}</p>
+        <a href="${l.url}" target="_blank" rel="noopener" style="color:var(--orange);font-weight:700;font-size:.85rem;">Ouvrir le lien ↗</a>
       `;
       container.appendChild(card);
     });
