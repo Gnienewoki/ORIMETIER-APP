@@ -72,45 +72,94 @@ function openFiche(filiere){
   openModal(fiche.titre, tagsHtml, bodyHtml);
 }
 
-function highlight(text, query){
+// nQuery : requête déjà normalisée (évite un normalize() par appel dans la boucle de rendu).
+function highlight(text, query, nQuery){
   if(!query || !text) return text || '';
-  const idx = normalize(text).indexOf(normalize(query));
+  const idx = normalize(text).indexOf(nQuery != null ? nQuery : normalize(query));
   if(idx === -1) return text;
   return text.slice(0,idx) + '<mark>' + text.slice(idx, idx+query.length) + '</mark>' + text.slice(idx+query.length);
 }
+
+// ---- Pagination : sur smartphone d'entrée de gamme, rendre 351 <tr> à chaque frappe
+// bloque le fil principal. On ne rend que la page courante. ----
+const F_PAGE_SIZE = 60;
+let _fPage = 1;
 
 function render(){
   const qf = inputs.filiere.value.trim();
   const qd = inputs.diplome.value.trim();
   const qe = inputs.etablissement.value.trim();
+  const nqf = normalize(qf), nqd = normalize(qd), nqe = normalize(qe);
 
   const filtered = DATA.filter(([filiere, diplome, etab]) =>
-    normalize(filiere).includes(normalize(qf)) &&
-    normalize(diplome).includes(normalize(qd)) &&
-    normalize(etab).includes(normalize(qe))
+    normalize(filiere).includes(nqf) &&
+    normalize(diplome).includes(nqd) &&
+    normalize(etab).includes(nqe)
   );
+
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / F_PAGE_SIZE));
+  if(_fPage > pages) _fPage = pages;
+  if(_fPage < 1) _fPage = 1;
+  const start = (_fPage - 1) * F_PAGE_SIZE;
+  const pageRows = filtered.slice(start, start + F_PAGE_SIZE);
 
   tbody.innerHTML = '';
   const frag = document.createDocumentFragment();
-  filtered.forEach(([filiere, diplome, etab]) => {
+  pageRows.forEach(([filiere, diplome, etab]) => {
     const tr = document.createElement('tr');
     const hasFiche = !!findFiche(filiere);
     const btn = filiere
       ? `<button class="fiche-btn" ${hasFiche ? '' : 'disabled'} data-filiere="${escapeHtml(filiere)}">${hasFiche ? '📄 Voir' : 'Indisponible'}</button>`
       : '';
-    tr.innerHTML = `<td>${highlight(filiere, qf)}</td><td>${highlight(diplome, qd)}</td><td>${highlight(etab, qe)}</td><td>${btn}</td>`;
+    tr.innerHTML =
+      `<td data-label="Filière">${highlight(filiere, qf, nqf)}</td>` +
+      `<td data-label="Diplôme">${highlight(diplome, qd, nqd)}</td>` +
+      `<td data-label="Établissement">${highlight(etab, qe, nqe)}</td>` +
+      `<td data-label="Fiche métier">${btn}</td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
 
-  countEl.textContent = filtered.length + ' résultat' + (filtered.length>1?'s':'') + ' sur ' + DATA.length;
-  emptyMsg.style.display = filtered.length === 0 ? 'block' : 'none';
+  const wrap = tbody.closest('.table-wrap');
+  if(wrap) wrap.hidden = total === 0;
+
+  countEl.textContent = total + ' résultat' + (total > 1 ? 's' : '') + ' sur ' + DATA.length;
+  renderFormationsPager(_fPage, pages);
+  renderFormationsEmpty(total === 0);
+}
+
+function renderFormationsPager(page, pages){
+  const el = document.getElementById('results-pager');
+  if(!el) return;
+  if(pages <= 1){ el.innerHTML = ''; el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML =
+    `<button class="o-pager__btn" type="button" data-nav="prev"${page <= 1 ? ' disabled' : ''} aria-label="Page précédente">${icon('chevron-left')}<span>Précédent</span></button>` +
+    `<span class="o-pager__info">Page ${page} / ${pages}</span>` +
+    `<button class="o-pager__btn" type="button" data-nav="next"${page >= pages ? ' disabled' : ''} aria-label="Page suivante"><span>Suivant</span>${icon('chevron-right')}</button>`;
+  espRefreshIcons();
+}
+
+function renderFormationsEmpty(isEmpty){
+  if(!emptyMsg) return;
+  if(!isEmpty){ emptyMsg.hidden = true; emptyMsg.innerHTML = ''; return; }
+  emptyMsg.hidden = false;
+  emptyMsg.innerHTML =
+    `<div class="o-empty">` +
+      `<div class="o-empty__icon">${icon('search-x', { lg: true })}</div>` +
+      `<p class="o-empty__title">Aucune filière ne correspond</p>` +
+      `<p class="o-empty__text">Aucun résultat pour ces filtres. Essaie une autre orthographe, ou élargis ta recherche.</p>` +
+      `<button class="o-empty__action" type="button" onclick="resetFilters()">${icon('filter-x')}<span>Réinitialiser les filtres</span></button>` +
+    `</div>`;
+  espRefreshIcons();
 }
 
 function resetFilters(){
   inputs.filiere.value = '';
   inputs.diplome.value = '';
   inputs.etablissement.value = '';
+  _fPage = 1;
   render();
 }
 
@@ -128,7 +177,19 @@ function initFormations(){
     if(!btn || btn.disabled) return;
     openFiche(btn.dataset.filiere);
   });
-  Object.values(inputs).forEach(inp => inp.addEventListener('input', render));
+  const filtrer = espDebounce(() => { _fPage = 1; render(); }, 180);
+  Object.values(inputs).forEach(inp => inp.addEventListener('input', filtrer));
+
+  const pager = document.getElementById('results-pager');
+  if(pager) pager.addEventListener('click', e => {
+    const b = e.target.closest('[data-nav]');
+    if(!b || b.disabled) return;
+    _fPage += (b.dataset.nav === 'next' ? 1 : -1);
+    render();
+    const wrap = document.querySelector('#etab-tab-publics .table-wrap');
+    if(wrap) wrap.scrollTop = 0;
+  });
+
   const totalCountEl = document.getElementById('total-formations-count');
   if(totalCountEl) totalCountEl.textContent = DATA.length;
   render();
