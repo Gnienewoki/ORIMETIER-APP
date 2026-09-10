@@ -122,9 +122,9 @@
 
     <div id="page-content">
     <div class="tab-nav" id="etab-subtabs" style="margin-bottom:18px;">
-      <button class="tab-btn active" id="etab-subtab-btn-publics" onclick="espShowEtabSubTab('publics')">🏫 Établissements publics</button>
-      <button class="tab-btn" id="etab-subtab-btn-prive" onclick="espShowEtabSubTab('prive')">🏢 Établissements privés</button>
-      <button class="tab-btn" id="etab-subtab-btn-technique" onclick="espShowEtabSubTab('technique')">🎓 Enseignement technique</button>
+      <button class="tab-btn active" id="etab-subtab-btn-publics" onclick="espShowEtabSubTab('publics')"><i data-lucide="school"></i><span>Établissements publics</span></button>
+      <button class="tab-btn" id="etab-subtab-btn-prive" onclick="espShowEtabSubTab('prive')"><i data-lucide="building-2"></i><span>Établissements privés</span></button>
+      <button class="tab-btn" id="etab-subtab-btn-technique" onclick="espShowEtabSubTab('technique')"><i data-lucide="graduation-cap"></i><span>Enseignement technique</span></button>
     </div>
 
     <div id="etab-tab-publics">
@@ -153,8 +153,8 @@
         <button class="reset" onclick="resetFilters()">Réinitialiser</button>
       </div>
 
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap o-cards-wrap">
+        <table class="o-cards-mobile">
           <thead>
             <tr><th>Filière de formation</th><th>Diplôme</th><th>Établissement</th><th>Fiche métier</th></tr>
           </thead>
@@ -182,8 +182,8 @@
       <div class="meta">
         <span class="count" id="etab-prive-count"></span>
       </div>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap o-cards-wrap">
+        <table class="o-cards-mobile">
           <thead>
             <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
           </thead>
@@ -195,8 +195,8 @@
 
     <div id="etab-tab-technique" style="display:none;">
       <p class="sub" style="margin-top:-8px">Parcours de la classe de Seconde au débouché pour les principales filières de l'enseignement technique. Clique sur « Voir » pour la fiche détaillée (parcours complet et conditions d'accès).</p>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap o-cards-wrap">
+        <table class="o-cards-mobile">
           <thead>
             <tr><th>Seconde</th><th>1ère</th><th>Terminale</th><th>BAC</th><th>Métier / spécialité</th><th>Débouché</th><th>Fiche</th></tr>
           </thead>

@@ -385,7 +385,9 @@ function renderSuperieurPriveTable(sousCategorie){
     } else {
       filieres.forEach(f => {
         if(!nFiliere || normalize(f.nom||'').includes(nFiliere)){
-          rows.push({ nom, ville: e.ville, filiere: f.diplome ? `${f.nom} (${f.diplome})` : f.nom, contact });
+          const nomF = (f.nom || '').trim();
+          const filiere = (f.diplome ? `${nomF || '—'} (${f.diplome})` : nomF) || '—';
+          rows.push({ nom, ville: e.ville, filiere, contact });
         }
       });
     }

@@ -282,7 +282,14 @@ function renderEtabTechniqueList(){
   const frag = document.createDocumentFragment();
   ESP_TECH_PARCOURS.forEach((p, i) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(p.seconde)}</td><td>${escapeHtml(p.premiere)}</td><td>${escapeHtml(p.terminale)}</td><td>${escapeHtml(p.bac)}</td><td>${escapeHtml(p.metier)}</td><td>${escapeHtml(p.debouche)}</td><td><button class="fiche-btn" data-tech-index="${i}">🔎 Voir</button></td>`;
+    tr.innerHTML =
+      `<td data-label="Seconde">${escapeHtml(p.seconde)}</td>` +
+      `<td data-label="1ère">${escapeHtml(p.premiere)}</td>` +
+      `<td data-label="Terminale">${escapeHtml(p.terminale)}</td>` +
+      `<td data-label="BAC">${escapeHtml(p.bac)}</td>` +
+      `<td data-label="Métier / spécialité">${escapeHtml(p.metier)}</td>` +
+      `<td data-label="Débouché">${escapeHtml(p.debouche)}</td>` +
+      `<td data-label="Fiche"><button class="fiche-btn" data-tech-index="${i}">🔎 Voir</button></td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
