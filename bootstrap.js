@@ -157,23 +157,62 @@ function espLogVisiteCourante(){
 
 (async function espBootstrap(){
   espLogVisiteCourante();
-  try {
-    await espLoadFromSupabase();
-  } catch(e){
-    console.error(e);
-    alert("Impossible de se connecter à la base de données en ligne.\n\nVérifie ta connexion internet, ainsi que les identifiants Supabase (SUPABASE_URL / SUPABASE_ANON_KEY) renseignés dans le fichier, puis recharge la page.\n\nDétail : " + e.message);
-  }
-  const loader = document.getElementById('esp-loading');
-  if(loader) loader.style.display = 'none';
 
-  if(_espResetToken){
-    espRenderResetPasswordScreen(_espResetToken);
-    finishSplash();
-  } else if(_espDoitJouerAnimation){
+  // Chargement Supabase lancé tout de suite mais jamais "throw" : l'erreur
+  // éventuelle est renvoyée comme valeur, pour décider ensuite quoi en faire.
+  const chargement = espLoadFromSupabase().then(() => null, (e) => { console.error(e); return e; });
+
+  const finaliserDonnees = () => {
+    const loader = document.getElementById('esp-loading');
+    if(loader) loader.style.display = 'none';
+    // Le bandeau d'annonce dépend de espDB() : quand on a affiché la page avant
+    // le chargement (cf. afficherSansAttendre), il faut le (re)rendre ici. Sans
+    // effet si la plateforme n'est pas déverrouillée ou s'il n'y a aucune annonce.
+    if(typeof espRenderAnnonceBar === 'function' &&
+       document.getElementById('platform-wrap') &&
+       document.getElementById('platform-wrap').style.display !== 'none'){
+      espRenderAnnonceBar();
+    }
+    // Hook optionnel : une page qui a du contenu dépendant de Supabase (ex :
+    // annuaire des établissements privés sur index.html) s'y abonne pour se
+    // rafraîchir dès que les données en ligne sont disponibles.
+    if(typeof window.pageDataReady === 'function'){
+      try { window.pageDataReady(); } catch(err){ console.error('[esp] pageDataReady a échoué', err); }
+    }
+  };
+
+  // Cold start Render : le serveur peut mettre 30 à 50 s à se réveiller. Un
+  // visiteur non connecté sur une page en libre accès n'a pas à attendre ça —
+  // son contenu principal est statique (DATA des 351 filières, concours, test).
+  // On l'affiche immédiatement ; les données Supabase se greffent après coup.
+  // Condition volontairement restrictive : la page doit explicitement fournir
+  // window.pageDataReady (seul index.html le fait pour l'instant). Toutes les
+  // autres situations — connecté, page privée, lien ?reset= — attendent, comme avant.
+  const afficherSansAttendre =
+    !_espResetToken &&
+    !espSession() &&
+    espCurrentPageIsPublic() &&
+    typeof window.pageDataReady === 'function';
+
+  if(afficherSansAttendre){
     platformInit();
-    runSplashSequence();
+    if(_espDoitJouerAnimation) runSplashSequence();
+    chargement.then(finaliserDonnees);
   } else {
-    platformInit();
+    const err = await chargement;
+    finaliserDonnees();
+    if(err){
+      alert("Impossible de se connecter à la base de données en ligne.\n\nVérifie ta connexion internet, ainsi que les identifiants Supabase (SUPABASE_URL / SUPABASE_ANON_KEY) renseignés dans le fichier, puis recharge la page.\n\nDétail : " + err.message);
+    }
+    if(_espResetToken){
+      espRenderResetPasswordScreen(_espResetToken);
+      finishSplash();
+    } else if(_espDoitJouerAnimation){
+      platformInit();
+      runSplashSequence();
+    } else {
+      platformInit();
+    }
   }
   espSetupRealtime();
 })();

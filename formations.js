@@ -151,6 +151,17 @@ function initFormations(){
 }
 window.pageInit = initFormations;
 
+// Appelé par bootstrap.js quand les données Supabase sont arrivées (le tableau
+// public des 351 filières, lui, est déjà affiché : il ne dépend que de DATA).
+// Complète l'onglet "Établissements privés" — datalists + liste si l'onglet est ouvert.
+window.pageDataReady = function(){
+  if(typeof espFillPriveDatalists === 'function') espFillPriveDatalists();
+  const priv = document.getElementById('etab-tab-prive');
+  if(priv && priv.style.display !== 'none' && typeof renderEtabPrivesList === 'function'){
+    renderEtabPrivesList();
+  }
+};
+
 // ---------------- Assistant de saisie (suggestions natives du navigateur) ----------------
 function espFillDatalist(id, values){
   const dl = document.getElementById(id);
