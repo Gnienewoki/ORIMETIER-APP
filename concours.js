@@ -15,7 +15,19 @@ function renderConcours(){
   const emptyMsg = document.getElementById('cc-empty-msg');
   const countEl = document.getElementById('cc-count');
   countEl.textContent = filtered.length + ' résultat' + (filtered.length > 1 ? 's' : '');
-  emptyMsg.style.display = filtered.length ? 'none' : '';
+
+  if(filtered.length === 0){
+    espRenderEmptyState(emptyMsg, {
+      icon: 'search-x',
+      title: 'Aucun concours',
+      text: 'Aucun concours ne correspond à ces critères. Essaie une autre orthographe ou change de niveau.',
+      actionLabel: 'Réinitialiser',
+      actionIcon: 'filter-x',
+      onAction: resetConcoursFilters,
+    });
+  } else {
+    espHideEmptyState(emptyMsg);
+  }
 
   results.innerHTML = filtered.map((it, i) => `
     <div class="cc-card" data-idx="${all.indexOf(it)}">
@@ -47,9 +59,17 @@ function openConcoursDetail(idx){
   openModal(it.nom, tagsHtml, bodyHtml);
 }
 
+function resetConcoursFilters(){
+  const search = document.getElementById('cc-search');
+  if(search) search.value = '';
+  ccLevel = 'tous';
+  document.querySelectorAll('.cc-level-btn').forEach(b => b.classList.toggle('active', b.dataset.level === 'tous'));
+  renderConcours();
+}
+
 function initConcours(){
   document.getElementById('concours-total-count').textContent = ccAllItems().length;
-  document.getElementById('cc-search').addEventListener('input', renderConcours);
+  document.getElementById('cc-search').addEventListener('input', espDebounce(renderConcours, 180));
   document.querySelectorAll('.cc-level-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.cc-level-btn').forEach(b => b.classList.remove('active'));

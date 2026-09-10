@@ -38,6 +38,38 @@ function espRefreshIcons(){
   } catch(e){ /* librairie non chargée (hors-ligne au 1er chargement) : sans gravité */ }
 }
 
+// ---------------- État vide unifié (.o-empty) ----------------
+// opts : { icon, title, text, actionLabel, actionIcon, onAction }
+// L'élément cible passe en visible (attribut hidden retiré) et reçoit le
+// markup ; espHideEmptyState() fait l'inverse. Remplace les anciens
+// .empty / .empty-state (texte gris seul, sans action).
+function espRenderEmptyState(el, opts){
+  if(!el) return;
+  const o = opts || {};
+  el.hidden = false;
+  el.innerHTML =
+    '<div class="o-empty">' +
+      (o.icon ? '<div class="o-empty__icon">' + icon(o.icon, { lg: true }) + '</div>' : '') +
+      (o.title ? '<p class="o-empty__title">' + escapeHtml(o.title) + '</p>' : '') +
+      (o.text ? '<p class="o-empty__text">' + escapeHtml(o.text) + '</p>' : '') +
+      (o.actionLabel
+        ? '<button type="button" class="o-empty__action" data-empty-action>' +
+            (o.actionIcon ? icon(o.actionIcon) : '') + '<span>' + escapeHtml(o.actionLabel) + '</span>' +
+          '</button>'
+        : '') +
+    '</div>';
+  if(o.onAction){
+    const btn = el.querySelector('[data-empty-action]');
+    if(btn) btn.addEventListener('click', o.onAction);
+  }
+  espRefreshIcons();
+}
+function espHideEmptyState(el){
+  if(!el) return;
+  el.hidden = true;
+  el.innerHTML = '';
+}
+
 // ---------------- Filières Enseignement Général : Cycle -> Diplôme (listes fermées + "Autre") ----------------
 // Un "Autre" saisi en texte libre à la saisie (nom/diplôme de la filière restent des
 // colonnes texte libres, cf. etablissement_add_filiere) est stocké tel quel, jamais

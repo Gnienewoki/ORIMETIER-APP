@@ -265,7 +265,7 @@ async function initSuperieur(){
   }
   populateFiliereSelect();
 
-  searchFiliere.addEventListener('input', () => populateFiliereSelect(searchFiliere.value));
+  searchFiliere.addEventListener('input', espDebounce(() => populateFiliereSelect(searchFiliere.value), 180));
 
   selectFiliere.addEventListener('change', () => {
     const nom = selectFiliere.value;
@@ -313,14 +313,25 @@ async function initSuperieur(){
   });
 
   // ---- Panels 4 et 5 : Universités privées / Grandes écoles privées ----
+  const renderUnivPriveDebounced = espDebounce(() => renderSuperieurPriveTable('universite'), 180);
+  const renderEcolePriveDebounced = espDebounce(() => renderSuperieurPriveTable('grande_ecole'), 180);
   ['f-univ-prive-ville','f-univ-prive-filiere'].forEach(id => {
     const el = document.getElementById(id);
-    if(el) el.addEventListener('input', () => renderSuperieurPriveTable('universite'));
+    if(el) el.addEventListener('input', renderUnivPriveDebounced);
   });
   ['f-ecole-prive-ville','f-ecole-prive-filiere'].forEach(id => {
     const el = document.getElementById(id);
-    if(el) el.addEventListener('input', () => renderSuperieurPriveTable('grande_ecole'));
+    if(el) el.addEventListener('input', renderEcolePriveDebounced);
   });
+}
+
+function resetSuperieurPriveFilters(sousCategorie){
+  const prefix = sousCategorie === 'universite' ? 'univ-prive' : 'ecole-prive';
+  ['ville','filiere'].forEach(k => {
+    const el = document.getElementById('f-' + prefix + '-' + k);
+    if(el) el.value = '';
+  });
+  renderSuperieurPriveTable(sousCategorie);
 }
 window.pageInit = initSuperieur;
 
@@ -384,11 +395,35 @@ function renderSuperieurPriveTable(sousCategorie){
   const frag = document.createDocumentFragment();
   rows.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.nom}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${r.contact}</td>`;
+    tr.innerHTML =
+      `<td data-label="Établissement">${r.nom}</td>` +
+      `<td data-label="Ville">${escapeHtml(r.ville||'—')}</td>` +
+      `<td data-label="Filière">${escapeHtml(r.filiere)}</td>` +
+      `<td data-label="Contact">${r.contact}</td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
+  const wrap = tbody.closest('.table-wrap');
+  if(wrap) wrap.hidden = rows.length === 0;
 
   if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
-  if(emptyEl) emptyEl.style.display = rows.length === 0 ? 'block' : 'none';
+
+  if(rows.length === 0){
+    const filtres = !!(nVille || nFiliere);
+    const label = sousCategorie === 'universite' ? 'université privée' : 'grande école privée';
+    espRenderEmptyState(emptyEl, filtres ? {
+      icon: 'search-x',
+      title: 'Aucun résultat',
+      text: 'Aucune ' + label + ' ne correspond à ces filtres.',
+      actionLabel: 'Réinitialiser',
+      actionIcon: 'filter-x',
+      onAction: () => resetSuperieurPriveFilters(sousCategorie),
+    } : {
+      icon: 'landmark',
+      title: 'Rien pour le moment',
+      text: 'Aucune ' + label + " n'est encore référencée sur la plateforme.",
+    });
+  } else {
+    espHideEmptyState(emptyEl);
+  }
 }

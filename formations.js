@@ -197,8 +197,9 @@ function initFormations(){
 
   const searchVille = document.getElementById('f-etab-prive-ville');
   const searchFiliere = document.getElementById('f-etab-prive-filiere');
-  if(searchVille) searchVille.addEventListener('input', renderEtabPrivesList);
-  if(searchFiliere) searchFiliere.addEventListener('input', renderEtabPrivesList);
+  const renderPrivesDebounced = espDebounce(renderEtabPrivesList, 180);
+  if(searchVille) searchVille.addEventListener('input', renderPrivesDebounced);
+  if(searchFiliere) searchFiliere.addEventListener('input', renderPrivesDebounced);
 
   const techTbody = document.getElementById('etab-technique-results');
   if(techTbody){
@@ -356,11 +357,42 @@ function renderEtabPrivesList(){
   const frag = document.createDocumentFragment();
   rows.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.nom}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.filiere)}</td><td>${r.contact}</td>`;
+    tr.innerHTML =
+      `<td data-label="Établissement">${r.nom}</td>` +
+      `<td data-label="Ville">${escapeHtml(r.ville||'—')}</td>` +
+      `<td data-label="Filière">${escapeHtml(r.filiere)}</td>` +
+      `<td data-label="Contact">${r.contact}</td>`;
     frag.appendChild(tr);
   });
   tbodyPrive.appendChild(frag);
 
+  const wrap = tbodyPrive.closest('.table-wrap');
+  if(wrap) wrap.hidden = rows.length === 0;
   if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
-  if(emptyEl) emptyEl.style.display = rows.length === 0 ? 'block' : 'none';
+
+  if(rows.length === 0){
+    const filtres = !!(nVille || nFiliere);
+    espRenderEmptyState(emptyEl, filtres ? {
+      icon: 'search-x',
+      title: 'Aucun résultat',
+      text: 'Aucun établissement privé ne correspond à ces filtres.',
+      actionLabel: 'Réinitialiser',
+      actionIcon: 'filter-x',
+      onAction: resetEtabPrivesFilters,
+    } : {
+      icon: 'building-2',
+      title: 'Rien pour le moment',
+      text: "Aucun établissement privé d'enseignement technique n'est encore référencé sur la plateforme.",
+    });
+  } else {
+    espHideEmptyState(emptyEl);
+  }
+}
+
+function resetEtabPrivesFilters(){
+  ['f-etab-prive-ville','f-etab-prive-filiere'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  renderEtabPrivesList();
 }

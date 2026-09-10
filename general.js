@@ -105,13 +105,51 @@ function renderGeneralTable(secteur){
   const frag = document.createDocumentFragment();
   rows.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.nom}</td><td>${escapeHtml(r.ville||'—')}</td><td>${escapeHtml(r.cycle)}</td><td>${escapeHtml(r.diplome)}</td><td>${r.contact}</td>`;
+    tr.innerHTML =
+      `<td data-label="Établissement">${r.nom}</td>` +
+      `<td data-label="Ville">${escapeHtml(r.ville||'—')}</td>` +
+      `<td data-label="Cycle">${escapeHtml(r.cycle)}</td>` +
+      `<td data-label="Diplôme">${escapeHtml(r.diplome)}</td>` +
+      `<td data-label="Contact">${r.contact}</td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
+  const wrap = tbody.closest('.table-wrap');
+  if(wrap) wrap.hidden = rows.length === 0;
 
   if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
-  if(emptyEl) emptyEl.style.display = rows.length === 0 ? 'block' : 'none';
+
+  if(rows.length === 0){
+    const filtres = !!(nVille || qCycle || qDiplome);
+    const label = secteur === 'prive' ? 'privé' : 'public';
+    espRenderEmptyState(emptyEl, filtres ? {
+      icon: 'search-x',
+      title: 'Aucun résultat',
+      text: 'Aucun établissement ' + label + " d'enseignement général ne correspond à ces filtres.",
+      actionLabel: 'Réinitialiser',
+      actionIcon: 'filter-x',
+      onAction: () => resetGeneralFilters(secteur),
+    } : {
+      icon: 'school',
+      title: 'Rien pour le moment',
+      text: 'Aucun établissement ' + label + " d'enseignement général n'est encore référencé sur la plateforme.",
+    });
+  } else {
+    espHideEmptyState(emptyEl);
+  }
+}
+
+function resetGeneralFilters(secteur){
+  const prefix = 'general-' + secteur;
+  const ville = document.getElementById('f-' + prefix + '-ville');
+  const cycle = document.getElementById('f-' + prefix + '-cycle');
+  if(ville) ville.value = '';
+  if(cycle){
+    cycle.value = '';
+    espGeneralFilterCycleChange(secteur); // reconstruit la liste Diplôme (-> "Tous") puis rerender
+  } else {
+    renderGeneralTable(secteur);
+  }
 }
 
 // ---------------- Sous-onglets Public / Privé ----------------
@@ -135,10 +173,12 @@ function initGeneral(){
   const searchPrivVille = document.getElementById('f-general-prive-ville');
   const searchPrivCycle = document.getElementById('f-general-prive-cycle');
   const searchPrivDiplome = document.getElementById('f-general-prive-diplome');
-  if(searchPubVille) searchPubVille.addEventListener('input', () => renderGeneralTable('public'));
+  const renderPublicDebounced = espDebounce(() => renderGeneralTable('public'), 180);
+  const renderPriveDebounced = espDebounce(() => renderGeneralTable('prive'), 180);
+  if(searchPubVille) searchPubVille.addEventListener('input', renderPublicDebounced);
   if(searchPubCycle) searchPubCycle.addEventListener('change', () => espGeneralFilterCycleChange('public'));
   if(searchPubDiplome) searchPubDiplome.addEventListener('change', () => renderGeneralTable('public'));
-  if(searchPrivVille) searchPrivVille.addEventListener('input', () => renderGeneralTable('prive'));
+  if(searchPrivVille) searchPrivVille.addEventListener('input', renderPriveDebounced);
   if(searchPrivCycle) searchPrivCycle.addEventListener('change', () => espGeneralFilterCycleChange('prive'));
   if(searchPrivDiplome) searchPrivDiplome.addEventListener('change', () => renderGeneralTable('prive'));
 
