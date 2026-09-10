@@ -1,3 +1,12 @@
+// ---------------- Icônes Lucide (chargées en <defer>, prêtes après le parsing) ----------------
+// Transforme les <i data-lucide="..."> présents au chargement. Les rendus
+// dynamiques (listes, modales) rappellent espRefreshIcons() après injection.
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', () => espRefreshIcons());
+} else {
+  espRefreshIcons();
+}
+
 // ---------------- PWA : bouton "Partager l'application" ----------------
 async function espTriggerShare(){
   const shareData = {
@@ -138,7 +147,10 @@ const ESP_VISITE_PAGES = ['index.html', 'general.html', 'superieur.html', 'conco
 // pire un avertissement en console (même convention que l'enregistrement du service
 // worker plus haut dans ce fichier), rien de visible sur la page.
 function espLogVisiteCourante(){
-  const page = _espEstPageAccueil ? 'index.html' : (_espPath.split('/').pop() || '');
+  let page = _espEstPageAccueil ? 'index.html' : (_espPath.split('/').pop() || '');
+  // Réaligne les "clean URLs" (/concours) sur le nom de fichier attendu par
+  // log_visite() côté Supabase (concours.html), sinon aucune visite n'est comptée.
+  if(page && !/\.html$/.test(page)) page += '.html';
   if(!ESP_VISITE_PAGES.includes(page)) return;
   espLogVisiteRPC(page).catch(e => console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) :', e));
 }

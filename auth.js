@@ -53,11 +53,15 @@ function espHideAll(){
 // Annuaire des métiers, enseignement supérieur, concours & grandes écoles, test RIASEC :
 // consultables par n'importe quel visiteur. Tout le reste (espaces.html, eleves.html)
 // continue d'exiger une connexion, comme avant.
-const ESP_PUBLIC_PAGES = ['index.html', 'superieur.html', 'concours.html', 'test.html', 'general.html', ''];
+const ESP_PUBLIC_PAGES = ['index.html', 'superieur.html', 'concours.html', 'test.html', 'general.html', 'liens-formation.html', ''];
 function espCurrentPageIsPublic(){
   const path = window.location.pathname;
-  const file = path.substring(path.lastIndexOf('/') + 1);
-  return ESP_PUBLIC_PAGES.includes(file);
+  // Basename sans extension : tolère les "clean URLs" (serveur qui masque le .html —
+  // npx serve v14+, Netlify, certaines configs Render...). /concours et /concours.html
+  // doivent être strictement équivalents ici, sinon un visiteur non connecté est
+  // renvoyé vers le portail au lieu de voir la page publique.
+  const file = path.substring(path.lastIndexOf('/') + 1).replace(/\.html$/, '');
+  return ESP_PUBLIC_PAGES.some(p => p.replace(/\.html$/, '') === file);
 }
 
 // ---------------- Verrou d'accès à la plateforme (inscription/connexion obligatoire) ----------------

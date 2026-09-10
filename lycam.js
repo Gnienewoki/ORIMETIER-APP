@@ -488,8 +488,10 @@ function espLycamSlugify(s){
 }
 function espLycamReportShell(title, bodyHtml){
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap">
 <style>
-  body{font-family:'Segoe UI',Roboto,Arial,sans-serif; background:#fffaf3; color:#1f2b22; margin:0; padding:28px 16px;}
+  body{font-family:'Inter','Segoe UI',Roboto,Arial,sans-serif; background:#fffaf3; color:#1f2b22; margin:0; padding:28px 16px;}
   .wrap{max-width:680px; margin:0 auto; background:#fff; border:1px solid #f0d9b5; border-radius:16px; padding:32px clamp(20px,5vw,40px);}
   h1{font-size:22px; margin:0 0 4px;} h2{font-size:16px; color:#157a40; margin:26px 0 10px;}
   p.sub{color:#6b7d70; font-size:13.5px; margin:0 0 22px;}

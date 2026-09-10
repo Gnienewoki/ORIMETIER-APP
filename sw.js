@@ -13,42 +13,71 @@
 // venus, et déclenche le rechargement automatique (voir "controllerchange"
 // dans bootstrap.js) pour qu'ils récupèrent la nouvelle version sans rien
 // avoir à faire.
-const CACHE_NAME = 'orimetier-shell-v4';
+const CACHE_NAME = 'orimetier-shell-v5';
+
+// Liste exhaustive et vérifiée des fichiers réellement servis par le site
+// (aucune entrée fantôme : un seul 404 dans un cache.addAll classique fait
+// échouer TOUT le pré-cache, cf. le pré-cache pré-v5 qui listait
+// data-superieur.js / eleves.js inexistants et ne mettait donc rien en cache).
 const APP_SHELL = [
   './',
+  // Pages
   './index.html',
   './superieur.html',
   './concours.html',
+  './general.html',
+  './liens-formation.html',
   './test.html',
   './espaces.html',
   './eleves.html',
+  // Style
   './style.css',
+  // Socle JS commun
   './utils.js',
   './modal.js',
+  './supabase-client.js',
+  './auth.js',
+  './bootstrap.js',
+  // Données statiques
   './data-formations.js',
   './data-concours.js',
   './data-riasec.js',
-  './data-superieur.js',
-  './supabase-client.js',
-  './auth.js',
+  './data-regions.js',
+  // Logique par page
   './formations.js',
-  './concours.js',
   './superieur.js',
+  './concours.js',
+  './general.js',
+  './liens-formation.js',
   './riasec-test.js',
-  './eleves.js',
   './espaces.js',
+  // Espaces
   './admin.js',
   './inspecteur.js',
   './eleve.js',
   './etablissement.js',
-  './bootstrap.js',
+  './lycam.js',
+  './mbti.js',
+  // PWA
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).catch(() => {})
+    caches.open(CACHE_NAME).then((cache) =>
+      // Mise en cache fichier par fichier plutôt que cache.addAll() : si l'un
+      // d'eux échoue (404, réseau), les autres sont quand même mis en cache et
+      // l'installation du service worker n'est jamais bloquée.
+      Promise.all(
+        APP_SHELL.map((url) =>
+          cache.add(url).catch((e) => {
+            console.warn('[PWA] pré-cache ignoré pour', url, e);
+          })
+        )
+      )
+    ).catch(() => {})
   );
   self.skipWaiting();
 });

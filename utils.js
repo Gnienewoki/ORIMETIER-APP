@@ -7,6 +7,37 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ---------------- Anti-rebond (recherche / filtres) ----------------
+// Retourne une version de `fn` qui ne s'exécute qu'après `wait` ms sans
+// nouvel appel. Utilisé pour ne pas relancer un filtre lourd à chaque
+// frappe (cf. annuaire des 351 filières, recherches admin, etc.).
+function espDebounce(fn, wait){
+  let t = null;
+  return function(...args){
+    if(t) clearTimeout(t);
+    t = setTimeout(() => { t = null; fn.apply(this, args); }, wait == null ? 200 : wait);
+  };
+}
+
+// ---------------- Icônes Lucide ----------------
+// Rend une icône Lucide sous forme de balise <i data-lucide="..."> que la
+// librairie (chargée en CDN, cf. <head> des pages) transforme en <svg> au
+// chargement. Après une injection dynamique de HTML contenant des icônes,
+// appeler espRefreshIcons() pour (re)transformer les nouvelles balises.
+function icon(name, opts){
+  opts = opts || {};
+  const cls = 'o-ico' + (opts.lg ? ' o-ico--lg' : '') + (opts.cls ? ' ' + opts.cls : '');
+  const label = opts.label ? ` aria-label="${escapeHtml(opts.label)}" role="img"` : ' aria-hidden="true"';
+  return `<i data-lucide="${escapeHtml(name)}" class="${cls}"${label}></i>`;
+}
+function espRefreshIcons(){
+  try {
+    if(window.lucide && typeof window.lucide.createIcons === 'function'){
+      window.lucide.createIcons();
+    }
+  } catch(e){ /* librairie non chargée (hors-ligne au 1er chargement) : sans gravité */ }
+}
+
 // ---------------- Filières Enseignement Général : Cycle -> Diplôme (listes fermées + "Autre") ----------------
 // Un "Autre" saisi en texte libre à la saisie (nom/diplôme de la filière restent des
 // colonnes texte libres, cf. etablissement_add_filiere) est stocké tel quel, jamais
