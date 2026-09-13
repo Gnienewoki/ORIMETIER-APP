@@ -1,9 +1,9 @@
 function espRenderEtabAuth(mode){
   const isLogin = mode === 'login';
   document.getElementById('esp-etablissement').innerHTML = `
-    <button class="esp-back" onclick="espBackToRoleSelect()">← Retour</button>
+    <button class="esp-back" onclick="espBackToRoleSelect()">${icon('arrow-left')}Retour</button>
     <div class="esp-card" style="max-width:560px;margin:0 auto;">
-      <div class="esp-title">🏫 Espace Établissement</div>
+      <div class="esp-title">${icon('school')}Espace Établissement</div>
       <p class="esp-sub">${isLogin ? "Connectez-vous avec l'e-mail et le mot de passe de votre établissement." : "Inscrivez votre établissement. L'inscription sera examinée par l'administrateur de la plateforme."}</p>
       <div id="esp-etab-error"></div>
       ${isLogin ? `
@@ -115,6 +115,7 @@ function espRenderEtabAuth(mode){
     espEtabUpdateVilleOptions();
     espEtabToggleSousCategorie();
   }
+  espRefreshIcons();
 }
 
 // ---------------- Vérification de doublon en temps réel (avertissement non bloquant) ----------------
@@ -132,8 +133,9 @@ function espEtabNomDoublonCheck(){
     // Le nom a pu changer pendant l'appel réseau : on ignore une réponse devenue obsolète.
     if(document.getElementById('esp-etab-nom').value.trim() !== nom) return;
     if(doublon){
-      warnEl.textContent = "⚠️ Établissement déjà préinscrit, contacter le support pour récupérer vos codes de connexion. Tél : 07 87 63 34 81 - Email : gnienewoki@gmail.com";
+      warnEl.innerHTML = icon('triangle-alert') + "Établissement déjà préinscrit, contacter le support pour récupérer vos codes de connexion. Tél : 07 87 63 34 81 - Email : gnienewoki@gmail.com";
       warnEl.style.display = '';
+      espRefreshIcons();
     } else {
       warnEl.style.display = 'none';
       warnEl.textContent = '';
@@ -212,11 +214,12 @@ function espEtabAddFiliereRow(){
   row.id = 'esp-etab-filiere-row-' + idx;
   const fieldsHtml = espEtabCurrentFiliereMode() === 'general' ? espEtabFiliereRowGeneralHtml(idx) : espEtabFiliereRowLibreHtml();
   row.innerHTML = fieldsHtml + `
-    <button type="button" class="esp-btn" style="padding:4px 10px;font-size:12px;align-self:center;" onclick="espEtabRemoveFiliereRow(${idx})" title="Retirer cette filière">✕</button>
+    <button type="button" class="esp-btn" style="padding:4px 10px;font-size:12px;align-self:center;" onclick="espEtabRemoveFiliereRow(${idx})" title="Retirer cette filière">${icon('x')}</button>
   `;
   container.appendChild(row);
   const addBtn = document.getElementById('esp-etab-add-filiere-btn');
   if(addBtn) addBtn.style.display = _espEtabFiliereRowCount >= 10 ? 'none' : '';
+  espRefreshIcons();
 }
 function espEtabRemoveFiliereRow(idx){
   const row = document.getElementById('esp-etab-filiere-row-' + idx);
@@ -300,9 +303,10 @@ function espEtabRenderRegisterLogo(){
   el.innerHTML = _espEtabRegisterLogo ? `
     <div class="esp-etab-photo-thumb">
       <img src="${escapeHtml(_espEtabRegisterLogo)}" alt="Logo établissement">
-      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterLogo()" title="Retirer">✕</span>
+      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterLogo()" title="Retirer">${icon('x')}</span>
     </div>
   ` : '';
+  espRefreshIcons();
 }
 
 // ---------------- Photos de l'établissement (jusqu'à 10, à l'inscription) ----------------
@@ -336,13 +340,14 @@ function espEtabRenderRegisterPhotos(){
   el.innerHTML = _espEtabRegisterPhotos.map((u,i) => `
     <div class="esp-etab-photo-thumb">
       <img src="${escapeHtml(u)}" alt="Photo établissement">
-      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterPhoto(${i})" title="Retirer">✕</span>
+      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterPhoto(${i})" title="Retirer">${icon('x')}</span>
     </div>
   `).join('');
   const label = document.getElementById('esp-etab-photos-label');
   if(label) label.textContent = `Photos de l'établissement (${_espEtabRegisterPhotos.length}/10)`;
   const input = document.getElementById('esp-etab-photos-input');
   if(input) input.style.display = _espEtabRegisterPhotos.length >= 10 ? 'none' : '';
+  espRefreshIcons();
 }
 async function espEtabRegister(){
   const nom = document.getElementById('esp-etab-nom').value.trim();
@@ -403,11 +408,12 @@ async function espEtabRegister(){
 function espEtabRegisterShowConfirmation(){
   document.getElementById('esp-etablissement').innerHTML = `
     <div class="esp-card" style="max-width:560px;margin:0 auto;">
-      <div class="esp-title">🏫 Espace Établissement</div>
-      <p class="esp-success">✅ Votre demande d'inscription a bien été enregistrée. Elle sera examinée par l'administrateur avant publication dans le catalogue. Vous recevrez vos codes de connexion une fois votre établissement validé.</p>
+      <div class="esp-title">${icon('school')}Espace Établissement</div>
+      <p class="esp-success">${icon('check-circle')}Votre demande d'inscription a bien été enregistrée. Elle sera examinée par l'administrateur avant publication dans le catalogue. Vous recevrez vos codes de connexion une fois votre établissement validé.</p>
       <button class="esp-btn esp-btn-primary" onclick="espBackToRoleSelect()">Retour à l'accueil</button>
     </div>
   `;
+  espRefreshIcons();
 }
 async function espEtabLogin(){
   const email = document.getElementById('esp-etab-email').value.trim();
@@ -435,9 +441,9 @@ function espEtabLogout(){ _espEtabOwn = null; platformLogout(); }
 // définir ses propres identifiants et prendre le contrôle de son compte.
 function espRenderEtabClaim(){
   document.getElementById('esp-etablissement').innerHTML = `
-    <button class="esp-back" onclick="espRenderEtabAuth('login')">← Retour</button>
+    <button class="esp-back" onclick="espRenderEtabAuth('login')">${icon('arrow-left')}Retour</button>
     <div class="esp-card" style="max-width:560px;margin:0 auto;">
-      <div class="esp-title">🏫 Récupérer mon établissement</div>
+      <div class="esp-title">${icon('school')}Récupérer mon établissement</div>
       <p class="esp-sub">Votre établissement a été inscrit d'office par l'administration et apparaît déjà dans l'annuaire. Saisissez le code de récupération reçu (courrier officiel) et choisissez votre e-mail et mot de passe pour prendre le contrôle du compte.</p>
       <div id="esp-etab-claim-error"></div>
       <div class="esp-field" style="margin-bottom:12px;"><label>Code de récupération</label><input type="text" id="esp-etab-claim-code" placeholder="Ex : A7K9QPX2" style="text-transform:uppercase;"></div>
@@ -455,6 +461,7 @@ function espRenderEtabClaim(){
       <button class="esp-btn esp-btn-primary" onclick="espEtabClaim()">Récupérer mon compte</button>
     </div>
   `;
+  espRefreshIcons();
 }
 async function espEtabClaim(){
   const code = document.getElementById('esp-etab-claim-code').value.trim().toUpperCase();
@@ -546,7 +553,7 @@ function espRenderEtabDashboard(){
 
   document.getElementById('esp-etablissement').innerHTML = `
     <div class="esp-user-header">
-      <span class="esp-user-name">🏫 ${escapeHtml(etab.nom)}</span>
+      <span class="esp-user-name">${icon('school')}${escapeHtml(etab.nom)}</span>
       <button class="esp-btn" onclick="espEtabLogout()">Déconnexion</button>
     </div>
     <div class="esp-card">
@@ -556,7 +563,7 @@ function espRenderEtabDashboard(){
           <p class="esp-sub">${statutMsg}</p>
           <p class="esp-sub" style="margin-top:10px;">${[etab.ville, etab.quartier, etab.region].filter(Boolean).map(escapeHtml).join(' · ')} · ${escapeHtml(etab.type)} · Responsable : ${escapeHtml(etab.responsable)} · ${escapeHtml(etab.tel)} · ${escapeHtml(etab.email)}</p>
         </div>
-        <button class="esp-btn" onclick="espEtabToggleEditInfo()">✏️ Modifier</button>
+        <button class="esp-btn" onclick="espEtabToggleEditInfo()">${icon('pencil')}Modifier</button>
       </div>
       <div id="esp-etab-info-form" style="display:none;margin-top:16px;border-top:1px dashed var(--border);padding-top:16px;">
         <div class="esp-field-row">
@@ -583,7 +590,7 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">📞 Contact & site web</div>
+      <div class="esp-title" style="font-size:15px;">${icon('phone')}Contact & site web</div>
       <p class="esp-sub" style="margin-bottom:10px;">Numéros supplémentaires et site web — visibles publiquement une fois le Premium actif, mais modifiables dès maintenant.</p>
       <div class="esp-field-row">
         <div class="esp-field"><label>Téléphone 2</label><input type="tel" id="esp-etab-extra-tel2" value="${escapeHtml(etab.tel2||'')}" placeholder="Optionnel"></div>
@@ -595,11 +602,11 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">🖼️ Logo & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
+      <div class="esp-title" style="font-size:15px;">${icon('image')}Logo & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
       ${!etab.premium ? `
         <p class="esp-sub">Fonctionnalité réservée aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
         ${etab.demandePremium ? `
-          <p class="esp-sub"><span class="esp-badge en_attente">⏳ Demande en attente de validation</span>${etab.demandePremiumDate ? ' — envoyée le ' + escapeHtml(etab.demandePremiumDate) : ''}</p>
+          <p class="esp-sub"><span class="esp-badge en_attente">${icon('clock')}Demande en attente de validation</span>${etab.demandePremiumDate ? ' — envoyée le ' + escapeHtml(etab.demandePremiumDate) : ''}</p>
         ` : `
           <button class="esp-btn esp-btn-primary" onclick="espEtabDemanderPremium()">Demander le mode Premium</button>
           <div id="esp-etab-premium-msg"></div>
@@ -611,7 +618,7 @@ function espRenderEtabDashboard(){
           ${etab.logoUrl ? `
             <div class="esp-etab-photo-thumb">
               <img src="${escapeHtml(etab.logoUrl)}" alt="Logo établissement">
-              <span class="esp-etab-photo-remove" onclick="espEtabRemoveLogo()" title="Retirer">✕</span>
+              <span class="esp-etab-photo-remove" onclick="espEtabRemoveLogo()" title="Retirer">${icon('x')}</span>
             </div>
           ` : ''}
         </div>
@@ -624,7 +631,7 @@ function espRenderEtabDashboard(){
           ${(etab.photos||[]).map((u,i) => `
             <div class="esp-etab-photo-thumb">
               <img src="${escapeHtml(u)}" alt="Photo établissement">
-              <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">✕</span>
+              <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">${icon('x')}</span>
             </div>
           `).join('')}
         </div>
@@ -659,7 +666,7 @@ function espRenderEtabDashboard(){
       ${(etab.filieresProposees||[]).length ? etab.filieresProposees.map(f => `
         <div class="esp-note-item" style="border-left-color:var(--green-dark);display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span><b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)}) <span class="esp-badge ${f.statut}" style="margin-left:6px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span></span>
-          <button class="esp-btn esp-btn-danger" style="padding:4px 9px;font-size:12px;flex-shrink:0;" title="Supprimer cette filière" onclick="espEtabDeleteFiliereDashboard('${f.id}')">🗑️</button>
+          <button class="esp-btn esp-btn-danger" style="padding:4px 9px;font-size:12px;flex-shrink:0;" title="Supprimer cette filière" onclick="espEtabDeleteFiliereDashboard('${f.id}')">${icon('trash-2')}</button>
         </div>
       `).join('') : `<p class="esp-empty">Aucune filière renseignée.</p>`}
       ${(etab.filieresProposees||[]).length < 10 ? `
@@ -691,6 +698,7 @@ function espRenderEtabDashboard(){
   }
   const typeSelect = document.getElementById('esp-etab-edit-type');
   if(typeSelect) typeSelect.value = etab.type;
+  espRefreshIcons();
 }
 
 // ---------------- Modifier les informations générales ----------------
