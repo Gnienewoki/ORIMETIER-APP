@@ -231,6 +231,7 @@ async function espMbtiInitTab(){
 function espMbtiRefreshContainer(){
   const container = document.getElementById('esp-mbti-tab-container');
   if(container) container.innerHTML = espRenderMbtiTab();
+  espRefreshIcons();
 }
 
 /* ---------------- Rendu principal ---------------- */
@@ -247,10 +248,10 @@ function espMbtiRenderList(){
   const pendingTotal = espMbtiLoadPending().length;
   return `
     <div class="esp-card">
-      <div class="esp-title" style="font-size:16px;">🧭 Test MBTI — typologie de personnalité</div>
+      <div class="esp-title" style="font-size:16px;">${icon('brain')}Test MBTI — typologie de personnalité</div>
       <p class="esp-sub">Une session correspond à une classe (ou un groupe) testé un jour donné. Tu peux tester 1 à 150 élèves par session.</p>
       ${_espMbtiError ? `<p class="esp-error">${escapeHtml(_espMbtiError)}</p>` : ''}
-      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">⚠️ ${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espMbtiManualRetrySync()">Réessayer maintenant</span></p>` : ''}
+      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espMbtiManualRetrySync()">Réessayer maintenant</span></p>` : ''}
       ${_espMbtiLoading ? `<p class="esp-empty">Chargement...</p>` : `
         <div class="esp-field-row" style="align-items:flex-end;">
           <div class="esp-field" style="flex:2;">
@@ -338,8 +339,8 @@ function espMbtiRenderIdentity(){
   const count = _espMbtiCurrentResults.length;
   return `
     <div class="esp-card">
-      <button class="esp-back" onclick="espMbtiBackToList()">← Toutes les sessions</button>
-      <div class="esp-title" style="font-size:16px;">🧭 ${escapeHtml(_espMbtiCurrentSession.nom)}</div>
+      <button class="esp-back" onclick="espMbtiBackToList()">${icon('arrow-left')}Toutes les sessions</button>
+      <div class="esp-title" style="font-size:16px;">${icon('brain')}${escapeHtml(_espMbtiCurrentSession.nom)}</div>
       <p class="esp-sub">Élève n°${count + 1} (jusqu'à 150 par session). Saisis son identité avant de commencer.</p>
       <div class="esp-field-row">
         <div class="esp-field"><label>Nom</label><input type="text" id="mbti-nom"></div>
@@ -351,8 +352,8 @@ function espMbtiRenderIdentity(){
       </div>
       <div id="esp-mbti-identity-error"></div>
       <div style="display:flex; justify-content:space-between; margin-top:10px;">
-        <button class="esp-btn" onclick="espMbtiShowReport()">📊 Voir le rapport de session</button>
-        <button class="esp-btn esp-btn-primary" onclick="espMbtiStartQuiz()">Commencer le questionnaire →</button>
+        <button class="esp-btn" onclick="espMbtiShowReport()">${icon('bar-chart-3')}Voir le rapport de session</button>
+        <button class="esp-btn esp-btn-primary" onclick="espMbtiStartQuiz()">Commencer le questionnaire${icon('chevron-right')}</button>
       </div>
     </div>
   `;
@@ -398,8 +399,8 @@ function espMbtiRenderQuiz(){
       </div>
       <div id="esp-mbti-quiz-error"></div>
       <div style="display:flex; justify-content:space-between; margin-top:20px;">
-        <button class="esp-btn" onclick="espMbtiPrevQuestion()" ${_espMbtiCurrentQ === 0 ? 'style="visibility:hidden;"' : ''}>← Précédent</button>
-        <button class="esp-btn esp-btn-primary" onclick="espMbtiNextQuestion()">${isLast ? 'Voir le résultat →' : 'Suivant →'}</button>
+        <button class="esp-btn" onclick="espMbtiPrevQuestion()" ${_espMbtiCurrentQ === 0 ? 'style="visibility:hidden;"' : ''}>${icon('chevron-left')}Précédent</button>
+        <button class="esp-btn esp-btn-primary" onclick="espMbtiNextQuestion()">${isLast ? 'Voir le résultat' + icon('chevron-right') : 'Suivant' + icon('chevron-right')}</button>
       </div>
     </div>
   `;
@@ -534,7 +535,7 @@ async function espMbtiComputeAndSave(){
 function espMbtiRenderEgalite(){
   return `
     <div class="esp-card">
-      <div class="esp-title" style="font-size:16px;">⚖️ Égalité(s) à trancher</div>
+      <div class="esp-title" style="font-size:16px;">${icon('scale')}Égalité(s) à trancher</div>
       <p class="esp-sub">Le score est à égalité sur ${_espMbtiEgalites.length > 1 ? 'ces axes' : 'cet axe'}. Choisis la lettre qui correspond le mieux à l'élève.</p>
       ${_espMbtiEgalites.map(eg => `
         <div class="esp-field" style="margin-bottom:16px;">
@@ -545,7 +546,7 @@ function espMbtiRenderEgalite(){
           </div>
         </div>
       `).join('')}
-      <button class="esp-btn esp-btn-primary" onclick="espMbtiConfirmerEgalites()" ${_espMbtiEgalites.some(eg => !_espMbtiEgaliteChoix[eg.axe.join('/')]) ? 'disabled' : ''}>Valider et voir le résultat →</button>
+      <button class="esp-btn esp-btn-primary" onclick="espMbtiConfirmerEgalites()" ${_espMbtiEgalites.some(eg => !_espMbtiEgaliteChoix[eg.axe.join('/')]) ? 'disabled' : ''}>Valider et voir le résultat${icon('chevron-right')}</button>
     </div>
   `;
 }
@@ -592,7 +593,7 @@ function espMbtiHierarchyHtml(hierarchie){
 function espMbtiApprentissageHtml(typeLetters, prenom){
   const lignes = typeLetters.split('').map(l => `<li>${escapeHtml(MBTI_MODE_APPRENTISSAGE[l])}</li>`).join('');
   return `
-    <h3 style="font-size:14px; color:var(--green-dark); margin:20px 0 10px;">📚 Comment ${escapeHtml(prenom || "l'élève")} apprend le mieux</h3>
+    <h3 style="font-size:14px; color:var(--green-dark); margin:20px 0 10px;">${icon('book-open')}Comment ${escapeHtml(prenom || "l'élève")} apprend le mieux</h3>
     <ul style="margin:0 0 4px; padding-left:20px; font-size:13.5px; line-height:1.6;">${lignes}</ul>
     <p class="esp-sub" style="margin-top:6px;">Ce n'est pas un jugement de capacité : une matière ou une méthode qui ne correspond pas à ces préférences demandera simplement plus d'efforts, sans que ce soit un manque d'intelligence.</p>
   `;
@@ -602,7 +603,7 @@ function espMbtiOrientationHtml(typeLetters, dominanteCode){
   const dom = MBTI_FILIERES_PAR_FONCTION[dominanteCode] || { categorie:'', exemples:'' };
   const type = MBTI_TYPES[typeLetters] || { nom:'', desc:'', filieres:'' };
   return `
-    <h3 style="font-size:14px; color:var(--green-dark); margin:20px 0 10px;">🎯 Pistes d'orientation</h3>
+    <h3 style="font-size:14px; color:var(--green-dark); margin:20px 0 10px;">${icon('target')}Pistes d'orientation</h3>
     <p style="font-size:13.5px; line-height:1.6; margin:0 0 8px;">
       Grâce à sa fonction dominante (<b>${dominanteCode}</b>), cet élève est naturellement attiré par des
       <b>${escapeHtml((dom.categorie||'').toLowerCase())}</b>. Quelques exemples concrets de filières :
@@ -625,7 +626,7 @@ function espMbtiRenderResult(){
     <div class="esp-card">
       <div class="esp-title" style="font-size:16px;">${escapeHtml((r.identity.prenom + ' ' + r.identity.nom).trim())}</div>
       <p class="esp-sub">${[r.identity.classe, r.identity.naissance ? 'né(e) en ' + r.identity.naissance : ''].filter(Boolean).join(' · ')}</p>
-      ${!r.synced ? `<p class="esp-sub" style="color:var(--orange-dark);">⚠️ Résultat enregistré localement, en attente de synchronisation (connexion instable).</p>` : ''}
+      ${!r.synced ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}Résultat enregistré localement, en attente de synchronisation (connexion instable).</p>` : ''}
       <div class="esp-lycam-hero esp-lycam-hero-low">
         <div class="esp-lycam-hero-num" style="font-size:22px;">${r.typeLetters}</div>
         <div>
@@ -640,9 +641,9 @@ function espMbtiRenderResult(){
       ${espMbtiOrientationHtml(r.typeLetters, r.hierarchie.dominante)}
       <p class="esp-sub" style="margin-top:16px;">${count} élève(s) testé(s) dans cette session${remaining > 0 ? ' · ' + remaining + ' place(s) restante(s)' : ' · limite de 150 atteinte'}.</p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-        <button class="esp-btn" onclick="espMbtiDownloadIndividual()">⬇ Télécharger la fiche</button>
-        <button class="esp-btn" onclick="espMbtiShowReport()">📊 Rapport de session</button>
-        ${count < 150 ? `<button class="esp-btn esp-btn-primary" onclick="espMbtiGoToIdentity()">Élève suivant →</button>` : ''}
+        <button class="esp-btn" onclick="espMbtiDownloadIndividual()">${icon('download')}Télécharger la fiche</button>
+        <button class="esp-btn" onclick="espMbtiShowReport()">${icon('bar-chart-3')}Rapport de session</button>
+        ${count < 150 ? `<button class="esp-btn esp-btn-primary" onclick="espMbtiGoToIdentity()">Élève suivant${icon('chevron-right')}</button>` : ''}
       </div>
     </div>
   `;
@@ -686,8 +687,8 @@ function espMbtiRenderReport(){
 
   return `
     <div class="esp-card">
-      <button class="esp-back" onclick="espMbtiBackToList()">← Toutes les sessions</button>
-      <div class="esp-title" style="font-size:16px;">📊 ${escapeHtml(_espMbtiCurrentSession.nom)}</div>
+      <button class="esp-back" onclick="espMbtiBackToList()">${icon('arrow-left')}Toutes les sessions</button>
+      <div class="esp-title" style="font-size:16px;">${icon('bar-chart-3')}${escapeHtml(_espMbtiCurrentSession.nom)}</div>
       <p class="esp-sub">${results.length} élève(s) testé(s)${pendingCount ? ' · ' + pendingCount + ' en attente de synchronisation' : ''}.</p>
       <div class="esp-stat-grid">
         <div class="esp-stat-box"><div class="esp-stat-num">${results.length}</div><div class="esp-stat-label">Élèves testés</div></div>
@@ -700,9 +701,9 @@ function espMbtiRenderReport(){
       <h3 style="font-size:14px; color:var(--green-dark); margin:20px 0 12px;">Diversité cognitive (fonction dominante)</h3>
       ${results.length ? `<table style="width:100%; border-collapse:collapse; font-size:13px;"><thead><tr><th style="text-align:left; padding:6px;">Fonction dominante</th><th style="padding:6px;">Élèves</th></tr></thead><tbody>${domRows}</tbody></table>` : ''}
       <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:22px;">
-        <button class="esp-btn" onclick="window.print()">🖨 Imprimer</button>
-        <button class="esp-btn" onclick="espMbtiDownloadCsv()">⬇ Données (CSV)</button>
-        <button class="esp-btn" onclick="espMbtiDownloadReport()">⬇ Rapport (HTML)</button>
+        <button class="esp-btn" onclick="window.print()">${icon('printer')}Imprimer</button>
+        <button class="esp-btn" onclick="espMbtiDownloadCsv()">${icon('download')}Données (CSV)</button>
+        <button class="esp-btn" onclick="espMbtiDownloadReport()">${icon('download')}Rapport (HTML)</button>
         <button class="esp-btn esp-btn-primary" onclick="espMbtiGoToIdentity()">+ Ajouter un élève</button>
       </div>
     </div>

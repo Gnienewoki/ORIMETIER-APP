@@ -869,9 +869,10 @@
 }
 .esp-guest-menu.open{ display:block; }
 .esp-guest-menu a{
-  display:block; padding:10px 12px; border-radius:8px; font-size:13.5px; font-weight:600;
+  display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:8px; font-size:13.5px; font-weight:600;
   color:var(--text); text-decoration:none; transition:background .15s;
 }
+.esp-guest-menu a svg{ width:16px; height:16px; flex-shrink:0; }
 .esp-guest-menu a:hover{ background:var(--bg); color:var(--orange-dark); }
 @media (max-width:640px){
   .esp-guest-bar{ width:100%; justify-content:space-between; margin-left:0; }

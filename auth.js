@@ -109,16 +109,17 @@ function updateAuthBar(){
     bar.innerHTML = `
       <div class="esp-guest-bar">
         <div class="esp-guest-dropdown">
-          <button class="esp-btn esp-btn-primary" onclick="espToggleGuestMenu(event)">➕ Ouvrir un compte</button>
+          <button class="esp-btn esp-btn-primary" onclick="espToggleGuestMenu(event)">${icon('plus')}Ouvrir un compte</button>
           <div class="esp-guest-menu" id="esp-guest-menu">
-            <a href="espaces.html?role=inspecteur&amp;action=register">🧭 Inspecteur d'orientation</a>
-            <a href="espaces.html?role=eleve&amp;action=register">🎓 Élève / Étudiant</a>
-            <a href="espaces.html?role=etablissement&amp;action=register">🏫 Établissement</a>
+            <a href="espaces.html?role=inspecteur&amp;action=register">${icon('compass')}Inspecteur d'orientation</a>
+            <a href="espaces.html?role=eleve&amp;action=register">${icon('graduation-cap')}Élève / Étudiant</a>
+            <a href="espaces.html?role=etablissement&amp;action=register">${icon('school')}Établissement</a>
           </div>
         </div>
-        <a href="espaces.html" class="esp-btn">🔐 Déjà inscrit ? Se connecter</a>
+        <a href="espaces.html" class="esp-btn">${icon('lock')}Déjà inscrit ? Se connecter</a>
       </div>
     `;
+    espRefreshIcons();
     return;
   }
   const u = espCurrentUserLabel(session);
@@ -320,33 +321,33 @@ function espChatMessageHtml(m, opts){
   const auteurInsp = opts.inspecteursCache ? opts.inspecteursCache.find(i => i.id === m.inspecteurId) : null;
   const certifie = m.auteurRole === 'admin' ? false : (auteurInsp && auteurInsp.certifie);
   const isAdminMsg = m.auteurRole === 'admin';
-  const typeLabel = m.type === 'A' ? '📌 Important' : (m.type === 'O' ? '📣 Officiel' : '');
+  const typeLabel = m.type === 'A' ? icon('pin') + 'Important' : (m.type === 'O' ? icon('megaphone') + 'Officiel' : '');
   const typeClass = m.type === 'A' ? 'esp-chat-type-a' : (m.type === 'O' ? 'esp-chat-type-o' : '');
   const cited = m.replyTo && opts.allMessages ? opts.allMessages.find(x => x.id === m.replyTo) : null;
   const citedHtml = cited ? `
     <div class="esp-chat-cited">
-      ↩️ <b>${escapeHtml(cited.inspecteurNom)}</b> : ${escapeHtml(cited.texte.length > 80 ? cited.texte.slice(0,80) + '…' : cited.texte)}
+      ${icon('corner-up-left')}<b>${escapeHtml(cited.inspecteurNom)}</b> : ${escapeHtml(cited.texte.length > 80 ? cited.texte.slice(0,80) + '…' : cited.texte)}
     </div>
-  ` : (m.replyTo ? `<div class="esp-chat-cited esp-chat-cited-deleted">↩️ Message d'origine supprimé</div>` : '');
-  const avatarHtml = isAdminMsg ? '🛠️ ' : (auteurInsp && auteurInsp.avatarUrl
+  ` : (m.replyTo ? `<div class="esp-chat-cited esp-chat-cited-deleted">${icon('corner-up-left')}Message d'origine supprimé</div>` : '');
+  const avatarHtml = isAdminMsg ? icon('wrench') + ' ' : (auteurInsp && auteurInsp.avatarUrl
     ? `<img src="${escapeHtml(auteurInsp.avatarUrl)}" class="esp-chat-avatar">`
     : `<span class="esp-chat-avatar-placeholder">${escapeHtml((m.inspecteurNom||'?').charAt(0).toUpperCase())}</span>`);
   const attachmentHtml = !m.attachmentUrl ? '' : m.attachmentType === 'pdf'
-    ? `<div class="esp-chat-attachment"><a class="esp-chat-attachment-pdf" href="${escapeHtml(m.attachmentUrl)}" target="_blank" rel="noopener">📄 ${escapeHtml(m.attachmentName || 'Document PDF')}</a></div>`
+    ? `<div class="esp-chat-attachment"><a class="esp-chat-attachment-pdf" href="${escapeHtml(m.attachmentUrl)}" target="_blank" rel="noopener">${icon('file-text')}${escapeHtml(m.attachmentName || 'Document PDF')}</a></div>`
     : `<div class="esp-chat-attachment"><img src="${escapeHtml(m.attachmentUrl)}" onclick="window.open('${escapeHtml(m.attachmentUrl)}','_blank')" alt="Pièce jointe"></div>`;
   return `
     <div class="esp-chat-msg ${opts.mine ? 'esp-chat-msg-mine' : ''} ${isAdminMsg ? 'esp-chat-msg-admin' : ''} ${typeClass}">
       <div class="esp-chat-msg-author">
         ${avatarHtml}
-        ${escapeHtml(m.inspecteurNom)}${certifie ? ' <span class="esp-badge-certifie" title="Compte certifié par l\'administration">✅</span>' : ''}
+        ${escapeHtml(m.inspecteurNom)}${certifie ? ' <span class="esp-badge-certifie" title="Compte certifié par l\'administration">' + icon('badge-check') + '</span>' : ''}
         ${typeLabel ? `<span class="esp-chat-type-label">${typeLabel}</span>` : ''}
         <span class="esp-chat-msg-date">${opts.hideDate ? '' : escapeHtml(m.date)}</span>
-        ${opts.canDelete ? `<span class="esp-chat-delete" onclick="${opts.deleteHandler}('${m.id}')" title="Supprimer ce message">🗑️</span>` : ''}
+        ${opts.canDelete ? `<span class="esp-chat-delete" onclick="${opts.deleteHandler}('${m.id}')" title="Supprimer ce message">${icon('trash-2')}</span>` : ''}
       </div>
       ${citedHtml}
       ${m.texte ? `<div class="esp-chat-msg-text">${escapeHtml(m.texte)}</div>` : ''}
       ${attachmentHtml}
-      ${opts.replyHandler ? `<div class="esp-chat-reply-link" onclick="${opts.replyHandler}('${m.id}')">↩️ Répondre</div>` : ''}
+      ${opts.replyHandler ? `<div class="esp-chat-reply-link" onclick="${opts.replyHandler}('${m.id}')">${icon('corner-up-left')}Répondre</div>` : ''}
     </div>
   `;
 }
@@ -367,7 +368,8 @@ function espChatPreviewAttachment(input){
     input.value = '';
     return;
   }
-  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">📎 ${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espChatClearAttachment('${input.id}')">Retirer</span></p>`;
+  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">${icon('paperclip')}${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espChatClearAttachment('${input.id}')">Retirer</span></p>`;
+  espRefreshIcons();
 }
 function espChatClearAttachment(inputId){
   _espChatPendingFile = null;
@@ -405,10 +407,11 @@ function espUpdateReplyPreview(){
   const snippet = _espReplyTarget.texte.length > 60 ? _espReplyTarget.texte.slice(0,60) + '…' : _espReplyTarget.texte;
   el.innerHTML = `
     <div class="esp-chat-reply-preview">
-      ↩️ Réponse à <b>${escapeHtml(_espReplyTarget.nom)}</b> : ${escapeHtml(snippet)}
-      <span class="esp-chat-cancel-reply" onclick="espCancelReply()" title="Annuler">✕</span>
+      ${icon('corner-up-left')}Réponse à <b>${escapeHtml(_espReplyTarget.nom)}</b> : ${escapeHtml(snippet)}
+      <span class="esp-chat-cancel-reply" onclick="espCancelReply()" title="Annuler">${icon('x')}</span>
     </div>
   `;
+  espRefreshIcons();
 }
 
 // ============================================================
@@ -449,7 +452,7 @@ function espPrivateConversationsList(){
 function espPrivateMessageHtml(m, opts){
   opts = opts || {};
   const attachmentHtml = !m.attachmentUrl ? '' : m.attachmentType === 'pdf'
-    ? `<div class="esp-chat-attachment"><a class="esp-chat-attachment-pdf" href="${escapeHtml(m.attachmentUrl)}" target="_blank" rel="noopener">📄 ${escapeHtml(m.attachmentName || 'Document PDF')}</a></div>`
+    ? `<div class="esp-chat-attachment"><a class="esp-chat-attachment-pdf" href="${escapeHtml(m.attachmentUrl)}" target="_blank" rel="noopener">${icon('file-text')}${escapeHtml(m.attachmentName || 'Document PDF')}</a></div>`
     : `<div class="esp-chat-attachment"><img src="${escapeHtml(m.attachmentUrl)}" onclick="window.open('${escapeHtml(m.attachmentUrl)}','_blank')" alt="Pièce jointe"></div>`;
   return `
     <div class="esp-chat-msg ${opts.mine ? 'esp-chat-msg-mine' : ''}">
@@ -477,7 +480,8 @@ function espPrivPreviewAttachment(input){
     input.value = '';
     return;
   }
-  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">📎 ${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espPrivClearAttachment('${input.id}')">Retirer</span></p>`;
+  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">${icon('paperclip')}${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espPrivClearAttachment('${input.id}')">Retirer</span></p>`;
+  espRefreshIcons();
 }
 function espPrivClearAttachment(inputId){
   _espPrivPendingFile = null;
@@ -507,8 +511,8 @@ function espRenderPrivateTab(){
     const messages = espPrivateMessages().filter(m => m.expediteurId === _espPrivateActiveContact || m.destinataireId === _espPrivateActiveContact);
     return `
       <div class="esp-card">
-        <button class="esp-back" onclick="espCloseConversationPrivee()">← Toutes les conversations</button>
-        <div class="esp-title" style="font-size:16px;">💬 ${escapeHtml(contact.nom)} ${escapeHtml(contact.prenoms||'')}</div>
+        <button class="esp-back" onclick="espCloseConversationPrivee()">${icon('arrow-left')}Toutes les conversations</button>
+        <div class="esp-title" style="font-size:16px;">${icon('message-circle')}${escapeHtml(contact.nom)} ${escapeHtml(contact.prenoms||'')}</div>
         <p class="esp-sub">${escapeHtml(contact.fonction||'Inspecteur')} — ${escapeHtml(contact.cio||'')}</p>
         <div id="esp-priv-list" class="esp-chat-list">
           ${messages.length ? espChatListWithDaySeparators(messages, m => espPrivateMessageHtml(m, { mine: m.expediteurId === session.id, hideDate: true })) : `<p class="esp-empty">Aucun message. Écris le premier !</p>`}
@@ -521,7 +525,7 @@ function espRenderPrivateTab(){
           </div>
         </div>
         <div style="margin:6px 0 10px;">
-          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">📎 Joindre une photo ou un PDF</label><br>
+          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">${icon('paperclip')}Joindre une photo ou un PDF</label><br>
           <input type="file" id="esp-priv-file-input" accept="image/*,application/pdf" onchange="espPrivPreviewAttachment(this)">
           <div id="esp-priv-file-preview"></div>
         </div>
@@ -536,10 +540,10 @@ function espRenderPrivateTab(){
 
   return `
     <div class="esp-card">
-      <div class="esp-title" style="font-size:16px;">✉️ Messages privés</div>
+      <div class="esp-title" style="font-size:16px;">${icon('send')}Messages privés</div>
       <p class="esp-sub">Recherche un inspecteur pour lui écrire directement, comme sur WhatsApp.</p>
       <div class="esp-field" style="margin-bottom:10px;">
-        <input type="text" id="esp-priv-search" placeholder="🔎 Rechercher un inspecteur par son nom..." value="${escapeHtml(query)}" oninput="espPrivateSearchInput(this.value)">
+        <input type="text" id="esp-priv-search" placeholder="Rechercher un inspecteur par son nom..." value="${escapeHtml(query)}" oninput="espPrivateSearchInput(this.value)">
       </div>
       ${query ? `
         <div class="esp-priv-search-results">
@@ -547,7 +551,7 @@ function espRenderPrivateTab(){
             <div class="esp-priv-conv-item" onclick="espOpenConversationPrivee('${i.id}')">
               ${i.avatarUrl ? `<img src="${escapeHtml(i.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((i.nom||'?').charAt(0).toUpperCase())}</span>`}
               <div class="esp-priv-conv-info">
-                <div class="esp-priv-conv-name">${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}${i.certifie ? ' <span class="esp-badge-certifie">✅</span>' : ''}</div>
+                <div class="esp-priv-conv-name">${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}${i.certifie ? ' <span class="esp-badge-certifie">' + icon('badge-check') + '</span>' : ''}</div>
                 <div class="esp-priv-conv-preview">${escapeHtml(i.fonction||'Inspecteur')} — ${escapeHtml(i.cio||'')}</div>
               </div>
             </div>
@@ -560,7 +564,7 @@ function espRenderPrivateTab(){
               ${c.contact.avatarUrl ? `<img src="${escapeHtml(c.contact.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((c.contact.nom||'?').charAt(0).toUpperCase())}</span>`}
               <div class="esp-priv-conv-info">
                 <div class="esp-priv-conv-name">${escapeHtml(c.contact.nom)} ${escapeHtml(c.contact.prenoms||'')}</div>
-                <div class="esp-priv-conv-preview">${escapeHtml((c.lastMessage.texte||'📎 Pièce jointe').slice(0,40))}</div>
+                <div class="esp-priv-conv-preview">${c.lastMessage.texte ? escapeHtml(c.lastMessage.texte.slice(0,40)) : icon('paperclip') + 'Pièce jointe'}</div>
               </div>
               ${c.unread ? `<span class="esp-priv-conv-unread">${c.unread}</span>` : ''}
             </div>
@@ -575,6 +579,7 @@ function espPrivateSearchInput(value){
   _espPrivateSearchQuery = value;
   const container = document.getElementById('esp-priv-tab-container');
   if(container) container.innerHTML = espRenderPrivateTab();
+  espRefreshIcons();
   // Remet le focus dans le champ après le rafraîchissement du HTML.
   const input = document.getElementById('esp-priv-search');
   if(input){ input.focus(); const v = input.value; input.value = ''; input.value = v; }
@@ -662,9 +667,9 @@ async function espSubmitEmailForm(role){
 function espRenderForgotPassword(role, containerId, backToLoginFn){
   const container = document.getElementById(containerId);
   container.innerHTML = `
-    <button class="esp-back" onclick="(${backToLoginFn})()">← Retour à la connexion</button>
+    <button class="esp-back" onclick="(${backToLoginFn})()">${icon('arrow-left')}Retour à la connexion</button>
     <div class="esp-card" style="max-width:520px;margin:0 auto;">
-      <div class="esp-title">🔑 Mot de passe oublié</div>
+      <div class="esp-title">${icon('key')}Mot de passe oublié</div>
       <p class="esp-sub">Saisis l'adresse e-mail associée à ton compte. Si elle correspond à un compte existant, tu recevras un lien pour définir un nouveau mot de passe.</p>
       <div id="esp-forgot-msg"></div>
       <div class="esp-field" style="margin-bottom:14px;">
@@ -674,6 +679,7 @@ function espRenderForgotPassword(role, containerId, backToLoginFn){
       <button class="esp-btn esp-btn-primary" id="esp-forgot-submit-btn" onclick="espSubmitForgotPassword('${role}')">Envoyer le lien de réinitialisation</button>
     </div>
   `;
+  espRefreshIcons();
 }
 async function espSubmitForgotPassword(role){
   const email = document.getElementById('esp-forgot-email').value.trim();
@@ -705,7 +711,7 @@ function espRenderResetPasswordScreen(token){
   gate.style.display = 'flex';
   gateContent.innerHTML = `
     <div class="esp-card" style="max-width:480px;margin:40px auto;">
-      <div class="esp-title">🔑 Nouveau mot de passe</div>
+      <div class="esp-title">${icon('key')}Nouveau mot de passe</div>
       <p class="esp-sub">Choisis un nouveau mot de passe pour ton compte.</p>
       <div id="esp-reset-msg"></div>
       <div class="esp-field" style="margin-bottom:12px;"><label>Nouveau mot de passe</label><input type="password" id="esp-reset-pass1"></div>
@@ -713,6 +719,7 @@ function espRenderResetPasswordScreen(token){
       <button class="esp-btn esp-btn-primary" id="esp-reset-submit-btn" onclick="espSubmitResetPassword('${token}')">Valider le nouveau mot de passe</button>
     </div>
   `;
+  espRefreshIcons();
 }
 async function espSubmitResetPassword(token){
   const pass1 = document.getElementById('esp-reset-pass1').value;

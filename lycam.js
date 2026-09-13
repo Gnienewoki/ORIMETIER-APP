@@ -138,6 +138,7 @@ async function espLycamInitTab(){
 function espLycamRefreshContainer(){
   const container = document.getElementById('esp-lycam-tab-container');
   if(container) container.innerHTML = espRenderLycamTab();
+  espRefreshIcons();
 }
 
 /* ---------------- Rendu principal ---------------- */
@@ -153,10 +154,10 @@ function espLycamRenderList(){
   const pendingTotal = espLycamLoadPending().length;
   return `
     <div class="esp-card">
-      <div class="esp-title" style="font-size:16px;">🧪 Test LYCAM — repérage préventif</div>
+      <div class="esp-title" style="font-size:16px;">${icon('flask-conical')}Test LYCAM — repérage préventif</div>
       <p class="esp-sub">Une session correspond à une classe (ou un groupe) testé un jour donné. Tu peux tester 1 à 150 élèves par session.</p>
       ${_espLycamError ? `<p class="esp-error">${escapeHtml(_espLycamError)}</p>` : ''}
-      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">⚠️ ${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espLycamManualRetrySync()">Réessayer maintenant</span></p>` : ''}
+      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espLycamManualRetrySync()">Réessayer maintenant</span></p>` : ''}
       ${_espLycamLoading ? `<p class="esp-empty">Chargement...</p>` : `
         <div class="esp-field-row" style="align-items:flex-end;">
           <div class="esp-field" style="flex:2;">
@@ -242,8 +243,8 @@ function espLycamRenderIdentity(){
   const count = _espLycamCurrentResults.length;
   return `
     <div class="esp-card">
-      <button class="esp-back" onclick="espLycamBackToList()">← Toutes les sessions</button>
-      <div class="esp-title" style="font-size:16px;">🧪 ${escapeHtml(_espLycamCurrentSession.nom)}</div>
+      <button class="esp-back" onclick="espLycamBackToList()">${icon('arrow-left')}Toutes les sessions</button>
+      <div class="esp-title" style="font-size:16px;">${icon('flask-conical')}${escapeHtml(_espLycamCurrentSession.nom)}</div>
       <p class="esp-sub">Élève n°${count + 1} (jusqu'à 150 par session). Saisis son identité avant de commencer.</p>
       <div class="esp-field-row">
         <div class="esp-field"><label>Nom</label><input type="text" id="lyc-nom"></div>
@@ -255,8 +256,8 @@ function espLycamRenderIdentity(){
       </div>
       <div id="esp-lycam-identity-error"></div>
       <div style="display:flex; justify-content:space-between; margin-top:10px;">
-        <button class="esp-btn" onclick="espLycamShowReport()">📊 Voir le rapport de session</button>
-        <button class="esp-btn esp-btn-primary" onclick="espLycamStartQuiz()">Commencer le questionnaire →</button>
+        <button class="esp-btn" onclick="espLycamShowReport()">${icon('bar-chart-3')}Voir le rapport de session</button>
+        <button class="esp-btn esp-btn-primary" onclick="espLycamStartQuiz()">Commencer le questionnaire${icon('chevron-right')}</button>
       </div>
     </div>
   `;
@@ -300,8 +301,8 @@ function espLycamRenderQuiz(){
       </div>
       <div id="esp-lycam-quiz-error"></div>
       <div style="display:flex; justify-content:space-between; margin-top:20px;">
-        <button class="esp-btn" onclick="espLycamPrevQuestion()" ${_espLycamCurrentQ === 0 ? 'style="visibility:hidden;"' : ''}>← Précédent</button>
-        <button class="esp-btn esp-btn-primary" onclick="espLycamNextQuestion()">${isLast ? 'Voir le résultat →' : 'Suivant →'}</button>
+        <button class="esp-btn" onclick="espLycamPrevQuestion()" ${_espLycamCurrentQ === 0 ? 'style="visibility:hidden;"' : ''}>${icon('chevron-left')}Précédent</button>
+        <button class="esp-btn esp-btn-primary" onclick="espLycamNextQuestion()">${isLast ? 'Voir le résultat' + icon('chevron-right') : 'Suivant' + icon('chevron-right')}</button>
       </div>
     </div>
   `;
@@ -400,7 +401,7 @@ function espLycamRenderResult(){
     <div class="esp-card">
       <div class="esp-title" style="font-size:16px;">${escapeHtml((r.identity.prenom + ' ' + r.identity.nom).trim())}</div>
       <p class="esp-sub">${[r.identity.classe, r.identity.naissance ? 'né(e) en ' + r.identity.naissance : ''].filter(Boolean).join(' · ')}</p>
-      ${!r.synced ? `<p class="esp-sub" style="color:var(--orange-dark);">⚠️ Résultat enregistré localement, en attente de synchronisation (connexion instable).</p>` : ''}
+      ${!r.synced ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}Résultat enregistré localement, en attente de synchronisation (connexion instable).</p>` : ''}
       <div class="esp-lycam-hero esp-lycam-hero-${r.band}">
         <div class="esp-lycam-hero-num">${r.total}<small>/41</small></div>
         <div>
@@ -411,9 +412,9 @@ function espLycamRenderResult(){
       <div style="margin:20px 0;">${espLycamDimRowsHtml(r.scores)}</div>
       <p class="esp-sub">${count} élève(s) testé(s) dans cette session${remaining > 0 ? ' · ' + remaining + ' place(s) restante(s)' : ' · limite de 150 atteinte'}.</p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-        <button class="esp-btn" onclick="espLycamDownloadIndividual()">⬇ Télécharger la fiche</button>
-        <button class="esp-btn" onclick="espLycamShowReport()">📊 Rapport de session</button>
-        ${count < 150 ? `<button class="esp-btn esp-btn-primary" onclick="espLycamGoToIdentity()">Élève suivant →</button>` : ''}
+        <button class="esp-btn" onclick="espLycamDownloadIndividual()">${icon('download')}Télécharger la fiche</button>
+        <button class="esp-btn" onclick="espLycamShowReport()">${icon('bar-chart-3')}Rapport de session</button>
+        ${count < 150 ? `<button class="esp-btn esp-btn-primary" onclick="espLycamGoToIdentity()">Élève suivant${icon('chevron-right')}</button>` : ''}
       </div>
     </div>
   `;
@@ -445,8 +446,8 @@ function espLycamRenderReport(){
 
   return `
     <div class="esp-card">
-      <button class="esp-back" onclick="espLycamBackToList()">← Toutes les sessions</button>
-      <div class="esp-title" style="font-size:16px;">📊 ${escapeHtml(_espLycamCurrentSession.nom)}</div>
+      <button class="esp-back" onclick="espLycamBackToList()">${icon('arrow-left')}Toutes les sessions</button>
+      <div class="esp-title" style="font-size:16px;">${icon('bar-chart-3')}${escapeHtml(_espLycamCurrentSession.nom)}</div>
       <p class="esp-sub">${results.length} élève(s) testé(s)${pendingCount ? ' · ' + pendingCount + ' en attente de synchronisation' : ''}.</p>
       <div class="esp-stat-grid">
         <div class="esp-stat-box"><div class="esp-stat-num">${results.length}</div><div class="esp-stat-label">Élèves testés</div></div>
@@ -457,9 +458,9 @@ function espLycamRenderReport(){
       <h3 style="font-size:14px; color:var(--green-dark); margin:20px 0 12px;">Élèves en seuil critique, par dimension</h3>
       ${results.length ? dimRows : `<p class="esp-empty">Aucun élève testé pour l'instant dans cette session.</p>`}
       <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:22px;">
-        <button class="esp-btn" onclick="window.print()">🖨 Imprimer</button>
-        <button class="esp-btn" onclick="espLycamDownloadCsv()">⬇ Données (CSV)</button>
-        <button class="esp-btn" onclick="espLycamDownloadReport()">⬇ Rapport (HTML)</button>
+        <button class="esp-btn" onclick="window.print()">${icon('printer')}Imprimer</button>
+        <button class="esp-btn" onclick="espLycamDownloadCsv()">${icon('download')}Données (CSV)</button>
+        <button class="esp-btn" onclick="espLycamDownloadReport()">${icon('download')}Rapport (HTML)</button>
         <button class="esp-btn esp-btn-primary" onclick="espLycamGoToIdentity()">+ Ajouter un élève</button>
       </div>
     </div>
