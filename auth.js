@@ -253,27 +253,28 @@ function espShowRoleSelect(){
   el.innerHTML = `
     <div class="esp-role-grid">
       <div class="esp-role-card" onclick="espSelectRole('admin')">
-        <div class="esp-role-icon">🛠️</div>
+        <div class="esp-role-icon">${icon('wrench', { lg: true })}</div>
         <div class="esp-role-title">Administrateur</div>
         <div class="esp-role-desc">Mise à jour des données et validation des inscriptions établissement</div>
       </div>
       <div class="esp-role-card" onclick="espSelectRole('inspecteur')">
-        <div class="esp-role-icon">🧭</div>
+        <div class="esp-role-icon">${icon('compass', { lg: true })}</div>
         <div class="esp-role-title">Inspecteur d'orientation</div>
         <div class="esp-role-desc">Suivi des élèves et de leurs profils d'orientation</div>
       </div>
       <div class="esp-role-card" onclick="espSelectRole('eleve')">
-        <div class="esp-role-icon">🎓</div>
+        <div class="esp-role-icon">${icon('graduation-cap', { lg: true })}</div>
         <div class="esp-role-title">Élève / Étudiant</div>
         <div class="esp-role-desc">Mon compte, mon test d'orientation, mes recommandations</div>
       </div>
       <div class="esp-role-card" onclick="espSelectRole('etablissement')">
-        <div class="esp-role-icon">🏫</div>
+        <div class="esp-role-icon">${icon('school', { lg: true })}</div>
         <div class="esp-role-title">Établissement</div>
         <div class="esp-role-desc">Inscription de l'établissement et propositions de filières</div>
       </div>
     </div>
   `;
+  espRefreshIcons();
 }
 
 function espSelectRole(role, mode){
