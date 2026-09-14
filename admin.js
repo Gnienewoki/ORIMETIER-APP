@@ -171,7 +171,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
   } else if(sub === 'ban-eleve'){
     subHtml = `
       <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">🔍 Rechercher un élève à bannir</div>
+        <div class="esp-title" style="font-size:16px;">${icon('search')}Rechercher un élève à bannir</div>
         <p class="esp-sub">Recherche par nom ou numéro de téléphone. Les résultats ne s'affichent qu'après une recherche.</p>
         <div class="esp-field" style="max-width:420px;">
           <input type="text" id="esp-ban-eleve-search" placeholder="Nom ou téléphone..." oninput="espAdminSearchEleve(this.value)">
@@ -624,9 +624,10 @@ function espAdminSearchEleve(query){
   resultsEl.innerHTML = matches.map(e => `
     <div class="esp-note-item" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <span><b>${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</b> — ${escapeHtml(e.classe)} · ${escapeHtml(e.etablissement)} · ${escapeHtml(e.tel)} ${e.banni ? '<span class="esp-badge refuse">Banni</span>' : '<span class="esp-badge valide">Actif</span>'}</span>
-      <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleEleveBanni('${e.id}', ${!e.banni})">${e.banni ? '✅ Réactiver' : '🚫 Bannir'}</button>
+      <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleEleveBanni('${e.id}', ${!e.banni})">${e.banni ? icon('check-circle') + 'Réactiver' : icon('ban') + 'Bannir'}</button>
     </div>
   `).join('');
+  espRefreshIcons();
 }
 async function espAdminToggleEleveBanni(eleveId, nouvelEtat){
   const session = espSession();
