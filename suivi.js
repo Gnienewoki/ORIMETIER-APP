@@ -22,10 +22,17 @@ function espSuiviRaisonLabel(code){
 }
 
 /* ---- État de l'onglet Suivi ---- */
-let _espSuiviView = 'list'; // 'list' | 'add'
+let _espSuiviView = 'list'; // 'list' | 'add' | 'detail'
 let _espSuiviEleves = [];
 let _espSuiviLoading = false;
 let _espSuiviError = '';
+
+/* ---- État de l'écran de détail (fiche élève + notes) ---- */
+let _espSuiviCurrentId = null;
+let _espSuiviCurrentEleve = null;
+let _espSuiviCurrentNotes = [];
+let _espSuiviDetailLoading = false;
+let _espSuiviDetailError = '';
 
 async function espSuiviInitTab(){
   _espSuiviView = 'list';
@@ -52,6 +59,7 @@ function espSuiviRefreshContainer(){
 /* ---------------- Rendu principal ---------------- */
 function espRenderSuiviTab(){
   if(_espSuiviView === 'add') return espSuiviRenderAddForm();
+  if(_espSuiviView === 'detail') return espSuiviRenderDetail();
   return espSuiviRenderList();
 }
 
@@ -81,6 +89,7 @@ function espSuiviRenderList(){
                     <td>${espSuiviRaisonsBadgesHtml(e.raisons)}</td>
                     <td>${escapeHtml(e.dateAjout)}</td>
                     <td>
+                      <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espSuiviOpenDetail('${e.id}')">${icon('eye')}Voir</button>
                       <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:11.5px;" onclick="espSuiviDeleteEleve('${e.id}')">${icon('trash-2')}Retirer</button>
                     </td>
                   </tr>
@@ -160,4 +169,114 @@ async function espSuiviDeleteEleve(id){
     return;
   }
   await espSuiviInitTab();
+}
+
+/* ---------------- Écran de détail (fiche élève + notes de remédiation) ---------------- */
+async function espSuiviOpenDetail(id){
+  _espSuiviView = 'detail';
+  _espSuiviCurrentId = id;
+  _espSuiviCurrentEleve = null;
+  _espSuiviCurrentNotes = [];
+  _espSuiviDetailError = '';
+  _espSuiviDetailLoading = true;
+  espSuiviRefreshContainer();
+
+  const session = espSession();
+  try {
+    const [eleve, notes] = await Promise.all([
+      espSuiviGetEleveRPC(session.id, session.password, id),
+      espSuiviListNotesRPC(session.id, session.password, id),
+    ]);
+    _espSuiviCurrentEleve = eleve;
+    _espSuiviCurrentNotes = notes;
+  } catch(e){
+    _espSuiviDetailError = "Impossible de charger la fiche : " + e.message;
+  }
+  _espSuiviDetailLoading = false;
+  espSuiviRefreshContainer();
+}
+
+function espSuiviRenderDetail(){
+  if(_espSuiviDetailLoading){
+    return `<div class="esp-card"><button class="esp-back" onclick="espSuiviBackToList()">${icon('arrow-left')}Répertoire de suivi</button><p class="esp-empty">Chargement...</p></div>`;
+  }
+  if(_espSuiviDetailError || !_espSuiviCurrentEleve){
+    return `<div class="esp-card"><button class="esp-back" onclick="espSuiviBackToList()">${icon('arrow-left')}Répertoire de suivi</button><p class="esp-error">${escapeHtml(_espSuiviDetailError || "Élève introuvable.")}</p></div>`;
+  }
+
+  const e = _espSuiviCurrentEleve;
+  return `
+    <div class="esp-card">
+      <button class="esp-back" onclick="espSuiviBackToList()">${icon('arrow-left')}Répertoire de suivi</button>
+      <div class="esp-title" style="font-size:16px;">${icon('user-check')}${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</div>
+      <p class="esp-sub">${escapeHtml(e.classe)} · Suivi depuis le ${escapeHtml(e.dateAjout)}</p>
+      <div style="margin-bottom:18px;">
+        ${(e.raisons||[]).map(code => `<span class="esp-badge non_reclame" style="margin:2px 4px 2px 0;">${escapeHtml(espSuiviRaisonLabel(code))}</span>`).join('')}
+      </div>
+
+      <h3 style="font-size:14px;color:var(--green-dark);margin:0 0 12px;">Notes de remédiation</h3>
+      ${_espSuiviCurrentNotes.length ? _espSuiviCurrentNotes.map(n => `
+        <div class="esp-note-item"><b>${escapeHtml(n.date)}</b><br>${escapeHtml(n.texte)}</div>
+      `).join('') : `<p class="esp-empty">Aucune note pour le moment.</p>`}
+
+      <div class="esp-field-row" style="margin-top:16px;align-items:flex-end;">
+        <div class="esp-field" style="flex:0 0 160px;"><label>Date</label><input type="date" id="esp-suivi-note-date"></div>
+        <div class="esp-field" style="flex:2;"><label>Note (activité de remédiation, résultats)</label><textarea id="esp-suivi-note-texte" rows="2"></textarea></div>
+      </div>
+      <div id="esp-suivi-note-error"></div>
+      <button class="esp-btn esp-btn-primary" onclick="espSuiviSubmitNote()">${icon('plus')}Ajouter la note</button>
+
+      <h3 style="font-size:14px;color:var(--green-dark);margin:24px 0 12px;">Appréciation finale</h3>
+      <div class="esp-field" style="margin-bottom:8px;">
+        <textarea id="esp-suivi-appreciation" rows="3" placeholder="Synthèse de l'évolution de l'élève...">${escapeHtml(e.appreciationFinale||'')}</textarea>
+      </div>
+      <div id="esp-suivi-appreciation-msg"></div>
+      <button class="esp-btn" onclick="espSuiviSaveAppreciation()">${icon('save')}Enregistrer l'appréciation</button>
+    </div>
+  `;
+}
+
+// Convertit la valeur ISO (AAAA-MM-JJ) d'un <input type="date"> vers la
+// convention JJ/MM/AAAA utilisée par le reste de l'app (et attendue par
+// inspecteur_suivi_add_note / triée via to_date(...,'DD/MM/YYYY') côté SQL).
+function espSuiviDateInputToFr(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+async function espSuiviSubmitNote(){
+  const dateInput = document.getElementById('esp-suivi-note-date');
+  const texteInput = document.getElementById('esp-suivi-note-texte');
+  const errorEl = document.getElementById('esp-suivi-note-error');
+  errorEl.innerHTML = '';
+  const dateFr = espSuiviDateInputToFr(dateInput.value);
+  const texte = texteInput.value.trim();
+  if(!dateFr || !texte){ errorEl.innerHTML = '<p class="esp-error">Date et texte sont obligatoires.</p>'; return; }
+
+  const session = espSession();
+  try {
+    await espSuiviAddNoteRPC(session.id, session.password, _espSuiviCurrentId, dateFr, texte);
+  } catch(e){
+    errorEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  _espSuiviCurrentNotes = await espSuiviListNotesRPC(session.id, session.password, _espSuiviCurrentId);
+  espSuiviRefreshContainer();
+}
+
+async function espSuiviSaveAppreciation(){
+  const textarea = document.getElementById('esp-suivi-appreciation');
+  const msgEl = document.getElementById('esp-suivi-appreciation-msg');
+  msgEl.innerHTML = '';
+  const texte = textarea.value.trim();
+  const session = espSession();
+  try {
+    await espSuiviSetAppreciationRPC(session.id, session.password, _espSuiviCurrentId, texte);
+  } catch(e){
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  if(_espSuiviCurrentEleve) _espSuiviCurrentEleve.appreciationFinale = texte;
+  msgEl.innerHTML = '<p class="esp-success">Appréciation enregistrée.</p>';
 }
