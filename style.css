@@ -53,15 +53,6 @@
     color:var(--text); min-height:100vh; padding:32px 16px;
   }
   .wrap{max-width:1000px;margin:0 auto;}
-  .brand{
-    display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap;
-  }
-  .brand .dot{
-    width:26px;height:26px;border-radius:7px;flex-shrink:0;
-    background:linear-gradient(135deg,var(--orange),var(--green));
-    transform:rotate(45deg);
-    box-shadow:0 3px 8px rgba(0,0,0,0.18);
-  }
   h1{
     font-size:42px;margin:0;font-weight:800;letter-spacing:.5px;font-style:italic;
     background:linear-gradient(90deg,var(--orange) 0%, var(--orange-dark) 35%, var(--green) 70%, var(--green-dark) 100%);
@@ -611,7 +602,6 @@
     body{padding:20px 12px;}
 
     /* En-tête et onglets */
-    .brand h1{font-size:26px;}
     p.sub{font-size:14.5px;line-height:1.5;}
     .tab-nav{gap:8px;}
     .tab-btn{font-size:13.5px;padding:11px 16px;line-height:1.3;}
@@ -695,7 +685,6 @@
   }
 
   @media (max-width:400px){
-    .brand h1{font-size:22px;}
     .gate-brand h1{font-size:26px;}
     .riasec-code-letter{width:42px;height:42px;font-size:19px;}
     .tab-btn{font-size:12.5px;padding:10px 13px;}
@@ -1308,12 +1297,6 @@
   0%{ background-position:200% 0; }
   100%{ background-position:-200% 0; }
 }
-.o-skeleton-row{ height:16px; margin-bottom:10px; }
-.o-skeleton-row:nth-child(3n){ width:70%; }
-.o-skeleton-row:nth-child(3n+1){ width:92%; }
-.o-skeleton-card{
-  height:88px; border-radius:var(--r-lg); margin-bottom:14px;
-}
 @media (prefers-reduced-motion: reduce){
   .o-skeleton{ animation:none; background:var(--border); }
 }
@@ -1361,8 +1344,4 @@
 @keyframes o-fade-in{
   from{ opacity:0; transform:translateY(6px); }
   to{ opacity:1; transform:translateY(0); }
-}
-.o-fade-in{ animation:o-fade-in .28s ease both; }
-@media (prefers-reduced-motion: reduce){
-  .o-fade-in{ animation:none; }
 }

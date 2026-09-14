@@ -104,7 +104,6 @@ function espRenderEtabAuth(mode){
     const nomInput = document.getElementById('esp-etab-nom');
     if(nomInput){
       nomInput.addEventListener('input', espEtabNomDoublonCheck);
-      console.log('[esp-etab] listener doublon attaché sur #esp-etab-nom');
     } else {
       console.error('[esp-etab] #esp-etab-nom introuvable au moment de l\'attachement du listener');
     }
