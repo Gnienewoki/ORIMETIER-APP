@@ -98,7 +98,7 @@ function espGeneralTousDiplomesPredefinis(){
 // (contact direct, site web, photos) que si l'établissement est Premium.
 function espEtabNomCellHtml(e){
   const nom = escapeHtml(e.nom);
-  return `<span class="esp-etab-nom-link" onclick="espOpenEtabDetailModal('${e.id}')" title="Voir la fiche complète">${nom} 🔎</span>`;
+  return `<span class="esp-etab-nom-link" onclick="espOpenEtabDetailModal('${e.id}')" title="Voir la fiche complète">${nom} ${icon('search')}</span>`;
 }
 // Colonne "Contact" : contact institutionnel (tel/email de connexion) toujours affiché,
 // complété par le contact direct de l'établissement si Premium et renseigné.
@@ -134,7 +134,7 @@ function espOpenEtabDetailModal(etabId){
     : '';
   const bandeauHtml = `
     <div class="esp-fiche-bandeau">
-      <button type="button" class="modal-close" onclick="closeModal()" aria-label="Fermer">✕</button>
+      <button type="button" class="modal-close" onclick="closeModal()" aria-label="Fermer">${icon('x')}</button>
       <div class="esp-fiche-bandeau-top">
         ${logoHtml}
         <div>
@@ -148,13 +148,13 @@ function espOpenEtabDetailModal(etabId){
   // ---------------- Pastilles : localisation (toujours), secteur (toujours), site web (Premium) ----------------
   const pastilles = [];
   if(localisationLabel){
-    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--blue"><span class="esp-fiche-pastille-icon">📍</span><span class="esp-fiche-pastille-body"><b>Localisation</b><span>${escapeHtml(localisationLabel)}</span></span></div>`);
+    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--blue"><span class="esp-fiche-pastille-icon">${icon('map-pin')}</span><span class="esp-fiche-pastille-body"><b>Localisation</b><span>${escapeHtml(localisationLabel)}</span></span></div>`);
   }
   if(secteurLabel){
-    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--amber"><span class="esp-fiche-pastille-icon">🏢</span><span class="esp-fiche-pastille-body"><b>Secteur</b><span>${escapeHtml(secteurLabel)}</span></span></div>`);
+    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--amber"><span class="esp-fiche-pastille-icon">${icon('building-2')}</span><span class="esp-fiche-pastille-body"><b>Secteur</b><span>${escapeHtml(secteurLabel)}</span></span></div>`);
   }
   if(e.premium && e.siteWeb){
-    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--pink"><span class="esp-fiche-pastille-icon">🌐</span><span class="esp-fiche-pastille-body"><b>Site web</b><a href="${escapeHtml(e.siteWeb)}" target="_blank" rel="noopener">${escapeHtml(e.siteWeb)}</a></span></div>`);
+    pastilles.push(`<div class="esp-fiche-pastille esp-fiche-pastille--pink"><span class="esp-fiche-pastille-icon">${icon('globe')}</span><span class="esp-fiche-pastille-body"><b>Site web</b><a href="${escapeHtml(e.siteWeb)}" target="_blank" rel="noopener">${escapeHtml(e.siteWeb)}</a></span></div>`);
   }
   const pastillesHtml = pastilles.length ? `<div class="esp-fiche-pastilles">${pastilles.join('')}</div>` : '';
 
@@ -191,9 +191,9 @@ function espOpenEtabDetailModal(etabId){
   // ---------------- Contact (Premium) : fond gris, badge Premium, 3 blocs colorés tel/tel2/tel3 ----------------
   const contactCouleurs = ['red', 'green', 'blue'];
   const contactBlocs = [e.tel, e.tel2, e.tel3]
-    .map((num, i) => (e.premium && num) ? `<div class="esp-fiche-contact-bloc esp-fiche-contact-bloc--${contactCouleurs[i]}"><span class="esp-fiche-contact-icon">📞</span><a href="tel:${escapeHtml(num)}">${escapeHtml(num)}</a></div>` : '')
+    .map((num, i) => (e.premium && num) ? `<div class="esp-fiche-contact-bloc esp-fiche-contact-bloc--${contactCouleurs[i]}"><span class="esp-fiche-contact-icon">${icon('phone')}</span><a href="tel:${escapeHtml(num)}">${escapeHtml(num)}</a></div>` : '')
     .filter(Boolean);
-  const emailHtml = (e.premium && e.email) ? `<p class="esp-fiche-contact-email">✉️ <a href="mailto:${escapeHtml(e.email)}">${escapeHtml(e.email)}</a></p>` : '';
+  const emailHtml = (e.premium && e.email) ? `<p class="esp-fiche-contact-email">${icon('mail')}<a href="mailto:${escapeHtml(e.email)}">${escapeHtml(e.email)}</a></p>` : '';
   const contactHtml = (contactBlocs.length || emailHtml) ? `
     <div class="esp-fiche-contact-section">
       <div class="esp-fiche-contact-header">
@@ -224,10 +224,10 @@ function espEtabLightboxEnsureDom(){
   div.id = 'esp-lightbox-overlay';
   div.className = 'esp-lightbox-overlay';
   div.innerHTML = `
-    <button type="button" class="esp-lightbox-close" aria-label="Fermer">✕</button>
-    <button type="button" class="esp-lightbox-nav esp-lightbox-prev" aria-label="Photo précédente">‹</button>
+    <button type="button" class="esp-lightbox-close" aria-label="Fermer">${icon('x')}</button>
+    <button type="button" class="esp-lightbox-nav esp-lightbox-prev" aria-label="Photo précédente">${icon('chevron-left')}</button>
     <img class="esp-lightbox-img" id="esp-lightbox-img" alt="">
-    <button type="button" class="esp-lightbox-nav esp-lightbox-next" aria-label="Photo suivante">›</button>
+    <button type="button" class="esp-lightbox-nav esp-lightbox-next" aria-label="Photo suivante">${icon('chevron-right')}</button>
     <div class="esp-lightbox-counter" id="esp-lightbox-counter"></div>
   `;
   div.addEventListener('click', ev => { if(ev.target === div) espEtabLightboxClose(); });
@@ -235,6 +235,7 @@ function espEtabLightboxEnsureDom(){
   div.querySelector('.esp-lightbox-prev').addEventListener('click', () => espEtabLightboxNav(-1));
   div.querySelector('.esp-lightbox-next').addEventListener('click', () => espEtabLightboxNav(1));
   document.body.appendChild(div);
+  espRefreshIcons();
 }
 function espEtabLightboxRender(){
   const img = document.getElementById('esp-lightbox-img');
@@ -314,7 +315,7 @@ window.addEventListener('pagehide', espStopAnnonceRotation);
 function espAnnonceBarHtml(annonce){
   return annonce.type === 'image'
     ? `<img src="${escapeHtml(annonce.imageUrl)}" alt="Annonce">`
-    : `<div class="esp-annonce-marquee"><span>📣 ${escapeHtml(annonce.texte)}</span></div>`;
+    : `<div class="esp-annonce-marquee"><span>${icon('megaphone')}${escapeHtml(annonce.texte)}</span></div>`;
 }
 
 // À appeler une fois le HTML de l'annonce texte injecté dans `bar` (span déjà dans le
@@ -352,6 +353,9 @@ function espRenderAnnonceBar(){
     const annonce = annonces[index];
     bar.className = 'esp-annonce-bar esp-annonce-bar--' + annonce.type;
     bar.innerHTML = espAnnonceBarHtml(annonce);
+    // L'icône doit être convertie en SVG (synchrone) avant la mesure ci-dessous,
+    // sinon scrollWidth capture la largeur du <i data-lucide> non converti.
+    espRefreshIcons();
     // Toujours recalculée pour une annonce texte (même sans rotation, s'il n'y en a
     // qu'une seule active) : c'est elle qui fixe la vitesse de défilement CSS, pour
     // qu'elle reste la même quelle que soit la longueur du texte.

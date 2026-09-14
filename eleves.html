@@ -113,12 +113,12 @@
 })();
 </script>
 
-<button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application">📲</button>
-<button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application">🔗</button>
+<button id="pwa-install-btn" onclick="espTriggerInstall()" title="Installer l'application"><i data-lucide="download"></i></button>
+<button id="pwa-share-btn" onclick="espTriggerShare()" title="Partager l'application"><i data-lucide="share-2"></i></button>
 
 <div class="esp-main" id="platform-wrap" style="display:none">
   <div class="esp-main-topbar"><div id="auth-bar" class="auth-bar"></div></div>
-    <h1 class="esp-page-title">👥 Élèves inscrits</h1>
+    <h1 class="esp-page-title"><i data-lucide="users"></i>Élèves inscrits</h1>
 
     <div id="page-content"></div>
 
@@ -127,7 +127,7 @@
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal-card">
     <div class="modal-header" id="modal-header">
-      <button class="modal-close" onclick="closeModal()" aria-label="Fermer">✕</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="Fermer"><i data-lucide="x"></i></button>
       <h2 id="modal-titre">—</h2>
       <div class="modal-tags" id="modal-tags"></div>
     </div>

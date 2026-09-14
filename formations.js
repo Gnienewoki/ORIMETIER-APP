@@ -110,7 +110,7 @@ function render(){
     const tr = document.createElement('tr');
     const hasFiche = !!findFiche(filiere);
     const btn = filiere
-      ? `<button class="fiche-btn" ${hasFiche ? '' : 'disabled'} data-filiere="${escapeHtml(filiere)}">${hasFiche ? '📄 Voir' : 'Indisponible'}</button>`
+      ? `<button class="fiche-btn" ${hasFiche ? '' : 'disabled'} data-filiere="${escapeHtml(filiere)}">${hasFiche ? icon('file-text') + 'Voir' : 'Indisponible'}</button>`
       : '';
     tr.innerHTML =
       `<td data-label="Filière">${highlight(filiere, qf, nqf)}</td>` +
@@ -120,6 +120,7 @@ function render(){
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
+  espRefreshIcons();
 
   const wrap = tbody.closest('.table-wrap');
   if(wrap) wrap.hidden = total === 0;
@@ -289,10 +290,11 @@ function renderEtabTechniqueList(){
       `<td data-label="BAC">${escapeHtml(p.bac)}</td>` +
       `<td data-label="Métier / spécialité">${escapeHtml(p.metier)}</td>` +
       `<td data-label="Débouché">${escapeHtml(p.debouche)}</td>` +
-      `<td data-label="Fiche"><button class="fiche-btn" data-tech-index="${i}">🔎 Voir</button></td>`;
+      `<td data-label="Fiche"><button class="fiche-btn" data-tech-index="${i}">${icon('file-text')}Voir</button></td>`;
     frag.appendChild(tr);
   });
   tbody.appendChild(frag);
+  espRefreshIcons();
 }
 
 function openTechniqueFiche(index){

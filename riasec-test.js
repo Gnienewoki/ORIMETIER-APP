@@ -20,9 +20,9 @@ function ptBuildQuizScreens(){
             </label>`).join('')}
         </div>
         <div class="pt-nav-row">
-          <button class="pt-btn" onclick="ptGoTo(${idx})">← Précédent</button>
+          <button class="pt-btn" onclick="ptGoTo(${idx})">${icon('chevron-left')}Précédent</button>
           <span class="pt-bearing">Dimension ${idx+1} / ${RIASEC_DIMENSIONS.length}</span>
-          <button class="pt-btn pt-primary" onclick="ptGoTo(${idx+2})">${idx===RIASEC_DIMENSIONS.length-1 ? 'Voir mon profil →' : 'Suivant →'}</button>
+          <button class="pt-btn pt-primary" onclick="ptGoTo(${idx+2})">${idx===RIASEC_DIMENSIONS.length-1 ? 'Voir mon profil' + icon('chevron-right') : 'Suivant' + icon('chevron-right')}</button>
         </div>
       </div>
     `;
@@ -36,6 +36,7 @@ function ptBuildQuizScreens(){
       if(e.target.checked) set.add(idx); else set.delete(idx);
     });
   });
+  espRefreshIcons();
 }
 
 function ptGoTo(screenIndex){
@@ -137,13 +138,13 @@ function ptRenderResults(){
     </div>
 
     <div class="pt-card" style="border-left:4px solid var(--orange-dark); background:var(--bg);">
-      <p style="margin:0 0 8px; font-weight:800; color:var(--green-dark); font-size:14.5px;">🧭 Et maintenant ?</p>
+      <p style="margin:0 0 8px; font-weight:800; color:var(--green-dark); font-size:14.5px;">${icon('compass')}Et maintenant ?</p>
       <p style="margin:0; font-size:13.5px; line-height:1.65; color:var(--text);">
         Ce test donne une première piste, mais un code RIASEC seul ne suffit pas à décider d'une orientation :
         <strong>seul un inspecteur d'orientation peut t'aider à l'interpréter en profondeur</strong> et le relier à ta réalité
         (tes notes, tes contraintes, les filières réellement accessibles près de chez toi...).
         Nous t'encourageons vivement à prendre rendez-vous avec un inspecteur <strong>certifié</strong>
-        <span class="esp-badge-certifie" title="Compte certifié par l'administration">✅</span> de la plateforme pour en discuter,
+        <span class="esp-badge-certifie" title="Compte certifié par l'administration">${icon('badge-check')}</span> de la plateforme pour en discuter,
         plutôt que de t'arrêter à ce résultat seul.
       </p>
     </div>
@@ -158,20 +159,21 @@ function ptRenderResults(){
     </div>
 
     <div class="pt-nav-row" style="margin-top:0">
-      <button class="pt-btn" onclick="ptGoTo(${RIASEC_DIMENSIONS.length})">← Revoir mes réponses</button>
-      <button class="pt-btn" onclick="ptSaveToEleveSpace()">💾 Sauvegarder dans mon espace élève</button>
-      <button class="pt-btn pt-primary" id="pt-download-btn" onclick="ptDownloadResults()">⬇ Télécharger mon profil (PDF)</button>
+      <button class="pt-btn" onclick="ptGoTo(${RIASEC_DIMENSIONS.length})">${icon('chevron-left')}Revoir mes réponses</button>
+      <button class="pt-btn" onclick="ptSaveToEleveSpace()">${icon('save')}Sauvegarder dans mon espace élève</button>
+      <button class="pt-btn pt-primary" id="pt-download-btn" onclick="ptDownloadResults()">${icon('download')}Télécharger mon profil (PDF)</button>
       <button class="pt-btn" onclick="ptRestart()">Recommencer le test</button>
     </div>
   `;
   document.getElementById('pt-screen-results').innerHTML = html;
+  espRefreshIcons();
 }
 
 async function ptSaveToEleveSpace(){
   if(typeof espSession !== 'function'){ alert("La fonctionnalité Espaces n'est pas disponible."); return; }
   const session = espSession();
   if(!session || session.role !== 'eleve'){
-    alert("Connectez-vous d'abord à votre espace élève (onglet 🔐 Espaces) pour pouvoir sauvegarder ce profil.");
+    alert("Connectez-vous d'abord à votre espace élève (onglet Espaces) pour pouvoir sauvegarder ce profil.");
     window.location.href = 'espaces.html?role=eleve';
     return;
   }

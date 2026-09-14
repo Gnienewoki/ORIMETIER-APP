@@ -30,9 +30,10 @@ function espCheckStoragePersistence(){
   if(!warningEl) return;
   if(!espStorageAvailable()){
     warningEl.style.display = '';
-    warningEl.innerHTML = `<b>⚠️ Stockage local indisponible sur cet appareil/navigateur</b>
+    warningEl.innerHTML = `<b>${icon('triangle-alert')}Stockage local indisponible sur cet appareil/navigateur</b>
       Tes comptes et données restent en sécurité sur le serveur (Supabase), mais ta connexion ne sera pas mémorisée sur cet appareil : il faudra te reconnecter à chaque visite. Cela arrive souvent en navigation privée ou selon les réglages de confidentialité du navigateur.
       Essaie d'ouvrir ce fichier avec <b>Google Chrome</b>, en dehors de la navigation privée, pour rester connecté(e) automatiquement.`;
+    espRefreshIcons();
     return;
   }
   // Marqueur persistant : si présent après un rechargement, le stockage survit bien aux fermetures/réouvertures.
