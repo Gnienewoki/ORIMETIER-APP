@@ -183,7 +183,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
     const messages = db.messages || [];
     subHtml = `
       <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">💬 Discussion & 📣 Actualités</div>
+        <div class="esp-title" style="font-size:16px;">${icon('message-circle')}Discussion & ${icon('megaphone')}Actualités</div>
         <p class="esp-sub">Ce fil est partagé avec tous les inspecteurs. Utilise « Officiel » pour une annonce administrative, ou « Ordinaire » pour participer aux échanges. Tu peux supprimer n'importe quel message.</p>
         <div id="esp-chat-list" class="esp-chat-list">
           ${messages.length ? messages.map(m => espChatMessageHtml(m, { inspecteursCache: db.inspecteurs, canDelete: true, deleteHandler: 'espAdminDeleteMessage', allMessages: messages, replyHandler: 'espSetReplyTarget' })).join('') : `<p class="esp-empty">Aucun message pour le moment.</p>`}
@@ -198,13 +198,13 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
           <div class="esp-field" style="flex:1;">
             <label>Type</label>
             <select id="esp-chat-type">
-              <option value="O">📣 Officiel</option>
-              <option value="C">💬 Ordinaire</option>
+              <option value="O">Officiel</option>
+              <option value="C">Ordinaire</option>
             </select>
           </div>
         </div>
         <div style="margin:6px 0 10px;">
-          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">📎 Joindre une photo ou un PDF</label><br>
+          <label style="font-size:12px;font-weight:700;color:var(--green-dark);">${icon('paperclip')}Joindre une photo ou un PDF</label><br>
           <input type="file" id="esp-chat-file-input" accept="image/*,application/pdf" onchange="espChatPreviewAttachment(this)">
           <div id="esp-chat-file-preview"></div>
         </div>
