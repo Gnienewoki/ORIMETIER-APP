@@ -261,7 +261,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
     subHtml = `
       ${formOpen ? `
       <div class="esp-card" style="margin-bottom:18px;">
-        <div class="esp-title" style="font-size:16px;">📣 ${_espAnnonceFormMode === 'edit' ? "Modifier l'annonce" : 'Nouvelle annonce'}</div>
+        <div class="esp-title" style="font-size:16px;">${icon('megaphone')}${_espAnnonceFormMode === 'edit' ? "Modifier l'annonce" : 'Nouvelle annonce'}</div>
         <div class="esp-field-row">
           <div class="esp-field">
             <label>Format</label>
@@ -287,7 +287,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       </div>
       ` : ''}
       <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">📣 Bandeau d'annonce — ${activeCount}/5 annonces actives</div>
+        <div class="esp-title" style="font-size:16px;">${icon('megaphone')}Bandeau d'annonce — ${activeCount}/5 annonces actives</div>
         <p class="esp-sub">Jusqu'à 5 annonces (texte ou image) peuvent être actives en même temps : elles défilent alors en rotation, une à la fois, sur toutes les pages.</p>
         ${!formOpen ? (activeCount >= 5
             ? `<p class="esp-sub"><b>5 annonces actives déjà en rotation.</b> Désactives-en une pour pouvoir en ajouter une nouvelle.</p>`
@@ -300,13 +300,13 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
               <td>${a.type === 'image'
                   ? `<img src="${escapeHtml(a.imageUrl)}" alt="Annonce" style="max-height:50px;border-radius:4px;display:block;">`
                   : `<span>${escapeHtml(a.texte)}</span>`}</td>
-              <td>${a.active ? '<span class="esp-badge valide">🟢 Active</span>' : '<span class="esp-badge">⚪ Inactive</span>'}</td>
+              <td>${a.active ? '<span class="esp-badge valide">Active</span>' : '<span class="esp-badge">Inactive</span>'}</td>
               <td>
-                <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminEditAnnonce(${a.id})">✏️ Modifier</button>
+                <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminEditAnnonce(${a.id})">${icon('pencil')}Modifier</button>
                 ${a.active
-                    ? `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleAnnonceActive(${a.id}, false)">⏸️ Désactiver</button>`
-                    : `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleAnnonceActive(${a.id}, true)">▶️ Activer</button>
-                       <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminDeleteAnnonce(${a.id})">🗑️ Supprimer</button>`}
+                    ? `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleAnnonceActive(${a.id}, false)">${icon('pause')}Désactiver</button>`
+                    : `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleAnnonceActive(${a.id}, true)">${icon('play')}Activer</button>
+                       <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminDeleteAnnonce(${a.id})">${icon('trash-2')}Supprimer</button>`}
               </td>
             </tr>
           `).join('') : `<tr><td colspan="3" class="esp-empty">Aucune annonce pour le moment.</td></tr>`}
