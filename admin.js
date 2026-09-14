@@ -2,9 +2,9 @@
 // ---------------- ADMINISTRATEUR ----------------
 function espRenderAdminLogin(){
   document.getElementById('esp-admin').innerHTML = `
-    <button class="esp-back" onclick="espBackToRoleSelect()">← Retour</button>
+    <button class="esp-back" onclick="espBackToRoleSelect()">${icon('arrow-left')}Retour</button>
     <div class="esp-card" style="max-width:420px;margin:0 auto;">
-      <div class="esp-title">🛠️ Espace Administrateur</div>
+      <div class="esp-title">${icon('wrench')}Espace Administrateur</div>
       <p class="esp-sub">Mot de passe par défaut : <b>admin2024</b> (à modifier après connexion, ou directement dans le code).</p>
       <div id="esp-admin-error"></div>
       <div class="esp-field" style="margin-bottom:14px;">
@@ -14,6 +14,7 @@ function espRenderAdminLogin(){
       <button class="esp-btn esp-btn-primary" onclick="espAdminLogin()">Se connecter</button>
     </div>
   `;
+  espRefreshIcons();
 }
 async function espAdminLogin(){
   const pass = document.getElementById('esp-admin-pass').value;
@@ -102,7 +103,7 @@ function espRenderAdminDashboard(sub){
   } else if(sub === 'etablissements'){
     subHtml = `
       <div class="esp-card" style="margin-bottom:18px;">
-        <div class="esp-title" style="font-size:16px;">📥 Pré-inscrire des établissements</div>
+        <div class="esp-title" style="font-size:16px;">${icon('upload')}Pré-inscrire des établissements</div>
         <p class="esp-sub">Choisis la catégorie cible, puis colle une ligne par établissement au format <code>nom;region;ville;quartier;secteur;responsable;tel</code>. Seuls nom, ville et secteur sont obligatoires — mais laisse quand même le point-virgule à la place d'un champ facultatif vide (ex. <code>quartier</code> ou <code>tel</code> non connus), sinon les colonnes suivantes se décalent. secteur = <code>public</code> ou <code>prive</code>.</p>
         <div class="esp-field-row" style="margin-bottom:10px;">
           <div class="esp-field"><label>Catégorie</label>
@@ -122,11 +123,11 @@ function espRenderAdminDashboard(sub){
         </div>
         <textarea id="esp-admin-import-etab-textarea" rows="6" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid var(--border);" placeholder="Lycée Moderne 1 Bouaké;Vallée du Bandama;Bouaké;;public;;
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
-        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">🔑 Voir tous les codes non réclamés</button> <button class="esp-btn" onclick="espAdminShowAllEtabCodes()">📋 Codes établissements</button></p>
+        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">${icon('key')}Voir tous les codes non réclamés</button> <button class="esp-btn" onclick="espAdminShowAllEtabCodes()">${icon('clipboard-list')}Codes établissements</button></p>
         <div id="esp-admin-unclaimed-codes">${_espUnclaimedCodesResult ? espAdminUnclaimedCodesHtml(_espUnclaimedCodesResult) : ''}</div>
         <div id="esp-admin-all-etab-codes">${_espAllEtabCodesResult ? espAdminAllEtabCodesHtml() : ''}</div>
-        <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">⚠️ ${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
-          <p class="esp-error">⚠️ <b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
+        <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">${icon('triangle-alert')}${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
+          <p class="esp-error">${icon('triangle-alert')}<b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
           <div class="table-wrap"><table>
             <thead><tr><th>Nom</th><th>Ville</th><th>Secteur</th><th>Raison</th></tr></thead>
             <tbody>${_espLastEtabSkipped.map(r => `<tr><td>${escapeHtml(r.nom||'')}</td><td>${escapeHtml(r.ville||'')}</td><td>${escapeHtml(r.secteur||'')}</td><td>${escapeHtml(r.raison||'')}</td></tr>`).join('')}</tbody>
@@ -364,10 +365,10 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
 
   document.getElementById('esp-admin').innerHTML = `
     <div class="esp-user-header">
-      <span class="esp-user-name">🛠️ Espace Administrateur</span>
+      <span class="esp-user-name">${icon('wrench')}Espace Administrateur</span>
       <span>
-        <button class="esp-btn" onclick="espExportBackup()">📥 Exporter une sauvegarde</button>
-        <button class="esp-btn" onclick="document.getElementById('esp-import-file').click()">📤 Importer une sauvegarde</button>
+        <button class="esp-btn" onclick="espExportBackup()">${icon('download')}Exporter une sauvegarde</button>
+        <button class="esp-btn" onclick="document.getElementById('esp-import-file').click()">${icon('upload')}Importer une sauvegarde</button>
         <input type="file" id="esp-import-file" accept=".json" style="display:none" onchange="espImportBackup(this)">
         <button class="esp-btn" onclick="espAdminLogout()">Déconnexion</button>
       </span>
@@ -376,15 +377,16 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='overview'?'active':''}" onclick="espRenderAdminDashboard('overview')">Vue d'ensemble</button>
       <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderAdminDashboard('etablissements')">Établissements${enAttente ? ' ('+enAttente+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='inspecteurs'?'active':''}" onclick="espRenderAdminDashboard('inspecteurs')">Comptes inspecteurs</button>
-      <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">🔍 Bannir un élève</button>
-      <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">💬 Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
-      <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">🎯 Liens de formation</button>
-      <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">📣 Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
-      <button class="esp-subtab-btn ${sub==='statistiques'?'active':''}" onclick="espRenderAdminDashboard('statistiques')">📊 Statistiques</button>
+      <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">${icon('search')}Bannir un élève</button>
+      <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">${icon('message-circle')}Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
+      <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">${icon('target')}Liens de formation</button>
+      <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">${icon('megaphone')}Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
+      <button class="esp-subtab-btn ${sub==='statistiques'?'active':''}" onclick="espRenderAdminDashboard('statistiques')">${icon('bar-chart-3')}Statistiques</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
   espUpdateReplyPreview();
+  espRefreshIcons();
   if(sub === 'ban-eleve') document.getElementById('esp-ban-eleve-search').focus();
 }
 
@@ -447,6 +449,7 @@ async function espAdminEnsureDemandesInscriptionLoaded(){
   _espAdminDemandesInscriptionLoading = false;
   const container = document.getElementById('esp-admin-demandes-inscription');
   if(container) container.innerHTML = espAdminDemandesInscriptionHtml(_espAdminDemandesInscription);
+  espRefreshIcons();
 }
 function espAdminInvalidateDemandesInscription(){
   _espAdminDemandesInscription = null;
@@ -490,16 +493,16 @@ function espAdminEtabRowHtml(e){
           <option value="public" ${e.secteur==='public'?'selected':''}>Public</option>
           <option value="prive" ${e.secteur==='prive'?'selected':''}>Privé</option>
         </select>
-        <button class="esp-btn" style="padding:3px 8px;font-size:11px;width:100%;" onclick="espAdminSaveEtabClassification('${e.id}')">✔ Enregistrer</button>
+        <button class="esp-btn" style="padding:3px 8px;font-size:11px;width:100%;" onclick="espAdminSaveEtabClassification('${e.id}')">${icon('check')}Enregistrer</button>
       </td>
       <td>${escapeHtml(e.responsable)}</td>
       <td>${escapeHtml(e.tel)}<br>${escapeHtml(e.email)}</td>
-      <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span>${e.preInscrit && !e.reclame ? '<br><span class="esp-badge non_reclame" style="margin-top:4px;">Non réclamé</span>' : ''}${e.premium ? '<br><span class="esp-badge valide" style="margin-top:4px;">⭐ Premium</span>' : ''}</td>
+      <td><span class="esp-badge ${e.statut}">${e.statut === 'en_attente' ? 'En attente' : e.statut === 'valide' ? 'Validé' : 'Refusé'}</span>${e.preInscrit && !e.reclame ? '<br><span class="esp-badge non_reclame" style="margin-top:4px;">Non réclamé</span>' : ''}${e.premium ? `<br><span class="esp-badge valide" style="margin-top:4px;">${icon('star')}Premium</span>` : ''}</td>
       <td>
-        <button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminToggleEtabPremium('${e.id}')">${e.premium ? '☆ Retirer Premium' : '⭐ Activer Premium'}</button><br>
-        ${e.statut !== 'valide' ? `<button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','valide')">✔ Valider</button>` : ''}
-        ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">✕ Refuser</button>` : ''}
-        <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminDeleteEtab('${e.id}')">🗑 Supprimer</button>
+        <button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminToggleEtabPremium('${e.id}')">${icon('star')}${e.premium ? 'Retirer Premium' : 'Activer Premium'}</button><br>
+        ${e.statut !== 'valide' ? `<button class="esp-btn" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','valide')">${icon('check')}Valider</button>` : ''}
+        ${e.statut !== 'refuse' ? `<button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;margin-bottom:4px;" onclick="espAdminSetEtabStatut('${e.id}','refuse')">${icon('x')}Refuser</button>` : ''}
+        <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="espAdminDeleteEtab('${e.id}')">${icon('trash-2')}Supprimer</button>
       </td>
     </tr>
     ${(e.filieresProposees||[]).length ? `<tr><td colspan="8" style="background:#fffaf3;">
@@ -509,8 +512,8 @@ function espAdminEtabRowHtml(e){
           <b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)})${f.conditions ? ' — ' + escapeHtml(f.conditions) : ''}
           <span class="esp-badge ${f.statut}" style="margin-left:8px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span>
           ${f.statut === 'en_attente' ? `
-            <button class="esp-btn" style="padding:3px 8px;font-size:11px;margin-left:8px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','valide')">✔ Valider</button>
-            <button class="esp-btn esp-btn-danger" style="padding:3px 8px;font-size:11px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','refuse')">✕ Refuser</button>
+            <button class="esp-btn" style="padding:3px 8px;font-size:11px;margin-left:8px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','valide')">${icon('check')}Valider</button>
+            <button class="esp-btn esp-btn-danger" style="padding:3px 8px;font-size:11px;" onclick="espAdminSetPropositionStatut('${e.id}','${f.id}','refuse')">${icon('x')}Refuser</button>
           ` : ''}
         </div>
       `).join('')}
@@ -560,9 +563,9 @@ function espAdminEtabSectionHtml(list){
       </tbody>
     </table>
     <div class="esp-field-row" style="justify-content:center;align-items:center;gap:14px;margin-top:12px;">
-      <button class="esp-btn" ${_espEtabPage<=1?'disabled':''} onclick="espAdminEtabGoToPage(${_espEtabPage-1})">← Précédent</button>
+      <button class="esp-btn" ${_espEtabPage<=1?'disabled':''} onclick="espAdminEtabGoToPage(${_espEtabPage-1})">${icon('chevron-left')}Précédent</button>
       <span class="esp-sub" style="margin:0;">Page ${_espEtabPage} / ${totalPages}</span>
-      <button class="esp-btn" ${_espEtabPage>=totalPages?'disabled':''} onclick="espAdminEtabGoToPage(${_espEtabPage+1})">Suivant →</button>
+      <button class="esp-btn" ${_espEtabPage>=totalPages?'disabled':''} onclick="espAdminEtabGoToPage(${_espEtabPage+1})">Suivant${icon('chevron-right')}</button>
     </div>
   `;
 }
@@ -571,7 +574,7 @@ function espAdminRefreshEtabSection(){
   const demandesContainer = document.getElementById('esp-admin-demandes-premium');
   if(demandesContainer) demandesContainer.innerHTML = espAdminDemandesPremiumHtml(_espAdminEtabFull || []);
   const container = document.getElementById('esp-admin-etab-section');
-  if(!container) return;
+  if(!container){ espRefreshIcons(); return; }
   const searchInput = document.getElementById('esp-admin-etab-search');
   const hadFocus = !!(searchInput && document.activeElement === searchInput);
   const selStart = hadFocus ? searchInput.selectionStart : null;
@@ -584,6 +587,7 @@ function espAdminRefreshEtabSection(){
       try { newInput.setSelectionRange(selStart, selEnd); } catch(err){}
     }
   }
+  espRefreshIcons();
 }
 
 function espAdminEtabOnSearchInput(value){
@@ -968,11 +972,11 @@ function espAdminDemandesPremiumHtml(list){
   if(!demandes.length) return '';
   return `
     <div class="esp-card" style="margin-bottom:18px;">
-      <div class="esp-title" style="font-size:16px;">⭐ Demandes Premium en attente (${demandes.length})</div>
+      <div class="esp-title" style="font-size:16px;">${icon('star')}Demandes Premium en attente (${demandes.length})</div>
       ${demandes.map(e => `
         <div class="esp-note-item" style="border-left-color:var(--orange, #ff7a1a);display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span><b>${escapeHtml(e.nom)}</b> — ${[e.ville, e.region].filter(Boolean).map(escapeHtml).join(' · ')}${e.responsable ? ` · Responsable : ${escapeHtml(e.responsable)}` : ''}${e.contactTel ? ` · Tél. responsable : ${escapeHtml(e.contactTel)}` : ''}${e.demandePremiumDate ? ` <span class="esp-sub">(demande envoyée le ${escapeHtml(e.demandePremiumDate)})</span>` : ''}</span>
-          <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0;" onclick="espAdminValiderPremium('${e.id}')">✔ Valider</button>
+          <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0;" onclick="espAdminValiderPremium('${e.id}')">${icon('check')}Valider</button>
         </div>
       `).join('')}
     </div>
@@ -984,20 +988,20 @@ function espAdminDemandesInscriptionHtml(list){
   if(!demandes.length) return '';
   return `
     <div class="esp-card" style="margin-bottom:18px;">
-      <div class="esp-title" style="font-size:16px;">📝 Demandes d'inscription en attente (${demandes.length})</div>
+      <div class="esp-title" style="font-size:16px;">${icon('file-text')}Demandes d'inscription en attente (${demandes.length})</div>
       <p class="esp-sub">Vérifie chaque demande (doublons non détectés automatiquement : variantes d'orthographe, etc.), puis copie la ligne au format d'import et colle-la dans le champ d'import ci-dessus. "Marquer comme traité" ne crée aucun établissement — l'import reste à faire séparément.</p>
       ${demandes.map(d => `
         <div class="esp-note-item" style="border-left-color:var(--orange, #ff7a1a);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <span><b>${escapeHtml(d.nom)}</b> — ${[d.ville, d.region].filter(Boolean).map(escapeHtml).join(' · ')}${d.quartier ? ` · ${escapeHtml(d.quartier)}` : ''} · ${d.secteur === 'prive' ? 'Privé' : d.secteur === 'public' ? 'Public' : escapeHtml(d.secteur||'')}${d.responsable ? ` · Responsable : ${escapeHtml(d.responsable)}` : ''}${d.tel ? ` · Tél : ${escapeHtml(d.tel)}` : ''}${d.email ? ` · E-mail : ${escapeHtml(d.email)}` : ''} <span class="esp-sub">(demande du ${escapeHtml(d.dateDemande||'')})</span></span>
           <span style="display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;">
-            <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminCopierDemandeLigne('${d.id}')">📋 Copier (format import)</button>
-            <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;" onclick="espAdminMarquerDemandeTraitee('${d.id}')">✔ Marquer comme traité</button>
+            <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminCopierDemandeLigne('${d.id}')">${icon('copy')}Copier (format import)</button>
+            <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;" onclick="espAdminMarquerDemandeTraitee('${d.id}')">${icon('check')}Marquer comme traité</button>
           </span>
           ${((d.photos && d.photos.length) || d.logoUrl) ? `
             <div style="width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);">
-              <span class="esp-sub" style="margin:0;">🖼️ ${d.logoUrl ? 'Logo' : ''}${d.logoUrl && (d.photos||[]).length ? ' + ' : ''}${(d.photos||[]).length ? (d.photos.length + ' photo(s)') : ''} en attente de liaison, une fois l'établissement importé :</span>
+              <span class="esp-sub" style="margin:0;">${icon('image')}${d.logoUrl ? 'Logo' : ''}${d.logoUrl && (d.photos||[]).length ? ' + ' : ''}${(d.photos||[]).length ? (d.photos.length + ' photo(s)') : ''} en attente de liaison, une fois l'établissement importé :</span>
               <input type="text" id="esp-admin-lien-etab-id-${d.id}" placeholder="ID établissement importé" style="flex:1;min-width:160px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
-              <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminLierPhotosLogoDemande('${d.id}')">🔗 Lier logo/photos &amp; marquer traité</button>
+              <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminLierPhotosLogoDemande('${d.id}')">${icon('link')}Lier logo/photos &amp; marquer traité</button>
             </div>
           ` : ''}
         </div>
@@ -1043,7 +1047,7 @@ async function espAdminLierPhotosLogoDemande(demandeId){
   try { ok = await espAdminLierPhotosLogoDemandeRPC(session.password, demandeId, etabId); }
   catch(err){ alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Échec : demande déjà traitée, ou aucun établissement trouvé avec cet id. Vérifie l'id copié depuis le résultat de l'import."); return; }
-  alert('✅ Logo/photos liés à l\'établissement, et demande marquée comme traitée.');
+  alert('Logo/photos liés à l\'établissement, et demande marquée comme traitée.');
   espAdminInvalidateEtabFull();
   espAdminInvalidateDemandesInscription();
   await espLoadFromSupabase(true);
@@ -1151,7 +1155,7 @@ async function espAdminShowUnclaimedCodes(){
   const otherContainer = document.getElementById('esp-admin-all-etab-codes');
   if(otherContainer) otherContainer.innerHTML = '';
   const container = document.getElementById('esp-admin-unclaimed-codes');
-  container.innerHTML = '<p class="sub" style="margin-top:10px;">⏳ Chargement…</p>';
+  container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
   try {
     const rows = await espAdminListUnclaimedCodesRPC(session.password);
     _espUnclaimedCodesResult = rows;
@@ -1216,7 +1220,7 @@ function espAdminAllEtabCodesHtml(){
       </div>
     </div>
     <p class="esp-sub"><b>${filtered.length}</b> établissement(s) trouvé(s) sur <b>${all.length}</b> au total.</p>
-    <p style="margin:8px 0;"><button class="esp-btn" onclick="espAdminExportEtabCodesCSV()">⬇️ Exporter en CSV</button> <button class="esp-btn" onclick="espAdminExportEtabCodesExcel()">⬇️ Exporter en Excel</button></p>
+    <p style="margin:8px 0;"><button class="esp-btn" onclick="espAdminExportEtabCodesCSV()">${icon('download')}Exporter en CSV</button> <button class="esp-btn" onclick="espAdminExportEtabCodesExcel()">${icon('download')}Exporter en Excel</button></p>
     <div class="table-wrap"><table>
       <thead><tr><th>Établissement</th><th>Catégorie</th><th>Sous-catégorie</th><th>Ville</th><th>Secteur</th><th>Code</th><th>Statut</th></tr></thead>
       <tbody>${filtered.length ? filtered.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.sous_categorie||'—')}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '—'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td><td><span class="esp-badge ${r.reclame ? 'valide' : 'non_reclame'}">${r.reclame ? 'Réclamé' : 'Non réclamé'}</span></td></tr>`).join('') : `<tr><td colspan="7" class="esp-empty">Aucun établissement ne correspond à cette recherche.</td></tr>`}</tbody>
@@ -1229,7 +1233,7 @@ async function espAdminShowAllEtabCodes(){
   const otherContainer = document.getElementById('esp-admin-unclaimed-codes');
   if(otherContainer) otherContainer.innerHTML = '';
   const container = document.getElementById('esp-admin-all-etab-codes');
-  container.innerHTML = '<p class="sub" style="margin-top:10px;">⏳ Chargement…</p>';
+  container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
   try {
     const rows = await espAdminListAllEtabCodesRPC(session.password);
     _espAllEtabCodesResult = rows;
@@ -1240,6 +1244,7 @@ async function espAdminShowAllEtabCodes(){
   } catch(err){
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
+  espRefreshIcons();
 }
 function espAdminRefreshAllEtabCodesSection(){
   const container = document.getElementById('esp-admin-all-etab-codes');
@@ -1256,6 +1261,7 @@ function espAdminRefreshAllEtabCodesSection(){
       try { newInput.setSelectionRange(selStart, selEnd); } catch(err){}
     }
   }
+  espRefreshIcons();
 }
 function espAdminAllEtabCodesOnSearchInput(value){
   _espAllEtabCodesSearch = value;
@@ -1305,7 +1311,7 @@ function espAdminDownloadBlob(blob, filename){
 }
 function espAdminExportEtabCodesCSV(){
   const rows = espAdminAllEtabCodesFilteredList();
-  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements », ou élargis la recherche/les filtres."); return; }
+  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « Codes établissements », ou élargis la recherche/les filtres."); return; }
   const stamp = new Date().toISOString().slice(0,10);
   const csv = espAdminEtabCodesCsvContent(rows);
   // BOM UTF-8 en tête pour qu'Excel affiche correctement les accents à l'ouverture du .csv.
@@ -1326,7 +1332,7 @@ function espLoadScriptOnce(src){
 }
 async function espAdminExportEtabCodesExcel(){
   const rows = espAdminAllEtabCodesFilteredList();
-  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « 📋 Codes établissements », ou élargis la recherche/les filtres."); return; }
+  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « Codes établissements », ou élargis la recherche/les filtres."); return; }
   const stamp = new Date().toISOString().slice(0,10);
   try {
     if(!window.XLSX){
@@ -1378,7 +1384,7 @@ async function espAdminImportEtab(){
     resultEl.innerHTML = '<p class="esp-error">Le Supérieur et le Technique n\'ont pas d\'onglet "public" basé sur les comptes établissement (uniquement des données statiques) : toutes les lignes doivent avoir secteur = prive.</p>';
     return;
   }
-  resultEl.innerHTML = '<p class="sub">⏳ Import en cours…</p>';
+  resultEl.innerHTML = '<p class="sub">Import en cours…</p>';
   const countBefore = espDB().etablissements.length;
   let rows;
   try {
