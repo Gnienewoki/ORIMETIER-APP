@@ -208,7 +208,10 @@ function espSuiviRenderDetail(){
   return `
     <div class="esp-card">
       <button class="esp-back" onclick="espSuiviBackToList()">${icon('arrow-left')}Répertoire de suivi</button>
-      <div class="esp-title" style="font-size:16px;">${icon('user-check')}${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</div>
+      <div class="esp-title" style="font-size:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span>${icon('user-check')}${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</span>
+        <button class="esp-btn" style="font-size:12.5px;" onclick="espSuiviDownloadReport()">${icon('download')}Rapport imprimable</button>
+      </div>
       <p class="esp-sub">${escapeHtml(e.classe)} · Suivi depuis le ${escapeHtml(e.dateAjout)}</p>
       <div style="margin-bottom:18px;">
         ${(e.raisons||[]).map(code => `<span class="esp-badge non_reclame" style="margin:2px 4px 2px 0;">${escapeHtml(espSuiviRaisonLabel(code))}</span>`).join('')}
@@ -279,4 +282,37 @@ async function espSuiviSaveAppreciation(){
   }
   if(_espSuiviCurrentEleve) _espSuiviCurrentEleve.appreciationFinale = texte;
   msgEl.innerHTML = '<p class="esp-success">Appréciation enregistrée.</p>';
+}
+
+/* ---------------- Rapport imprimable (document HTML autonome, même
+   principe que espLycamDownloadIndividual/espLycamDownloadReport :
+   téléchargé puis imprimé depuis le navigateur, plutôt qu'un window.print()
+   du tableau de bord — il n'y a pas de CSS d'impression dédiée sur le reste
+   de l'app, alors que le document généré ici est déjà propre et isolé). ---------------- */
+function espSuiviRaisonsListHtml(raisons){
+  return (raisons||[]).map(code =>
+    `<span style="display:inline-block;background:#EEF1FC;color:#3B4CCA;font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;margin:2px 4px 2px 0;">${escapeHtml(espSuiviRaisonLabel(code))}</span>`
+  ).join('');
+}
+
+function espSuiviDownloadReport(){
+  const e = _espSuiviCurrentEleve;
+  if(!e) return;
+  const notes = _espSuiviCurrentNotes;
+  const notesRows = notes.length
+    ? notes.map(n => `<tr><td style="white-space:nowrap;">${escapeHtml(n.date)}</td><td>${escapeHtml(n.texte)}</td></tr>`).join('')
+    : `<tr><td colspan="2">Aucune note de remédiation enregistrée.</td></tr>`;
+  const body = `
+    <h1>${escapeHtml((e.nom + ' ' + (e.prenoms||'')).trim())}</h1>
+    <p class="sub">${escapeHtml(e.classe)} · Suivi depuis le ${escapeHtml(e.dateAjout)}</p>
+    <h2>Raison(s) du suivi</h2>
+    <p>${espSuiviRaisonsListHtml(e.raisons)}</p>
+    <h2>Notes de remédiation</h2>
+    <table><thead><tr><th>Date</th><th>Note</th></tr></thead><tbody>${notesRows}</tbody></table>
+    <h2>Appréciation finale de l'inspecteur</h2>
+    <p style="font-size:13.5px;line-height:1.6;">${e.appreciationFinale ? escapeHtml(e.appreciationFinale) : '<i>Aucune appréciation renseignée pour le moment.</i>'}</p>
+  `;
+  const title = 'Suivi — ' + (e.nom + ' ' + (e.prenoms||'')).trim();
+  const html = espLycamReportShell(title, body);
+  espLycamTriggerDownload(`Suivi_${espLycamSlugify(e.nom)}_${espLycamSlugify(e.prenoms||'')}.html`, html, 'text/html');
 }
