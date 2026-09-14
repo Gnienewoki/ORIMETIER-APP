@@ -330,7 +330,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
     const total = rows.reduce((n, r) => n + Number(r.visites), 0);
     subHtml = `
       <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">📊 Statistiques de visites</div>
+        <div class="esp-title" style="font-size:16px;">${icon('bar-chart-3')}Statistiques de visites</div>
         <p class="esp-sub">Chaque chargement de page compte comme une visite (pas de distinction visiteur unique/répété, ni par rôle).</p>
         <div class="esp-field-row">
           <div class="esp-field">
@@ -951,13 +951,13 @@ function espAdminVisiteFiltrePeriode(value){
 // le tableau reste lisible plutôt que d'afficher les noms de fichiers bruts.
 function espVisitePageLabel(page){
   return {
-    'index.html': '🎓 Enseignement Technique et Formation Professionnelle',
-    'general.html': '🏫 Enseignement Général',
-    'superieur.html': '🏛️ Enseignement supérieur',
-    'concours.html': '📋 Concours et Écoles de formation initiale',
-    'liens-formation.html': '🎯 Formations',
-    'eleves.html': '👥 Élèves inscrits',
-    'espaces.html': '🔐 Espaces',
+    'index.html': 'Enseignement Technique et Formation Professionnelle',
+    'general.html': 'Enseignement Général',
+    'superieur.html': 'Enseignement supérieur',
+    'concours.html': 'Concours et Écoles de formation initiale',
+    'liens-formation.html': 'Formations',
+    'eleves.html': 'Élèves inscrits',
+    'espaces.html': 'Espaces',
   }[page] || page;
 }
 // "2026-08-19" (date Postgres, renvoyée telle quelle par PostgREST) -> "19/08/2026",
