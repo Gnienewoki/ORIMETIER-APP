@@ -216,7 +216,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
     const editing = _espLienFormationEditId != null ? liens.find(l => l.id === _espLienFormationEditId) : null;
     subHtml = `
       <div class="esp-card" style="margin-bottom:18px;">
-        <div class="esp-title" style="font-size:16px;">🎯 ${editing ? 'Modifier le lien' : 'Ajouter un lien de formation'}</div>
+        <div class="esp-title" style="font-size:16px;">${icon('target')}${editing ? 'Modifier le lien' : 'Ajouter un lien de formation'}</div>
         <p class="esp-sub">L'audience détermine dans quel onglet de la page "Formations" le lien apparaît.</p>
         <div class="esp-field-row">
           <div class="esp-field"><label>Titre</label><input type="text" id="esp-lf-titre" value="${escapeHtml(editing ? editing.titre : '')}"></div>
@@ -241,8 +241,8 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
             <td>${espLienAudienceLabel(l.audience)}</td>
             <td><a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.url)}</a></td>
             <td>
-              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminEditLienFormation(${l.id})">✏️ Modifier</button>
-              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminDeleteLienFormation(${l.id})">🗑️ Supprimer</button>
+              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminEditLienFormation(${l.id})">${icon('pencil')}Modifier</button>
+              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminDeleteLienFormation(${l.id})">${icon('trash-2')}Supprimer</button>
             </td>
           </tr>
         `).join('') : `<tr><td colspan="4" class="esp-empty">Aucun lien de formation pour le moment.</td></tr>`}
