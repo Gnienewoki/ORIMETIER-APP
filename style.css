@@ -9,7 +9,7 @@
   :root{
     /* — Couleurs de marque (inchangées) — */
     --bg:#fffaf3; --panel:#ffffff; --border:#f0d9b5; --text:#1f2b22;
-    --muted:#6b7d70; --orange:#ff7a1a; --orange-dark:#e8650a;
+    --muted:#607163; --orange:#ff7a1a; --orange-dark:#e8650a;
     --green:#1f9d55; --green-dark:#157a40; --green-pale:#c9f2d8;
 
     /* — Bleu institutionnel "confiance" (repris de la Variante 6 : --blue-pale-fg / --chip-blue) — */
@@ -190,7 +190,7 @@
   .meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
   .count{color:var(--green-dark);font-size:13px;font-weight:600;}
   .reset{
-    background:var(--orange);border:none;color:#fff;
+    background:var(--orange);border:none;color:var(--text);
     padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;
     transition:background .15s;
   }
@@ -216,11 +216,11 @@
 
   .fiche-btn{
     display:inline-flex;align-items:center;gap:6px;
-    background:var(--green);color:#fff;border:none;
+    background:var(--green-dark);color:#fff;border:none;
     padding:7px 12px;border-radius:8px;font-size:12.5px;font-weight:700;
     cursor:pointer;transition:background .15s,transform .1s;white-space:nowrap;
   }
-  .fiche-btn:hover{background:var(--green-dark);}
+  .fiche-btn:hover{filter:brightness(0.9);}
   .fiche-btn:active{transform:scale(.97);}
   .fiche-btn[disabled]{
     background:#e4e4e0;color:#9aa39c;cursor:not-allowed;

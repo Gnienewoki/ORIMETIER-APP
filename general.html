@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<meta name="description" content="Annuaire des établissements et filières de l'Enseignement Général en Côte d'Ivoire, avec leurs conditions d'accès et débouchés.">
 <title>ORIMETIER — Enseignement Général</title>
 
 <!-- PWA : application installable sur téléphone/PC -->
@@ -66,6 +67,7 @@
 <div class="esp-sidebar-backdrop" id="esp-sidebar-backdrop" onclick="espCloseSidebar()"></div>
 <button class="esp-sidebar-toggle" id="esp-sidebar-toggle" onclick="espToggleSidebar(event)" aria-label="Ouvrir le menu"><i data-lucide="menu"></i></button>
 
+<main id="page-main">
 <div id="auth-gate" class="gate-overlay">
   <div class="gate-inner">
     <div class="gate-brand">
@@ -206,6 +208,8 @@
   </div>
 
 </div>
+
+</main>
 
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal-card">
