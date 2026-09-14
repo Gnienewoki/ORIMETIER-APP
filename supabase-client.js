@@ -30,6 +30,9 @@ function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, 
 // uniquement) — absents des lignes renvoyées par list_etablissements() (publique), donc
 // undefined -> '' ici pour ces appels, ce qui est le comportement voulu.
 function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', ville:r.ville, quartier:r.quartier||'', type:r.type, responsable:r.responsable||'', contactTel:r.contact_tel||'', tel:r.tel, tel2:r.tel2||'', tel3:r.tel3||'', email:r.email, siteWeb:r.site_web||'', statut:r.statut, active:r.active, dateInscription:r.date_inscription, filieresProposees:r.filieres_proposees||[], photos:r.photos||[], logoUrl:r.logo_url||'', categorie:r.categorie||'', sousCategorie:r.sous_categorie||'', secteur:r.secteur||'', preInscrit:!!r.pre_inscrit, reclame:r.reclame === undefined ? true : !!r.reclame, premium:!!r.premium, demandePremium:!!r.demande_premium, demandePremiumDate:r.demande_premium_date||'' }; }
+// ---------------- Suivi d'élèves par l'inspecteur (répertoire privé, saisie libre) ----------------
+function espRowToSuiviEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms||'', classe:r.classe, raisons:r.raisons||[], appreciationFinale:r.appreciation_finale||'', dateAjout:r.date_ajout }; }
+function espRowToSuiviNote(r){ return { id:r.id, date:r.date_note, texte:r.texte }; }
 function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, contact_tel:e.contactTel||null, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], logo_url:e.logoUrl||null, categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
 function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
 function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
@@ -353,6 +356,45 @@ async function espInspecteurUpdateMessageAccueilRPC(inspecteurId, password, mess
   const { data, error } = await supabaseClient.rpc('inspecteur_update_message_accueil', { p_inspecteur_id: inspecteurId, p_password: password, p_message_accueil: messageAccueil });
   if(error) throw error;
   return !!data;
+}
+// ---------------- Suivi d'élèves par l'inspecteur (répertoire privé, saisie libre) ----------------
+async function espSuiviAddEleveRPC(inspecteurId, password, nom, prenoms, classe, raisons){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_add_eleve', {
+    p_inspecteur_id: inspecteurId, p_password: password,
+    p_nom: nom, p_prenoms: prenoms || null, p_classe: classe, p_raisons: raisons,
+  });
+  if(error) throw error;
+  return data;
+}
+async function espSuiviListElevesRPC(inspecteurId, password){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_list_eleves', { p_inspecteur_id: inspecteurId, p_password: password });
+  if(error) throw error;
+  return (data || []).map(espRowToSuiviEleve);
+}
+async function espSuiviGetEleveRPC(inspecteurId, password, suiviId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_get_eleve', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId });
+  if(error) throw error;
+  return (data && data[0]) ? espRowToSuiviEleve(data[0]) : null;
+}
+async function espSuiviDeleteEleveRPC(inspecteurId, password, suiviId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_delete_eleve', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId });
+  if(error) throw error;
+  return !!data;
+}
+async function espSuiviSetAppreciationRPC(inspecteurId, password, suiviId, appreciation){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_set_appreciation', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId, p_appreciation: appreciation });
+  if(error) throw error;
+  return !!data;
+}
+async function espSuiviAddNoteRPC(inspecteurId, password, suiviId, dateNote, texte){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_add_note', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId, p_date_note: dateNote, p_texte: texte });
+  if(error) throw error;
+  return !!data;
+}
+async function espSuiviListNotesRPC(inspecteurId, password, suiviId){
+  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_list_notes', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId });
+  if(error) throw error;
+  return (data || []).map(espRowToSuiviNote);
 }
 async function espUploadChatFile(file){
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
