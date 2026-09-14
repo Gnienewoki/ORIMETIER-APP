@@ -153,15 +153,15 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         <tbody>
         ${db.inspecteurs.length ? db.inspecteurs.map(i => `
           <tr>
-            <td><b>${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}</b>${i.certifie ? ' <span class="esp-badge-certifie" title="Compte certifié">✅</span>' : ''}${(!i.certifie && i.certificationDemandee) ? ' <span class="esp-badge en_attente" title="A demandé la certification">🎓 Demande</span>' : ''}</td>
+            <td><b>${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}</b>${i.certifie ? ` <span class="esp-badge-certifie" title="Compte certifié">${icon('badge-check')}</span>` : ''}${(!i.certifie && i.certificationDemandee) ? ` <span class="esp-badge en_attente" title="A demandé la certification">${icon('shield-check')}Demande</span>` : ''}</td>
             <td>${escapeHtml(i.fonction)}</td>
             <td>${escapeHtml(i.cio)}</td>
             <td>${escapeHtml(i.tel)}</td>
             <td>${escapeHtml(i.dateInscription)}</td>
             <td>${i.banni ? '<span class="esp-badge refuse">Banni</span>' : '<span class="esp-badge valide">Actif</span>'}</td>
             <td>
-              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleCertifie('${i.id}', ${!i.certifie})">${i.certifie ? 'Retirer le badge' : '🛡️ Certifier'}</button>
-              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleBanni('${i.id}', ${!i.banni})">${i.banni ? '✅ Réactiver' : '🚫 Bannir'}</button>
+              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleCertifie('${i.id}', ${!i.certifie})">${i.certifie ? icon('shield-off') + 'Retirer le badge' : icon('shield-check') + 'Certifier'}</button>
+              <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleBanni('${i.id}', ${!i.banni})">${i.banni ? icon('check-circle') + 'Réactiver' : icon('ban') + 'Bannir'}</button>
             </td>
           </tr>
         `).join('') : `<tr><td colspan="7" class="esp-empty">Aucun inspecteur inscrit pour le moment.</td></tr>`}
