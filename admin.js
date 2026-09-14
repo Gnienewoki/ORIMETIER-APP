@@ -133,7 +133,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
             <tbody>${_espLastEtabSkipped.map(r => `<tr><td>${escapeHtml(r.nom||'')}</td><td>${escapeHtml(r.ville||'')}</td><td>${escapeHtml(r.secteur||'')}</td><td>${escapeHtml(r.raison||'')}</td></tr>`).join('')}</tbody>
           </table></div>
         ` : ''}${_espLastEtabImportResult ? `
-          <p class="sub"><b>${_espLastEtabImportResult.length}</b> établissement(s) importé(s). Transmets à chacun son code ci-dessous (courrier officiel) — il servira une seule fois à récupérer le compte. <span class="esp-toggle-link" onclick="_espLastEtabImportResult=null;_espLastEtabSkipped=null;_espLastEtabImportWarning=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+          <p class="sub"><b>${_espLastEtabImportResult.length}</b> établissement(s) importé(s). Transmets à chacun son code ci-dessous (courrier officiel) — il servira une seule fois à récupérer le compte. <span class="esp-toggle-link" onclick="_espLastEtabImportResult=null;_espLastEtabSkipped=null;_espLastEtabImportWarning=null;espRenderAdminDashboard('etablissements')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>
           <div class="table-wrap"><table>
             <thead><tr><th>Établissement</th><th>Ville</th><th>Secteur</th><th>Code de récupération</th></tr></thead>
             <tbody>${_espLastEtabImportResult.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : 'Privé'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td></tr>`).join('')}</tbody>
@@ -278,7 +278,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         <div id="esp-annonce-image-field" class="esp-field" style="display:${type==='image'?'':'none'};">
           <label>Affiche (image)</label>
           <input type="file" id="esp-annonce-image-input" accept="image/*" onchange="espAdminAnnonceImageChange(this)">
-          <div id="esp-annonce-image-preview">${draftImageUrl ? `<img src="${escapeHtml(draftImageUrl)}" style="max-height:90px;border-radius:6px;margin-top:8px;display:block;">` : ''}</div>
+          <div id="esp-annonce-image-preview">${draftImageUrl ? `<img src="${escapeHtml(draftImageUrl)}" alt="Aperçu de l'affiche" style="max-height:90px;border-radius:6px;margin-top:8px;display:block;">` : ''}</div>
           <div id="esp-annonce-image-msg"></div>
         </div>
         <div id="esp-annonce-error"></div>
@@ -1135,7 +1135,7 @@ let _espImportSousCategorie = 'universite';
 
 function espAdminUnclaimedCodesHtml(rows){
   if(!rows.length){
-    return '<p class="esp-sub" style="margin-top:10px;">Aucun code en attente pour le moment. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard(\'etablissements\')">Fermer</span></p>';
+    return '<p class="esp-sub" style="margin-top:10px;">Aucun code en attente pour le moment. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard(\'etablissements\')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>';
   }
   const catLabel = (categorie, sousCategorie) => {
     if(categorie === 'general') return 'Général';
@@ -1143,7 +1143,7 @@ function espAdminUnclaimedCodesHtml(rows){
     return categorie || '—';
   };
   return `
-    <p class="esp-sub" style="margin-top:10px;"><b>${rows.length}</b> établissement(s) en attente de récupération. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard('etablissements')">Fermer</span></p>
+    <p class="esp-sub" style="margin-top:10px;"><b>${rows.length}</b> établissement(s) en attente de récupération. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard('etablissements')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>
     <div class="table-wrap"><table>
       <thead><tr><th>Établissement</th><th>Catégorie</th><th>Ville</th><th>Secteur</th><th>Inscrit le</th><th>Code</th></tr></thead>
       <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(catLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : 'Privé'}</td><td>${escapeHtml(r.date_inscription||'')}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td></tr>`).join('')}</tbody>
@@ -1190,12 +1190,12 @@ function espAdminAllEtabCodesFilteredList(){
 function espAdminAllEtabCodesHtml(){
   const all = _espAllEtabCodesResult || [];
   if(!all.length){
-    return '<p class="esp-sub" style="margin-top:10px;">Aucun établissement pré-inscrit pour le moment. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard(\'etablissements\')">Fermer</span></p>';
+    return '<p class="esp-sub" style="margin-top:10px;">Aucun établissement pré-inscrit pour le moment. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard(\'etablissements\')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>';
   }
   const filtered = espAdminAllEtabCodesFilteredList();
   return `
     <p class="esp-sub" style="margin-top:10px;">
-      <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard('etablissements')">Fermer</span>
+      <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard('etablissements')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span>
     </p>
     <div class="esp-field-row" style="margin-bottom:10px;align-items:flex-end;">
       <div class="esp-field" style="flex:2;min-width:220px;">

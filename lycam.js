@@ -157,7 +157,7 @@ function espLycamRenderList(){
       <div class="esp-title" style="font-size:16px;">${icon('flask-conical')}Test LYCAM — repérage préventif</div>
       <p class="esp-sub">Une session correspond à une classe (ou un groupe) testé un jour donné. Tu peux tester 1 à 150 élèves par session.</p>
       ${_espLycamError ? `<p class="esp-error">${escapeHtml(_espLycamError)}</p>` : ''}
-      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espLycamManualRetrySync()">Réessayer maintenant</span></p>` : ''}
+      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espLycamManualRetrySync()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Réessayer maintenant</span></p>` : ''}
       ${_espLycamLoading ? `<p class="esp-empty">Chargement...</p>` : `
         <div class="esp-field-row" style="align-items:flex-end;">
           <div class="esp-field" style="flex:2;">

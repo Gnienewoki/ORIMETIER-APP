@@ -9,9 +9,9 @@ function espRenderInspecteurAuth(mode){
       ${isLogin ? `
         <div class="esp-field" style="margin-bottom:12px;"><label>Téléphone</label><input type="tel" id="esp-insp-tel" placeholder="Ex : 07 00 00 00 00"></div>
         <div class="esp-field" style="margin-bottom:8px;"><label>Mot de passe</label><input type="password" id="esp-insp-pass" onkeydown="if(event.key==='Enter')espInspecteurLogin()"></div>
-        <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('inspecteur','esp-inspecteur', () => espRenderInspecteurAuth('login'))">Mot de passe oublié ?</span></p>
+        <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('inspecteur','esp-inspecteur', () => espRenderInspecteurAuth('login'))" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Mot de passe oublié ?</span></p>
         <button class="esp-btn esp-btn-primary" onclick="espInspecteurLogin()">Se connecter</button>
-        <p style="margin-top:14px;font-size:13px;">Pas encore de compte ? <span class="esp-toggle-link" onclick="espRenderInspecteurAuth('register')">Créer un compte inspecteur</span></p>
+        <p style="margin-top:14px;font-size:13px;">Pas encore de compte ? <span class="esp-toggle-link" onclick="espRenderInspecteurAuth('register')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Créer un compte inspecteur</span></p>
       ` : `
         <div class="esp-field-row">
           <div class="esp-field"><label>Nom</label><input type="text" id="esp-insp-nom"></div>
@@ -27,7 +27,7 @@ function espRenderInspecteurAuth(mode){
         </div>
         <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-insp-email2" placeholder="Pour récupérer ton mot de passe en cas d'oubli"></div>
         <button class="esp-btn esp-btn-primary" onclick="espInspecteurRegister()">Créer mon compte</button>
-        <p style="margin-top:14px;font-size:13px;">Déjà inscrit(e) ? <span class="esp-toggle-link" onclick="espRenderInspecteurAuth('login')">Se connecter</span></p>
+        <p style="margin-top:14px;font-size:13px;">Déjà inscrit(e) ? <span class="esp-toggle-link" onclick="espRenderInspecteurAuth('login')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Se connecter</span></p>
       `}
     </div>
   `;
@@ -150,14 +150,14 @@ function espRenderInspecteurDashboard(sub){
     <div class="esp-insp-top-row">
       <div class="esp-insp-profile-card">
         <div class="esp-insp-profile-head">
-          ${insp.avatarUrl ? `<img src="${escapeHtml(insp.avatarUrl)}" class="esp-chat-avatar" style="width:52px;height:52px;">` : `<div class="esp-chat-avatar-placeholder" style="width:52px;height:52px;font-size:20px;">${escapeHtml((insp.nom||'?').charAt(0).toUpperCase())}</div>`}
+          ${insp.avatarUrl ? `<img src="${escapeHtml(insp.avatarUrl)}" class="esp-chat-avatar" style="width:52px;height:52px;" alt="">` : `<div class="esp-chat-avatar-placeholder" style="width:52px;height:52px;font-size:20px;">${escapeHtml((insp.nom||'?').charAt(0).toUpperCase())}</div>`}
           <div class="esp-insp-profile-info">
             <div class="esp-insp-profile-name">${escapeHtml(insp.nom)} ${escapeHtml(insp.prenoms||'')}${insp.certifie ? ' <span class="esp-badge-certifie" title="Compte certifié">' + icon('badge-check') + '</span>' : ''}</div>
             <div class="esp-insp-profile-fonction">${escapeHtml(insp.fonction||'Inspecteur')}${insp.cio ? ' · ' + escapeHtml(insp.cio) : ''}</div>
           </div>
         </div>
         <p class="esp-insp-profile-msg">${insp.messageAccueil ? escapeHtml(insp.messageAccueil) : '<i>Aucun message d\'accueil défini.</i>'}</p>
-        <span class="esp-toggle-link" onclick="espInspecteurToggleProfileEdit()">${icon('pencil')}Modifier</span>
+        <span class="esp-toggle-link" onclick="espInspecteurToggleProfileEdit()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('pencil')}Modifier</span>
         <div id="esp-insp-profile-edit" style="display:none;margin-top:12px;border-top:1px dashed var(--border);padding-top:12px;">
           <div class="esp-field">
             <label>Photo de profil</label>
@@ -172,7 +172,7 @@ function espRenderInspecteurDashboard(sub){
           <div id="esp-insp-message-accueil-msg"></div>
           <div class="esp-field" style="margin-top:14px;" id="esp-insp-email-card">
             <label>E-mail de récupération</label>
-            ${insp.email ? `<p class="esp-sub" style="margin:0;">${icon('mail')}<b>${escapeHtml(insp.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')">Modifier</span></p>` : `<p class="esp-sub" style="margin:0;">${icon('triangle-alert')}Aucun e-mail enregistré. <span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')">Ajouter</span></p>`}
+            ${insp.email ? `<p class="esp-sub" style="margin:0;">${icon('mail')}<b>${escapeHtml(insp.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Modifier</span></p>` : `<p class="esp-sub" style="margin:0;">${icon('triangle-alert')}Aucun e-mail enregistré. <span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Ajouter</span></p>`}
             <div id="esp-insp-email-form"></div>
           </div>
           <div style="margin-top:14px;">

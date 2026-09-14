@@ -7,6 +7,17 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ---------------- Accessibilité clavier pour les éléments cliquables non natifs ----------------
+// À poser sur tout <span onclick="..."> qui fait office de bouton/lien (avec
+// role="button" tabindex="0" en plus) : un <span> n'est ni focusable au Tab, ni
+// activable au clavier par défaut, contrairement à <button>/<a>.
+function espActivateOnKeydown(e){
+  if(e.key === 'Enter' || e.key === ' '){
+    e.preventDefault();
+    e.currentTarget.click();
+  }
+}
+
 // ---------------- Anti-rebond (recherche / filtres) ----------------
 // Retourne une version de `fn` qui ne s'exécute qu'après `wait` ms sans
 // nouvel appel. Utilisé pour ne pas relancer un filtre lourd à chaque
@@ -98,7 +109,7 @@ function espGeneralTousDiplomesPredefinis(){
 // (contact direct, site web, photos) que si l'établissement est Premium.
 function espEtabNomCellHtml(e){
   const nom = escapeHtml(e.nom);
-  return `<span class="esp-etab-nom-link" onclick="espOpenEtabDetailModal('${e.id}')" title="Voir la fiche complète">${nom} ${icon('search')}</span>`;
+  return `<span class="esp-etab-nom-link" onclick="espOpenEtabDetailModal('${e.id}')" title="Voir la fiche complète" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${nom} ${icon('search')}</span>`;
 }
 // Colonne "Contact" : contact institutionnel (tel/email de connexion) toujours affiché,
 // complété par le contact direct de l'établissement si Premium et renseigné.

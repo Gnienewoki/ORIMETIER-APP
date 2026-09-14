@@ -331,7 +331,7 @@ function espChatMessageHtml(m, opts){
     </div>
   ` : (m.replyTo ? `<div class="esp-chat-cited esp-chat-cited-deleted">${icon('corner-up-left')}Message d'origine supprimé</div>` : '');
   const avatarHtml = isAdminMsg ? icon('wrench') + ' ' : (auteurInsp && auteurInsp.avatarUrl
-    ? `<img src="${escapeHtml(auteurInsp.avatarUrl)}" class="esp-chat-avatar">`
+    ? `<img src="${escapeHtml(auteurInsp.avatarUrl)}" class="esp-chat-avatar" alt="">`
     : `<span class="esp-chat-avatar-placeholder">${escapeHtml((m.inspecteurNom||'?').charAt(0).toUpperCase())}</span>`);
   const attachmentHtml = !m.attachmentUrl ? '' : m.attachmentType === 'pdf'
     ? `<div class="esp-chat-attachment"><a class="esp-chat-attachment-pdf" href="${escapeHtml(m.attachmentUrl)}" target="_blank" rel="noopener">${icon('file-text')}${escapeHtml(m.attachmentName || 'Document PDF')}</a></div>`
@@ -343,7 +343,7 @@ function espChatMessageHtml(m, opts){
         ${escapeHtml(m.inspecteurNom)}${certifie ? ' <span class="esp-badge-certifie" title="Compte certifié par l\'administration">' + icon('badge-check') + '</span>' : ''}
         ${typeLabel ? `<span class="esp-chat-type-label">${typeLabel}</span>` : ''}
         <span class="esp-chat-msg-date">${opts.hideDate ? '' : escapeHtml(m.date)}</span>
-        ${opts.canDelete ? `<span class="esp-chat-delete" onclick="${opts.deleteHandler}('${m.id}')" title="Supprimer ce message">${icon('trash-2')}</span>` : ''}
+        ${opts.canDelete ? `<span class="esp-chat-delete" onclick="${opts.deleteHandler}('${m.id}')" title="Supprimer ce message" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('trash-2')}</span>` : ''}
       </div>
       ${citedHtml}
       ${m.texte ? `<div class="esp-chat-msg-text">${escapeHtml(m.texte)}</div>` : ''}
@@ -369,7 +369,7 @@ function espChatPreviewAttachment(input){
     input.value = '';
     return;
   }
-  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">${icon('paperclip')}${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espChatClearAttachment('${input.id}')">Retirer</span></p>`;
+  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">${icon('paperclip')}${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espChatClearAttachment('${input.id}')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Retirer</span></p>`;
   espRefreshIcons();
 }
 function espChatClearAttachment(inputId){
@@ -409,7 +409,7 @@ function espUpdateReplyPreview(){
   el.innerHTML = `
     <div class="esp-chat-reply-preview">
       ${icon('corner-up-left')}Réponse à <b>${escapeHtml(_espReplyTarget.nom)}</b> : ${escapeHtml(snippet)}
-      <span class="esp-chat-cancel-reply" onclick="espCancelReply()" title="Annuler">${icon('x')}</span>
+      <span class="esp-chat-cancel-reply" onclick="espCancelReply()" title="Annuler" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('x')}</span>
     </div>
   `;
   espRefreshIcons();
@@ -481,7 +481,7 @@ function espPrivPreviewAttachment(input){
     input.value = '';
     return;
   }
-  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">${icon('paperclip')}${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espPrivClearAttachment('${input.id}')">Retirer</span></p>`;
+  previewEl.innerHTML = `<p class="esp-sub" style="margin:4px 0;">${icon('paperclip')}${escapeHtml(file.name)} <span class="esp-toggle-link" onclick="espPrivClearAttachment('${input.id}')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Retirer</span></p>`;
   espRefreshIcons();
 }
 function espPrivClearAttachment(inputId){
@@ -550,7 +550,7 @@ function espRenderPrivateTab(){
         <div class="esp-priv-search-results">
           ${results.length ? results.map(i => `
             <div class="esp-priv-conv-item" onclick="espOpenConversationPrivee('${i.id}')">
-              ${i.avatarUrl ? `<img src="${escapeHtml(i.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((i.nom||'?').charAt(0).toUpperCase())}</span>`}
+              ${i.avatarUrl ? `<img src="${escapeHtml(i.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;" alt="">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((i.nom||'?').charAt(0).toUpperCase())}</span>`}
               <div class="esp-priv-conv-info">
                 <div class="esp-priv-conv-name">${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}${i.certifie ? ' <span class="esp-badge-certifie">' + icon('badge-check') + '</span>' : ''}</div>
                 <div class="esp-priv-conv-preview">${escapeHtml(i.fonction||'Inspecteur')} — ${escapeHtml(i.cio||'')}</div>
@@ -562,7 +562,7 @@ function espRenderPrivateTab(){
         <div class="esp-priv-conv-list">
           ${conversations.length ? conversations.map(c => `
             <div class="esp-priv-conv-item" onclick="espOpenConversationPrivee('${c.contactId}')">
-              ${c.contact.avatarUrl ? `<img src="${escapeHtml(c.contact.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((c.contact.nom||'?').charAt(0).toUpperCase())}</span>`}
+              ${c.contact.avatarUrl ? `<img src="${escapeHtml(c.contact.avatarUrl)}" class="esp-chat-avatar" style="width:34px;height:34px;" alt="">` : `<span class="esp-chat-avatar-placeholder" style="width:34px;height:34px;font-size:14px;">${escapeHtml((c.contact.nom||'?').charAt(0).toUpperCase())}</span>`}
               <div class="esp-priv-conv-info">
                 <div class="esp-priv-conv-name">${escapeHtml(c.contact.nom)} ${escapeHtml(c.contact.prenoms||'')}</div>
                 <div class="esp-priv-conv-preview">${c.lastMessage.texte ? escapeHtml(c.lastMessage.texte.slice(0,40)) : icon('paperclip') + 'Pièce jointe'}</div>

@@ -9,9 +9,9 @@ function espRenderEleveAuth(mode){
       ${isLogin ? `
         <div class="esp-field" style="margin-bottom:12px;"><label>Téléphone</label><input type="tel" id="esp-eleve-tel" placeholder="Ex : 07 00 00 00 00"></div>
         <div class="esp-field" style="margin-bottom:8px;"><label>Mot de passe</label><input type="password" id="esp-eleve-pass" onkeydown="if(event.key==='Enter')espEleveLogin()"></div>
-        <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('eleve','esp-eleve', () => espRenderEleveAuth('login'))">Mot de passe oublié ?</span></p>
+        <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('eleve','esp-eleve', () => espRenderEleveAuth('login'))" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Mot de passe oublié ?</span></p>
         <button class="esp-btn esp-btn-primary" onclick="espEleveLogin()">Se connecter</button>
-        <p style="margin-top:14px;font-size:13px;">Pas encore de compte ? <span class="esp-toggle-link" onclick="espRenderEleveAuth('register')">Créer un compte élève</span></p>
+        <p style="margin-top:14px;font-size:13px;">Pas encore de compte ? <span class="esp-toggle-link" onclick="espRenderEleveAuth('register')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Créer un compte élève</span></p>
       ` : `
         <div class="esp-field-row">
           <div class="esp-field"><label>Nom</label><input type="text" id="esp-eleve-nom"></div>
@@ -27,7 +27,7 @@ function espRenderEleveAuth(mode){
         </div>
         <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-eleve-email2" placeholder="Pour récupérer ton mot de passe en cas d'oubli"></div>
         <button class="esp-btn esp-btn-primary" onclick="espEleveRegister()">Créer mon compte</button>
-        <p style="margin-top:14px;font-size:13px;">Déjà inscrit(e) ? <span class="esp-toggle-link" onclick="espRenderEleveAuth('login')">Se connecter</span></p>
+        <p style="margin-top:14px;font-size:13px;">Déjà inscrit(e) ? <span class="esp-toggle-link" onclick="espRenderEleveAuth('login')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Se connecter</span></p>
       `}
     </div>
   `;
@@ -174,9 +174,9 @@ function espRenderEleveDashboard(sub){
 
     <div class="esp-card" id="esp-eleve-email-card">
       ${eleve.email ? `
-        <p class="esp-sub" style="margin:0;">${icon('mail')}E-mail de récupération : <b>${escapeHtml(eleve.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('eleve')">Modifier</span></p>
+        <p class="esp-sub" style="margin:0;">${icon('mail')}E-mail de récupération : <b>${escapeHtml(eleve.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('eleve')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Modifier</span></p>
       ` : `
-        <p class="esp-sub" style="margin:0 0 8px;">${icon('triangle-alert')}Aucun e-mail enregistré — en cas de mot de passe oublié, tu ne pourras pas le réinitialiser toi-même. <span class="esp-toggle-link" onclick="espShowEmailForm('eleve')">Ajouter mon e-mail</span></p>
+        <p class="esp-sub" style="margin:0 0 8px;">${icon('triangle-alert')}Aucun e-mail enregistré — en cas de mot de passe oublié, tu ne pourras pas le réinitialiser toi-même. <span class="esp-toggle-link" onclick="espShowEmailForm('eleve')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Ajouter mon e-mail</span></p>
       `}
       <div id="esp-eleve-email-form"></div>
     </div>

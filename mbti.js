@@ -251,7 +251,7 @@ function espMbtiRenderList(){
       <div class="esp-title" style="font-size:16px;">${icon('brain')}Test MBTI — typologie de personnalité</div>
       <p class="esp-sub">Une session correspond à une classe (ou un groupe) testé un jour donné. Tu peux tester 1 à 150 élèves par session.</p>
       ${_espMbtiError ? `<p class="esp-error">${escapeHtml(_espMbtiError)}</p>` : ''}
-      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espMbtiManualRetrySync()">Réessayer maintenant</span></p>` : ''}
+      ${pendingTotal ? `<p class="esp-sub" style="color:var(--orange-dark);">${icon('triangle-alert')}${pendingTotal} résultat(s) pas encore synchronisé(s) avec le serveur. <span class="esp-toggle-link" onclick="espMbtiManualRetrySync()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Réessayer maintenant</span></p>` : ''}
       ${_espMbtiLoading ? `<p class="esp-empty">Chargement...</p>` : `
         <div class="esp-field-row" style="align-items:flex-end;">
           <div class="esp-field" style="flex:2;">

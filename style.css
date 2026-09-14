@@ -487,7 +487,7 @@
   .selector-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:20px;box-shadow:var(--sh-1);}
   .selector-box label{display:block;font-weight:700;color:var(--green-dark);margin-bottom:8px;font-size:.95rem;}
   select{width:100%;padding:12px 14px;font-size:1rem;border:2px solid var(--border);border-radius:var(--r-sm);background:#fff;color:var(--text);cursor:pointer;font-family:inherit;}
-  select:focus{outline:none;border-color:var(--orange);}
+  select:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,122,26,0.15);}
   .note{font-size:.82rem;color:var(--muted);margin-top:10px;line-height:1.4;}
   .results{display:flex;flex-direction:column;gap:14px;}
   .card{
@@ -513,7 +513,7 @@
   .es-fp-etab-meta{font-size:.78rem;color:var(--muted);line-height:1.4;}
   .school-header{background:var(--green-dark);color:#fff;padding:10px 16px;border-radius:14px;margin-bottom:10px;font-size:.85rem;}
   .search-box{width:100%;padding:12px 14px;font-size:1rem;border:2px solid var(--border);border-radius:var(--r-sm);margin-bottom:10px;font-family:inherit;background:#fff;color:var(--text);}
-  .search-box:focus{outline:none;border-color:var(--orange);}
+  .search-box:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,122,26,0.15);}
   .es-footer{text-align:center;color:var(--muted);font-size:.8rem;padding:20px 0 0;}
   @media (max-width:640px){
     .es-tab-btn{font-size:.8rem;min-width:118px;padding:9px 10px;}
@@ -553,7 +553,7 @@
     width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--text);
   }
   .esp-field textarea{resize:vertical;min-height:70px;}
-  .esp-field input:focus, .esp-field select:focus, .esp-field textarea:focus{outline:none;border-color:var(--orange);}
+  .esp-field input:focus, .esp-field select:focus, .esp-field textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,122,26,0.15);}
   .esp-btn{
     display:inline-flex;align-items:center;gap:7px;
     background:var(--panel);border:2px solid var(--border);color:var(--green-dark);

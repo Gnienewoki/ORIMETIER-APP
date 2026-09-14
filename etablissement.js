@@ -9,10 +9,10 @@ function espRenderEtabAuth(mode){
       ${isLogin ? `
         <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-etab-email" placeholder="contact@etablissement.ci"></div>
         <div class="esp-field" style="margin-bottom:8px;"><label>Mot de passe</label><input type="password" id="esp-etab-pass" onkeydown="if(event.key==='Enter')espEtabLogin()"></div>
-        <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('etablissement','esp-etablissement', () => espRenderEtabAuth('login'))">Mot de passe oublié ?</span></p>
+        <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('etablissement','esp-etablissement', () => espRenderEtabAuth('login'))" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Mot de passe oublié ?</span></p>
         <button class="esp-btn esp-btn-primary" onclick="espEtabLogin()">Se connecter</button>
-        <p style="margin-top:14px;font-size:13px;">Pas encore inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('register')">Inscrire mon établissement</span></p>
-        <p style="margin-top:6px;font-size:13px;">Votre établissement a reçu un code de récupération ? <span class="esp-toggle-link" onclick="espRenderEtabClaim()">Récupérer mon compte</span></p>
+        <p style="margin-top:14px;font-size:13px;">Pas encore inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('register')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Inscrire mon établissement</span></p>
+        <p style="margin-top:6px;font-size:13px;">Votre établissement a reçu un code de récupération ? <span class="esp-toggle-link" onclick="espRenderEtabClaim()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Récupérer mon compte</span></p>
       ` : `
         <div class="esp-field-row">
           <div class="esp-field">
@@ -92,7 +92,7 @@ function espRenderEtabAuth(mode){
         <div id="esp-etab-photos-msg"></div>
         <p style="margin:14px 0 14px;"></p>
         <button class="esp-btn esp-btn-primary" onclick="espEtabRegister()">Soumettre l'inscription</button>
-        <p style="margin-top:14px;font-size:13px;">Déjà inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('login')">Se connecter</span></p>
+        <p style="margin-top:14px;font-size:13px;">Déjà inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('login')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Se connecter</span></p>
       `}
     </div>
   `;
@@ -303,7 +303,7 @@ function espEtabRenderRegisterLogo(){
   el.innerHTML = _espEtabRegisterLogo ? `
     <div class="esp-etab-photo-thumb">
       <img src="${escapeHtml(_espEtabRegisterLogo)}" alt="Logo établissement">
-      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterLogo()" title="Retirer">${icon('x')}</span>
+      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterLogo()" title="Retirer" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('x')}</span>
     </div>
   ` : '';
   espRefreshIcons();
@@ -340,7 +340,7 @@ function espEtabRenderRegisterPhotos(){
   el.innerHTML = _espEtabRegisterPhotos.map((u,i) => `
     <div class="esp-etab-photo-thumb">
       <img src="${escapeHtml(u)}" alt="Photo établissement">
-      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterPhoto(${i})" title="Retirer">${icon('x')}</span>
+      <span class="esp-etab-photo-remove" onclick="espEtabRemoveRegisterPhoto(${i})" title="Retirer" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('x')}</span>
     </div>
   `).join('');
   const label = document.getElementById('esp-etab-photos-label');
@@ -618,7 +618,7 @@ function espRenderEtabDashboard(){
           ${etab.logoUrl ? `
             <div class="esp-etab-photo-thumb">
               <img src="${escapeHtml(etab.logoUrl)}" alt="Logo établissement">
-              <span class="esp-etab-photo-remove" onclick="espEtabRemoveLogo()" title="Retirer">${icon('x')}</span>
+              <span class="esp-etab-photo-remove" onclick="espEtabRemoveLogo()" title="Retirer" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('x')}</span>
             </div>
           ` : ''}
         </div>
@@ -631,7 +631,7 @@ function espRenderEtabDashboard(){
           ${(etab.photos||[]).map((u,i) => `
             <div class="esp-etab-photo-thumb">
               <img src="${escapeHtml(u)}" alt="Photo établissement">
-              <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer">${icon('x')}</span>
+              <span class="esp-etab-photo-remove" onclick="espEtabRemovePhoto(${i})" title="Retirer" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('x')}</span>
             </div>
           `).join('')}
         </div>
