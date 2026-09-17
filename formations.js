@@ -250,16 +250,20 @@ function espShowEtabSubTab(tab){
   const pub = document.getElementById('etab-tab-publics');
   const priv = document.getElementById('etab-tab-prive');
   const tech = document.getElementById('etab-tab-technique');
+  const appr = document.getElementById('etab-tab-apprentissage');
   const btnPub = document.getElementById('etab-subtab-btn-publics');
   const btnPriv = document.getElementById('etab-subtab-btn-prive');
   const btnTech = document.getElementById('etab-subtab-btn-technique');
+  const btnAppr = document.getElementById('etab-subtab-btn-apprentissage');
   if(!pub || !priv) return;
   pub.style.display = tab === 'publics' ? '' : 'none';
   priv.style.display = tab === 'prive' ? '' : 'none';
   if(tech) tech.style.display = tab === 'technique' ? '' : 'none';
+  if(appr) appr.style.display = tab === 'apprentissage' ? '' : 'none';
   if(btnPub) btnPub.classList.toggle('active', tab === 'publics');
   if(btnPriv) btnPriv.classList.toggle('active', tab === 'prive');
   if(btnTech) btnTech.classList.toggle('active', tab === 'technique');
+  if(btnAppr) btnAppr.classList.toggle('active', tab === 'apprentissage');
   if(tab === 'prive') renderEtabPrivesList();
 }
 
