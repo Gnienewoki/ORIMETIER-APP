@@ -3,6 +3,16 @@ function normalize(s){
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
 
+// Forme canonique d'un numéro de téléphone saisi : sans espaces (insécables inclus), points
+// ni tirets, et sans indicatif +225 / 00225 en tête. N'ajoute jamais de 0 initial et ne
+// contrôle pas la longueur : un numéro comme 1314131413 reste valide tel quel.
+function normalizeTel(raw){
+  return String(raw == null ? '' : raw)
+    .trim()
+    .replace(/[\s.\-]/g, '')
+    .replace(/^(\+|00)225/, '');
+}
+
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }

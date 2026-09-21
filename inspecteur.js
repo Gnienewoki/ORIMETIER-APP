@@ -26,49 +26,78 @@ function espRenderInspecteurAuth(mode){
           <div class="esp-field"><label>Mot de passe</label><input type="password" id="esp-insp-pass2"></div>
         </div>
         <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-insp-email2" placeholder="Pour récupérer ton mot de passe en cas d'oubli"></div>
-        <button class="esp-btn esp-btn-primary" onclick="espInspecteurRegister()">Créer mon compte</button>
+        <button class="esp-btn esp-btn-primary" id="esp-insp-register-btn" onclick="espInspecteurRegister()">Créer mon compte</button>
         <p style="margin-top:14px;font-size:13px;">Déjà inscrit(e) ? <span class="esp-toggle-link" onclick="espRenderInspecteurAuth('login')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Se connecter</span></p>
       `}
     </div>
   `;
   espRefreshIcons();
 }
+// Verrou anti double envoi : l'insert est asynchrone et le contrôle de doublon lit une liste
+// distante, donc deux clics rapprochés passeraient tous les deux avant que le premier compte
+// n'existe. Le drapeau bloque le second appel même si le bouton n'a pas encore été grisé.
+let _espInspRegisterBusy = false;
 async function espInspecteurRegister(){
+  if(_espInspRegisterBusy) return;
   const nom = document.getElementById('esp-insp-nom').value.trim();
   const prenoms = document.getElementById('esp-insp-prenoms').value.trim();
   const fonction = document.getElementById('esp-insp-fonction').value.trim();
   const cio = document.getElementById('esp-insp-cio').value.trim();
-  const tel = document.getElementById('esp-insp-tel2').value.trim();
+  const tel = normalizeTel(document.getElementById('esp-insp-tel2').value);
   const pass = document.getElementById('esp-insp-pass2').value;
   const email = document.getElementById('esp-insp-email2').value.trim();
+  const errEl = document.getElementById('esp-insp-error');
   if(!nom || !tel || !pass){
-    document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Nom, téléphone et mot de passe sont obligatoires.</p>';
+    errEl.innerHTML = '<p class="esp-error">Nom, téléphone et mot de passe sont obligatoires.</p>';
     return;
   }
-  const db = espDB();
-  if(db.inspecteurs.some(i => i.tel === tel)){
-    document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Un compte existe déjà avec ce numéro de téléphone.</p>';
-    return;
-  }
-  const id = espUid();
-  const nouvelInsp = { id, nom, prenoms, fonction, cio, tel, email, password:pass, active:true, dateInscription:espDate() };
+  const btn = document.getElementById('esp-insp-register-btn');
+  _espInspRegisterBusy = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Création en cours...'; }
+  errEl.innerHTML = '';
   try {
-    await espInsertInspecteur(espInspecteurToRow(nouvelInsp));
-  } catch(e){
-    document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Erreur lors de la création du compte : ' + escapeHtml(e.message) + '</p>';
-    return;
+    // Liste fraîche (pas le cache, potentiellement antérieur à un compte créé ailleurs) ;
+    // comparaison sur le numéro normalisé pour aussi rattraper les anciens comptes saisis
+    // avec espaces ou +225.
+    try {
+      const rows = await espFetchAllRows('list_inspecteurs');
+      if(rows.some(r => normalizeTel(r.tel) === tel)){
+        errEl.innerHTML = '<p class="esp-error">Un compte existe déjà avec ce numéro de téléphone.</p>';
+        return;
+      }
+    } catch(e){
+      errEl.innerHTML = '<p class="esp-error">Impossible de vérifier ce numéro pour le moment. Vérifie ta connexion et réessaie.</p>';
+      return;
+    }
+    const id = espUid();
+    const nouvelInsp = { id, nom, prenoms, fonction, cio, tel, email, password:pass, active:true, dateInscription:espDate() };
+    try {
+      await espInsertInspecteur(espInspecteurToRow(nouvelInsp));
+    } catch(e){
+      errEl.innerHTML = '<p class="esp-error">Erreur lors de la création du compte : ' + escapeHtml(e.message) + '</p>';
+      return;
+    }
+    // espDB() relu après les attendus : un rafraîchissement temps réel a pu remplacer le cache.
+    const db = espDB();
+    db.inspecteurs.push(nouvelInsp);
+    espSaveDB(db);
+    espSetSession('inspecteur', id, pass);
+    platformUnlock();
+  } finally {
+    _espInspRegisterBusy = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'Créer mon compte'; }
   }
-  db.inspecteurs.push(nouvelInsp);
-  espSaveDB(db);
-  espSetSession('inspecteur', id, pass);
-  platformUnlock();
 }
 async function espInspecteurLogin(){
-  const tel = document.getElementById('esp-insp-tel').value.trim();
+  const telSaisi = document.getElementById('esp-insp-tel').value.trim();
+  const tel = normalizeTel(telSaisi);
   const pass = document.getElementById('esp-insp-pass').value;
   let insp;
   try {
     insp = await espInspecteurLoginRPC(tel, pass);
+    // Repli pour les comptes créés avant la normalisation, dont le numéro stocké garde ses
+    // espaces ou son indicatif : on retente avec la saisie brute.
+    if(!insp && telSaisi && telSaisi !== tel) insp = await espInspecteurLoginRPC(telSaisi, pass);
   } catch(e){
     document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Erreur de connexion : ' + escapeHtml(e.message) + '</p>';
     return;
