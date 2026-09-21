@@ -18,6 +18,13 @@ if(window.emailjs) window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
 // Cache local synchronisé avec Supabase (rempli par espLoadFromSupabase())
 let _espCache = null;
+// Vrai quand _espCache vient d'un chargement réseau de CETTE page, faux quand il vient du cache
+// sessionStorage (potentiellement antérieur à un compte créé ailleurs ou depuis).
+let _espCacheFromServer = false;
+// Vrai dès que des données sont disponibles (chargées ou lues dans le cache) : sert à distinguer
+// "compte introuvable" de "rien n'a pu être chargé" (cf. espSessionVerdict dans auth.js).
+function espDataLoaded(){ return _espCache !== null; }
+function espDataFromServer(){ return _espCache !== null && _espCacheFromServer; }
 // Cache local des messages privés de l'inspecteur connecté (rempli par espLoadPrivateMessages())
 let _espPrivateCache = [];
 
@@ -87,7 +94,7 @@ async function espLoadFromSupabase(forceRefresh){
   if(!forceRefresh){
     try {
       const cached = sessionStorage.getItem(ESP_CACHE_KEY);
-      if(cached){ _espCache = JSON.parse(cached); return; }
+      if(cached){ _espCache = JSON.parse(cached); _espCacheFromServer = false; return; }
     } catch(e){
       // sessionStorage indisponible, quota dépassé, ou JSON corrompu : on ignore le cache
       // et on retombe simplement sur un chargement réseau normal, sans jamais bloquer l'utilisateur.
@@ -115,6 +122,7 @@ async function espLoadFromSupabase(forceRefresh){
     messages: (messagesRes.data||[]).map(espRowToMessage),
     annonces: (annonceRes.data||[]).map(espRowToAnnonce),
   };
+  _espCacheFromServer = true;
 
   try { sessionStorage.setItem(ESP_CACHE_KEY, JSON.stringify(_espCache)); } catch(e){
     // Quota sessionStorage dépassé ou stockage indisponible (navigation privée stricte, etc.) :
@@ -159,6 +167,13 @@ function espScheduleRefresh(){
       await espLoadFromSupabase(true);
       const session = espSession();
       if(session && session.role === 'inspecteur') await espLoadPrivateMessages();
+      // Écran/bandeau "connexion instable" affiché : les données viennent d'être rechargées avec
+      // succès, on relance la résolution de session plutôt que de dessiner un tableau de bord
+      // dans le portail.
+      if(document.getElementById('esp-conn-unstable') || document.getElementById('esp-conn-notice')){
+        espRetryConnection();
+        return;
+      }
       // Ne rafraîchit l'écran que si la page courante déclare un rafraîchissement
       // (pour ne pas perturber un formulaire de connexion en cours de saisie).
       if(espSession() && window.pageRefresh) window.pageRefresh();
@@ -173,6 +188,17 @@ function espDB(){
 // le tableau complet au serveur : chaque écriture réelle passe par une fonction dédiée ci-dessous.
 function espSaveDB(db){
   _espCache = db;
+  // Persiste aussi dans le cache d'onglet : sans cela, un compte créé (inscription) ou modifié
+  // (avatar, e-mail...) reste absent du cache lu à la page suivante ou après F5. La clé "password"
+  // est retirée de la copie : l'inscription y a mis le mot de passe saisi, qui ne doit pas être
+  // écrit dans le cache (les listes serveur, elles, ne le contiennent jamais).
+  try {
+    sessionStorage.setItem(ESP_CACHE_KEY, JSON.stringify(db, (k, v) => k === 'password' ? undefined : v));
+  } catch(e){
+    // Écriture impossible (quota, stockage bloqué) : mieux vaut aucun cache qu'un cache
+    // antérieur à ce changement, la page suivante rechargera depuis le serveur.
+    try { sessionStorage.removeItem(ESP_CACHE_KEY); } catch(e2){}
+  }
 }
 
 // ---------------- Inscription (création de compte) ----------------

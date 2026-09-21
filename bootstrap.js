@@ -203,23 +203,33 @@ function espLogVisiteCourante(){
     typeof window.pageDataReady === 'function';
 
   if(afficherSansAttendre){
-    platformInit();
+    platformInit('none'); // aucune session ici (cf. condition ci-dessus)
     if(_espDoitJouerAnimation) runSplashSequence();
     chargement.then(finaliserDonnees);
   } else {
     const err = await chargement;
+    // Verdict de session AVANT de masquer l'écran de chargement : il peut relire les données une
+    // fois depuis le serveur (cache périmé, chargement raté), et l'utilisateur ne doit pas voir
+    // un portail vide entre-temps. Sans verdict (lien ?reset= ou erreur inattendue), platformInit
+    // retombe sur sa décision locale, qui n'efface jamais la session sur simple doute.
+    let verdict;
+    if(!_espResetToken){
+      try { verdict = await espSessionVerdict(); } catch(e){ console.error(e); }
+    }
     finaliserDonnees();
-    if(err){
+    // Avec une session, un chargement raté n'est plus une alerte technique : c'est l'écran
+    // "connexion instable" (platformInit) qui informe, session conservée.
+    if(err && !espSession()){
       alert("Impossible de se connecter à la base de données en ligne.\n\nVérifie ta connexion internet, ainsi que les identifiants Supabase (SUPABASE_URL / SUPABASE_ANON_KEY) renseignés dans le fichier, puis recharge la page.\n\nDétail : " + err.message);
     }
     if(_espResetToken){
       espRenderResetPasswordScreen(_espResetToken);
       finishSplash();
     } else if(_espDoitJouerAnimation){
-      platformInit();
+      platformInit(verdict);
       runSplashSequence();
     } else {
-      platformInit();
+      platformInit(verdict);
     }
   }
   espSetupRealtime();

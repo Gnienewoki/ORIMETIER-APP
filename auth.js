@@ -233,13 +233,110 @@ function platformLogout(){
   platformLock();
 }
 
-function platformInit(){
-  espCheckStoragePersistence();
+// ---------------- Verdict de session au chargement d'une page ----------------
+//   'none'        : aucune session enregistrée sur cet appareil.
+//   'ok'          : compte présent et non banni dans les données chargées (ou admin).
+//   'revoked'     : refus établi : session illisible, ou compte absent/banni d'une liste lue
+//                   sur le serveur pendant ce chargement.
+//   'unreachable' : impossible de conclure (données non chargées, réseau coupé) : la session
+//                   est CONSERVÉE.
+// Seul 'revoked' autorise à effacer la session : ni un cache périmé, ni un chargement échoué,
+// ni une coupure réseau ne suffisent.
+const ESP_SESSION_ROLES = ['admin','inspecteur','eleve','etablissement'];
+function espSessionVerdictLocal(session){
+  if(!session) return 'none';
+  if(!ESP_SESSION_ROLES.includes(session.role) || (session.role !== 'admin' && !session.id)) return 'revoked';
+  if(session.role === 'admin') return 'ok';
+  if(!espDataLoaded()) return 'unreachable';
+  // Compte introuvable dans des données possiblement périmées : pas de conclusion sans le serveur.
+  return espAccountStillExists(session) ? 'ok' : 'unreachable';
+}
+async function espSessionVerdict(){
   const session = espSession();
-  if(session && espAccountStillExists(session)){
+  const local = espSessionVerdictLocal(session);
+  if(local !== 'unreachable') return local;
+  // Données absentes ou compte introuvable dans le cache d'onglet : une seule relecture serveur
+  // avant de conclure. Si les données viennent déjà du serveur (chargement de cette page), elles
+  // font foi et on ne relit pas.
+  if(!espDataFromServer()){
+    try { await espLoadFromSupabase(true); }
+    catch(e){ console.error('[esp] relecture serveur impossible', e); return 'unreachable'; }
+  }
+  return espAccountStillExists(session) ? 'ok' : 'revoked';
+}
+
+// ---------------- Écran / bandeau "connexion instable" (session conservée) ----------------
+function espHideConnectionNotices(){
+  ['esp-conn-unstable', 'esp-conn-notice'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.remove();
+  });
+}
+// Pages privées : le portail reste affiché avec un message, sans revenir au choix de rôle
+// (le script inline de la page a pu afficher la plateforme avant toute validation).
+function espShowConnectionUnstable(){
+  const gate = document.getElementById('auth-gate');
+  const wrap = document.getElementById('platform-wrap');
+  const content = document.getElementById('gate-content');
+  const loader = document.getElementById('esp-loading');
+  if(loader) loader.style.display = 'none';
+  if(wrap) wrap.style.display = 'none';
+  if(gate) gate.style.display = 'flex';
+  espHideAll();
+  if(!content) return;
+  const card = document.createElement('div');
+  card.id = 'esp-conn-unstable';
+  card.className = 'esp-card';
+  card.style.cssText = 'max-width:520px;margin:0 auto;';
+  card.innerHTML = `
+    <div class="esp-title">${icon('triangle-alert')}Connexion instable</div>
+    <p class="esp-sub">Impossible de charger tes données pour le moment. Ta session est conservée : vérifie ta connexion internet, puis réessaie.</p>
+    <button class="esp-btn esp-btn-primary" onclick="espRetryConnection()">Réessayer</button>
+  `;
+  content.appendChild(card);
+  espRefreshIcons();
+}
+// Pages publiques : le contenu reste consultable, un bandeau prévient que les données manquent.
+function espShowConnectionNotice(){
+  if(document.getElementById('esp-conn-notice')) return;
+  const bar = document.createElement('div');
+  bar.id = 'esp-conn-notice';
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);font-size:13px;';
+  bar.innerHTML = `<span>${icon('triangle-alert')}Connexion instable : certaines données n'ont pas pu être chargées.</span><button class="esp-btn" onclick="espRetryConnection()">Réessayer</button>`;
+  const wrap = document.getElementById('platform-wrap');
+  if(wrap && wrap.parentNode) wrap.parentNode.insertBefore(bar, wrap);
+  else document.body.insertBefore(bar, document.body.firstChild);
+  espRefreshIcons();
+}
+async function espRetryConnection(){
+  document.querySelectorAll('#esp-conn-unstable button, #esp-conn-notice button').forEach(b => {
+    b.disabled = true;
+    b.textContent = 'Nouvelle tentative...';
+  });
+  let verdict = 'unreachable';
+  try { verdict = await espSessionVerdict(); } catch(e){ console.error('[esp] nouvelle tentative échouée', e); }
+  platformInit(verdict);
+}
+
+// verdict : résultat de espSessionVerdict(). Sans argument (appel historique), décision locale
+// (espSessionVerdictLocal), qui n'efface jamais la session sur simple doute.
+function platformInit(verdict){
+  espCheckStoragePersistence();
+  espHideConnectionNotices();
+  if(verdict === undefined) verdict = espSessionVerdictLocal(espSession());
+  if(verdict === 'ok'){
     platformUnlock(); // accès libre, sans code d'activation (à réactiver plus tard si besoin)
+  } else if(verdict === 'unreachable'){
+    // Session conservée : ni effacée, ni renvoyée au portail de connexion.
+    if(espCurrentPageIsPublic()){
+      platformUnlockGuest();
+      espShowConnectionNotice();
+    } else {
+      espShowConnectionUnstable();
+    }
   } else if(espCurrentPageIsPublic()){
-    espClearSession();
+    espClearSession(); // 'none' (rien à effacer, ou valeur illisible) ou 'revoked'
     platformUnlockGuest();
   } else {
     espClearSession();
