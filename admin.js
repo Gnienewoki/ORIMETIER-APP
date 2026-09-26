@@ -5,7 +5,6 @@ function espRenderAdminLogin(){
     <button class="esp-back" onclick="espBackToRoleSelect()">${icon('arrow-left')}Retour</button>
     <div class="esp-card" style="max-width:420px;margin:0 auto;">
       <div class="esp-title">${icon('wrench')}Espace Administrateur</div>
-      <p class="esp-sub">Mot de passe par défaut : <b>admin2024</b> (à modifier après connexion, ou directement dans le code).</p>
       <div id="esp-admin-error"></div>
       <div class="esp-field" style="margin-bottom:14px;">
         <label>Mot de passe administrateur</label>
@@ -368,8 +367,6 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <span class="esp-user-name">${icon('wrench')}Espace Administrateur</span>
       <span>
         <button class="esp-btn" onclick="espExportBackup()">${icon('download')}Exporter une sauvegarde</button>
-        <button class="esp-btn" onclick="document.getElementById('esp-import-file').click()">${icon('upload')}Importer une sauvegarde</button>
-        <input type="file" id="esp-import-file" accept=".json" style="display:none" onchange="espImportBackup(this)">
         <button class="esp-btn" onclick="espAdminLogout()">Déconnexion</button>
       </span>
     </div>

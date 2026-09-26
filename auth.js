@@ -760,21 +760,20 @@ async function espSubmitEmailForm(role){
 }
 
 // ---------------- Mot de passe oublié ----------------
-// Affiche un petit formulaire "mot de passe oublié" à l'intérieur du conteneur d'un espace
-// (ex : 'esp-eleve', 'esp-inspecteur', 'esp-etablissement').
+// Réinitialisation en libre-service suspendue (request_password_reset renvoyait le jeton au
+// navigateur) : en attendant la version serveur (Edge Function), on oriente vers le support.
+// espSubmitForgotPassword / espSubmitResetPassword restent en place mais ne sont plus appelées.
+function espSupportContactHtml(){
+  return `<p class="esp-sub">Contactez le support : <a href="tel:+2250787633481">07 87 63 34 81</a> / <a href="mailto:gnienewoki@gmail.com">gnienewoki@gmail.com</a></p>`;
+}
+// Affiché à l'intérieur du conteneur d'un espace (ex : 'esp-eleve', 'esp-inspecteur', 'esp-etablissement').
 function espRenderForgotPassword(role, containerId, backToLoginFn){
   const container = document.getElementById(containerId);
   container.innerHTML = `
     <button class="esp-back" onclick="(${backToLoginFn})()">${icon('arrow-left')}Retour à la connexion</button>
     <div class="esp-card" style="max-width:520px;margin:0 auto;">
       <div class="esp-title">${icon('key')}Mot de passe oublié</div>
-      <p class="esp-sub">Saisis l'adresse e-mail associée à ton compte. Si elle correspond à un compte existant, tu recevras un lien pour définir un nouveau mot de passe.</p>
-      <div id="esp-forgot-msg"></div>
-      <div class="esp-field" style="margin-bottom:14px;">
-        <label>E-mail</label>
-        <input type="email" id="esp-forgot-email" placeholder="ton-email@exemple.com">
-      </div>
-      <button class="esp-btn esp-btn-primary" id="esp-forgot-submit-btn" onclick="espSubmitForgotPassword('${role}')">Envoyer le lien de réinitialisation</button>
+      ${espSupportContactHtml()}
     </div>
   `;
   espRefreshIcons();
@@ -807,14 +806,14 @@ function espRenderResetPasswordScreen(token){
   const gateContent = document.getElementById('gate-content');
   wrap.style.display = 'none';
   gate.style.display = 'flex';
+  // Les liens de réinitialisation déjà envoyés ont été invalidés côté serveur : le formulaire
+  // ne pourrait qu'échouer, on oriente directement vers le support.
   gateContent.innerHTML = `
     <div class="esp-card" style="max-width:480px;margin:40px auto;">
-      <div class="esp-title">${icon('key')}Nouveau mot de passe</div>
-      <p class="esp-sub">Choisis un nouveau mot de passe pour ton compte.</p>
-      <div id="esp-reset-msg"></div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>Nouveau mot de passe</label><input type="password" id="esp-reset-pass1"></div>
-      <div class="esp-field" style="margin-bottom:14px;"><label>Confirme le mot de passe</label><input type="password" id="esp-reset-pass2"></div>
-      <button class="esp-btn esp-btn-primary" id="esp-reset-submit-btn" onclick="espSubmitResetPassword('${token}')">Valider le nouveau mot de passe</button>
+      <div class="esp-title">${icon('key')}Réinitialisation du mot de passe</div>
+      <p class="esp-sub">Ce lien de réinitialisation n'est plus valable.</p>
+      ${espSupportContactHtml()}
+      <button class="esp-btn esp-btn-primary" onclick="window.location.href = window.location.origin + window.location.pathname">Retour à la connexion</button>
     </div>
   `;
   espRefreshIcons();
