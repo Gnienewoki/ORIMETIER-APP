@@ -13,6 +13,75 @@ function espClearSession(){
   try { localStorage.removeItem(ESP_SESSION_KEY); } catch(e){}
 }
 
+// ---------------- Sessions par jeton (migration progressive, rôle par rôle) ----------------
+// Rôles déjà migrés : la session locale est {v:2, role, id, token, exp} (exp en ms), sans
+// aucun mot de passe. Le jeton est vérifié côté serveur (session_check / _session_user).
+// Les autres rôles gardent l'ancien format {role, id, password} jusqu'à leur phase.
+// Doit rester synchronisé avec la liste des 8 scripts inline anti-flash des pages HTML.
+const ESP_TOKEN_ROLES = ['eleve'];
+const ESP_TOKEN_SESSION_FALLBACK_MS = 30 * 24 * 3600 * 1000;
+function espSetTokenSession(role, id, token, expiresAt){
+  let exp = Date.parse(expiresAt);
+  if(isNaN(exp)) exp = Date.now() + ESP_TOKEN_SESSION_FALLBACK_MS;
+  try { localStorage.setItem(ESP_SESSION_KEY, JSON.stringify({v:2, role, id, token, exp})); } catch(e){}
+}
+function espIsTokenRole(role){ return ESP_TOKEN_ROLES.includes(role); }
+// Session d'un rôle migré inutilisable sans même interroger le serveur : ancien format
+// (mot de passe, pas de jeton) ou date d'expiration dépassée.
+function espTokenSessionLocallyInvalid(session){
+  return session.v !== 2 || !session.token || !session.id || !(session.exp > Date.now());
+}
+
+// Appel RPC authentifié par le jeton de session (ajoute p_token). Un jeton refusé par le
+// serveur (SESSION_INVALIDE, SQLSTATE P0401) déconnecte proprement : session effacée et
+// bandeau "Ta session a expiré". L'erreur relancée porte espSessionInvalid = true pour que
+// l'appelant s'arrête sans afficher d'alerte technique en plus.
+function espSessionInvalidError(){
+  const err = new Error('Ta session a expiré, reconnecte-toi.');
+  err.espSessionInvalid = true;
+  return err;
+}
+async function espAuthRpc(name, params){
+  const session = espSession();
+  if(!session || !session.token){
+    espHandleSessionInvalid();
+    throw espSessionInvalidError();
+  }
+  const { data, error } = await supabaseClient.rpc(name, Object.assign({ p_token: session.token }, params || {}));
+  if(error){
+    if(error.code === 'P0401' || /SESSION_INVALIDE/.test(error.message || '')){
+      espHandleSessionInvalid();
+      throw espSessionInvalidError();
+    }
+    throw error;
+  }
+  return data;
+}
+// Page publique : on repasse en mode visiteur sans relancer pageInit (le visiteur garde ce
+// qu'il a à l'écran, ex : son résultat de test RIASEC). Page privée : retour au portail.
+function espHandleSessionInvalid(){
+  espClearSession();
+  if(espCurrentPageIsPublic()) updateAuthBar();
+  else platformLock();
+  espShowSessionExpiredNotice();
+}
+function espShowSessionExpiredNotice(){
+  if(document.getElementById('esp-session-expired')) return;
+  const bar = document.createElement('div');
+  bar.id = 'esp-session-expired';
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);font-size:13px;';
+  bar.innerHTML = `<span>${icon('triangle-alert')}Ta session a expiré, reconnecte-toi.</span><a class="esp-btn" href="espaces.html?role=eleve">Se connecter</a>`;
+  const wrap = document.getElementById('platform-wrap');
+  if(wrap && wrap.parentNode) wrap.parentNode.insertBefore(bar, wrap);
+  else document.body.insertBefore(bar, document.body.firstChild);
+  espRefreshIcons();
+}
+function espHideSessionExpiredNotice(){
+  const el = document.getElementById('esp-session-expired');
+  if(el) el.remove();
+}
+
 function espStorageAvailable(){
   try {
     const testKey = '__esp_storage_test__';
@@ -183,6 +252,7 @@ function platformUnlock(){
   if(typeof window.onBeforeUnlock === 'function') window.onBeforeUnlock();
   gate.style.display = 'none';
   wrap.style.display = '';
+  espHideSessionExpiredNotice();
   updateAuthBar();
   espRenderAnnonceBar();
   const session = espSession();
@@ -229,6 +299,15 @@ function platformLock(){
 }
 
 function platformLogout(){
+  // Révocation du jeton côté serveur, sans attendre la réponse : la déconnexion locale ne doit
+  // jamais dépendre du réseau. (Le builder PostgREST ne part qu'au .then.)
+  const session = espSession();
+  if(session && session.token){
+    supabaseClient.rpc('session_close', { p_token: session.token }).then(
+      ({ error }) => { if(error) console.warn('[esp] session_close a échoué (non bloquant)', error); },
+      (e) => console.warn('[esp] session_close a échoué (non bloquant)', e)
+    );
+  }
   espClearSession();
   platformLock();
 }
@@ -246,15 +325,36 @@ const ESP_SESSION_ROLES = ['admin','inspecteur','eleve','etablissement'];
 function espSessionVerdictLocal(session){
   if(!session) return 'none';
   if(!ESP_SESSION_ROLES.includes(session.role) || (session.role !== 'admin' && !session.id)) return 'revoked';
+  // Rôle migré aux jetons : ancienne session (mot de passe) ou jeton expiré => refus établi.
+  if(espIsTokenRole(session.role) && espTokenSessionLocallyInvalid(session)) return 'revoked';
   if(session.role === 'admin') return 'ok';
   if(!espDataLoaded()) return 'unreachable';
   // Compte introuvable dans des données possiblement périmées : pas de conclusion sans le serveur.
   return espAccountStillExists(session) ? 'ok' : 'unreachable';
 }
+// Rôle migré : le serveur fait foi (jeton inconnu, révoqué, expiré, compte banni ou supprimé
+// => null). Erreur réseau => 'unreachable' (session conservée). Jeton valide => on vérifie
+// encore que le compte figure dans les données chargées, dont dépend le tableau de bord.
+async function espTokenSessionVerdict(session){
+  try {
+    const { data, error } = await supabaseClient.rpc('session_check', { p_token: session.token });
+    if(error) throw error;
+    if(!data || data.role !== session.role || data.id !== session.id) return 'revoked';
+  } catch(e){
+    console.error('[esp] vérification du jeton impossible', e);
+    return 'unreachable';
+  }
+  return null; // jeton valide : suite de la vérification habituelle
+}
 async function espSessionVerdict(){
   const session = espSession();
   const local = espSessionVerdictLocal(session);
-  if(local !== 'unreachable') return local;
+  if(local === 'none' || local === 'revoked') return local;
+  if(espIsTokenRole(session.role)){
+    const tokenVerdict = await espTokenSessionVerdict(session);
+    if(tokenVerdict) return tokenVerdict;
+  }
+  if(local === 'ok') return local;
   // Données absentes ou compte introuvable dans le cache d'onglet : une seule relecture serveur
   // avant de conclure. Si les données viennent déjà du serveur (chargement de cette page), elles
   // font foi et on ne relit pas.
@@ -335,12 +435,15 @@ function platformInit(verdict){
     } else {
       espShowConnectionUnstable();
     }
-  } else if(espCurrentPageIsPublic()){
-    espClearSession(); // 'none' (rien à effacer, ou valeur illisible) ou 'revoked'
-    platformUnlockGuest();
   } else {
+    // 'none' (rien à effacer, ou valeur illisible) ou 'revoked'. Bandeau uniquement quand une
+    // session d'un rôle migré vient d'être refusée (ancien format, jeton expiré ou révoqué).
+    const session = espSession();
+    const showExpired = verdict === 'revoked' && session && espIsTokenRole(session.role);
     espClearSession();
-    platformLock();
+    if(espCurrentPageIsPublic()) platformUnlockGuest();
+    else platformLock();
+    if(showExpired) espShowSessionExpiredNotice();
   }
 }
 
@@ -739,9 +842,13 @@ async function espSubmitEmailForm(role){
   if(!email){ msgEl.innerHTML = '<p class="esp-error">Merci de saisir un e-mail.</p>'; return; }
   try {
     let ok;
-    if(role === 'eleve') ok = await espUpdateEleveEmailRPC(session.id, session.password, email);
-    else if(role === 'inspecteur') ok = await espUpdateInspecteurEmailRPC(session.id, session.password, email);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    if(role === 'eleve'){
+      ok = await espUpdateEleveEmailRPC(email);
+      if(!ok){ msgEl.innerHTML = '<p class="esp-error">Impossible d\'enregistrer l\'e-mail.</p>'; return; }
+    } else if(role === 'inspecteur'){
+      ok = await espUpdateInspecteurEmailRPC(session.id, session.password, email);
+      if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    }
     const db = espDB();
     if(role === 'eleve'){
       const e = db.eleves.find(x => x.id === session.id);
@@ -755,6 +862,11 @@ async function espSubmitEmailForm(role){
       espRenderInspecteurDashboard();
     }
   } catch(e){
+    if(e.espSessionInvalid) return; // bandeau "session expirée" déjà affiché
+    if(/EMAIL_DEJA_UTILISE/.test(e.message || '')){
+      msgEl.innerHTML = '<p class="esp-error">Cet e-mail est déjà utilisé.</p>';
+      return;
+    }
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }

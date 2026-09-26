@@ -109,6 +109,8 @@
     if(!sessionRaw) return;
     var session = JSON.parse(sessionRaw);
     if(!session || !session.role) return;
+    // Rôles migrés aux jetons (cf. ESP_TOKEN_ROLES, auth.js) : ancienne session ou jeton expiré => pas d'affichage anticipé.
+    if(['eleve'].indexOf(session.role) !== -1 && (session.v !== 2 || !session.token || !(session.exp > Date.now()))) return;
     var gate = document.getElementById('auth-gate');
     var wrap = document.getElementById('platform-wrap');
     if(gate) gate.style.display = 'none';

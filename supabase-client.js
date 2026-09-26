@@ -268,10 +268,12 @@ async function espAdminLierPhotosLogoDemandeRPC(password, demandeId, etablisseme
 }
 
 // ---------------- Connexion (vérifiée côté serveur, mot de passe jamais renvoyé) ----------------
-async function espEleveLoginRPC(tel, password){
-  const { data, error } = await supabaseClient.rpc('eleve_login', { p_tel: tel, p_password: password });
+// Ouverture de session élève par jeton : null (identifiants incorrects), {banni:true}
+// (compte suspendu, aucune session créée) ou {token, expires_at, id, ...fiche}.
+async function espEleveSessionOpenRPC(tel, password){
+  const { data, error } = await supabaseClient.rpc('eleve_session_open', { p_tel: tel, p_password: password });
   if(error) throw error;
-  return (data && data[0]) || null;
+  return data || null;
 }
 async function espInspecteurLoginRPC(tel, password){
   const { data, error } = await supabaseClient.rpc('inspecteur_login', { p_tel: tel, p_password: password });
@@ -328,10 +330,9 @@ async function espAdminGetVisiteStatsRPC(adminPassword){
 }
 
 // ---------------- Actions d'écriture sécurisées (vérifient l'identité côté serveur) ----------------
-async function espSaveRiasecRPC(eleveId, password, riasec){
-  const { data, error } = await supabaseClient.rpc('eleve_save_riasec', { p_id: eleveId, p_password: password, p_riasec: riasec });
-  if(error) throw error;
-  return !!data;
+// Élève : authentifié par le jeton de session (espAuthRpc, auth.js).
+async function espSaveRiasecRPC(riasec){
+  return !!(await espAuthRpc('eleve_save_riasec', { p_riasec: riasec }));
 }
 async function espAddNoteRPC(inspecteurId, password, eleveId, texte){
   const { data, error } = await supabaseClient.rpc('inspecteur_add_note', { p_inspecteur_id: inspecteurId, p_password: password, p_eleve_id: eleveId, p_texte: texte });
@@ -522,10 +523,9 @@ async function espRestoreBackupRPC(adminPassword, payload){
   if(error) throw error;
   return !!data;
 }
-async function espUpdateEleveEmailRPC(id, password, email){
-  const { data, error } = await supabaseClient.rpc('eleve_update_email', { p_id: id, p_password: password, p_email: email });
-  if(error) throw error;
-  return !!data;
+// Élève : par jeton. Lève EMAIL_DEJA_UTILISE si un autre élève porte déjà cet e-mail.
+async function espUpdateEleveEmailRPC(email){
+  return !!(await espAuthRpc('eleve_update_email', { p_email: email }));
 }
 async function espUpdateInspecteurEmailRPC(id, password, email){
   const { data, error } = await supabaseClient.rpc('inspecteur_update_email', { p_id: id, p_password: password, p_email: email });

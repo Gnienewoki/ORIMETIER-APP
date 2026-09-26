@@ -59,29 +59,38 @@ async function espEleveRegister(){
     return;
   }
   db.eleves.push(nouvelEleve);
-  espSaveDB(db);
-  espSetSession('eleve', id, pass);
+  espSaveDB(db); // le cache d'onglet n'enregistre jamais la clé "password"
+  // Ouverture de session par jeton, comme une connexion : aucun mot de passe en session.
+  let ouverture = null;
+  try { ouverture = await espEleveSessionOpenRPC(tel, pass); } catch(e){ console.error('[esp] ouverture de session après inscription impossible', e); }
+  if(!ouverture || !ouverture.token){
+    espRenderEleveAuth('login');
+    document.getElementById('esp-eleve-error').innerHTML = '<p class="esp-success">Compte créé. Connecte-toi avec ton téléphone et ton mot de passe.</p>';
+    return;
+  }
+  espSetTokenSession('eleve', ouverture.id, ouverture.token, ouverture.expires_at);
   platformUnlock();
 }
 async function espEleveLogin(){
   const tel = document.getElementById('esp-eleve-tel').value.trim();
   const pass = document.getElementById('esp-eleve-pass').value;
-  let eleve;
+  let ouverture;
   try {
-    eleve = await espEleveLoginRPC(tel, pass);
+    ouverture = await espEleveSessionOpenRPC(tel, pass);
   } catch(e){
     document.getElementById('esp-eleve-error').innerHTML = '<p class="esp-error">Erreur de connexion : ' + escapeHtml(e.message) + '</p>';
     return;
   }
-  if(!eleve){
+  if(!ouverture){
     document.getElementById('esp-eleve-error').innerHTML = '<p class="esp-error">Téléphone ou mot de passe incorrect.</p>';
     return;
   }
-  if(eleve.banni){
+  // Refusé côté serveur : aucune session n'a été ouverte.
+  if(ouverture.banni || !ouverture.token){
     document.getElementById('esp-eleve-error').innerHTML = '<p class="esp-error">Ce compte a été suspendu par l\'administration. Contacte l\'administrateur de la plateforme pour plus d\'informations.</p>';
     return;
   }
-  espSetSession('eleve', eleve.id, pass);
+  espSetTokenSession('eleve', ouverture.id, ouverture.token, ouverture.expires_at);
   platformUnlock();
 }
 function espEleveLogout(){ platformLogout(); }

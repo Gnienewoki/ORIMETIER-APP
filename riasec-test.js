@@ -183,8 +183,10 @@ async function ptSaveToEleveSpace(){
   if(!eleve){ alert("Compte élève introuvable."); return; }
   let ok;
   try {
-    ok = await espSaveRiasecRPC(session.id, session.password, window.__lastRiasecResult);
+    ok = await espSaveRiasecRPC(window.__lastRiasecResult);
   } catch(e){
+    // Jeton refusé : bandeau "Ta session a expiré" déjà affiché, le résultat reste à l'écran.
+    if(e.espSessionInvalid) return;
     alert("Erreur lors de la sauvegarde : " + e.message);
     return;
   }
