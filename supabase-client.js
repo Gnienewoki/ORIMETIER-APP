@@ -1,5 +1,5 @@
 // ============================================================
-// ---- Connexion Supabase / EmailJS + accès aux données ----
+// ---- Connexion Supabase + accès aux données ----
 // ============================================================
 
 // ---------------- Connexion Supabase (base de données partagée) ----------------
@@ -8,13 +8,8 @@
 const SUPABASE_URL = 'https://ltfxaxzkuyejcluoaimq.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_h7s1eQ5VX8iBU2KYTpnZ3w_xRB9Mbl7';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ---------------- Connexion EmailJS (envoi d'e-mails depuis le navigateur, sans serveur) ----------------
-// ⚠️ Remplace ces trois valeurs par celles de TON compte EmailJS (emailjs.com)
-const EMAILJS_PUBLIC_KEY = 'mqDopJTLtKzHrGnmn';
-const EMAILJS_SERVICE_ID = 'service_ng3gj85';
-const EMAILJS_TEMPLATE_ID = 'template_x477zij';
-if(window.emailjs) window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+// Les e-mails (lien "mot de passe oublié") partent de l'Edge Function request-password-reset :
+// plus aucune clé EmailJS côté navigateur.
 
 // Cache local synchronisé avec Supabase (rempli par espLoadFromSupabase())
 let _espCache = null;
@@ -532,22 +527,16 @@ async function espUpdateInspecteurEmailRPC(id, password, email){
   if(error) throw error;
   return !!data;
 }
-async function espRequestPasswordResetRPC(role, email){
-  const { data, error } = await supabaseClient.rpc('request_password_reset', { p_role: role, p_email: email });
+// Mot de passe oublié : le jeton est généré et envoyé par e-mail côté serveur (Edge Function).
+// Réponse toujours { ok: true } si la requête est bien formée, que le compte existe ou non.
+async function espRequestPasswordReset(role, email){
+  const { error } = await supabaseClient.functions.invoke('request-password-reset', { body: { role, email } });
   if(error) throw error;
-  return (data && data[0]) || null;
 }
 async function espResetPasswordWithTokenRPC(token, newPassword){
   const { data, error } = await supabaseClient.rpc('reset_password_with_token', { p_token: token, p_new_password: newPassword });
   if(error) throw error;
   return !!data;
-}
-async function espSendResetEmail(toEmail, resetLink){
-  if(!window.emailjs){ throw new Error("Le service d'envoi d'e-mail n'est pas disponible."); }
-  await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-    to_email: toEmail,
-    reset_link: resetLink,
-  });
 }
 
 function espUid(){ return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
