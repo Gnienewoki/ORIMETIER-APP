@@ -121,15 +121,22 @@ function runSplashSequence(){
 // Cette vérification se fait AVANT tout appel réseau (Supabase), pour que
 // l'écran de démarrage soit masqué instantanément sur les pages qui n'en
 // ont pas besoin — sans ce court flash du logo pendant le chargement.
-const _espResetToken = new URLSearchParams(window.location.search).get('reset');
+// Lien "mot de passe oublié" (#reset=<jeton hex>, envoyé par l'Edge Function request-password-reset) :
+// lu une seule fois puis effacé de l'URL et de l'historique, avant tout appel réseau.
+// _espResetToken vaut '' si le lien est mal formé (écran "lien invalide").
+const _espResetLink = /^#reset=/.test(window.location.hash);
+const _espResetToken = _espResetLink ? ((/^#reset=([0-9a-f]{64})$/.exec(window.location.hash) || [])[1] || '') : null;
+if(_espResetLink){
+  try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch(e){}
+}
 const _espPath = window.location.pathname;
 const _espEstPageAccueil = _espPath === '/' || _espPath === '' || /\/index\.html$/.test(_espPath);
 const _espDejaLancee = sessionStorage.getItem('orimetier_splash_shown');
-const _espDoitJouerAnimation = !_espResetToken && _espEstPageAccueil && !_espDejaLancee;
+const _espDoitJouerAnimation = !_espResetLink && _espEstPageAccueil && !_espDejaLancee;
 
-if(!_espDoitJouerAnimation && !_espResetToken){
-  // Pas la page d'accueil, ou animation déjà jouée dans cette session :
-  // on masque l'écran de démarrage tout de suite, sans attendre Supabase.
+if(!_espDoitJouerAnimation){
+  // Pas la page d'accueil, animation déjà jouée dans cette session, ou lien de
+  // réinitialisation : on masque l'écran de démarrage tout de suite, sans attendre Supabase.
   finishSplash();
 }
 if(_espDoitJouerAnimation){
@@ -195,14 +202,18 @@ function espLogVisiteCourante(){
   // On l'affiche immédiatement ; les données Supabase se greffent après coup.
   // Condition volontairement restrictive : la page doit explicitement fournir
   // window.pageDataReady (seul index.html le fait pour l'instant). Toutes les
-  // autres situations — connecté, page privée, lien ?reset= — attendent, comme avant.
+  // autres situations — connecté, page privée — attendent, comme avant.
   const afficherSansAttendre =
-    !_espResetToken &&
     !espSession() &&
     espCurrentPageIsPublic() &&
     typeof window.pageDataReady === 'function';
 
-  if(afficherSansAttendre){
+  if(_espResetLink){
+    // Lien de réinitialisation : seule la RPC reset_password_with_token est nécessaire,
+    // pas les données de la plateforme — on n'attend donc pas le chargement (cold start).
+    espRenderResetPasswordScreen(_espResetToken);
+    chargement.then(finaliserDonnees);
+  } else if(afficherSansAttendre){
     platformInit('none'); // aucune session ici (cf. condition ci-dessus)
     if(_espDoitJouerAnimation) runSplashSequence();
     chargement.then(finaliserDonnees);
@@ -210,22 +221,17 @@ function espLogVisiteCourante(){
     const err = await chargement;
     // Verdict de session AVANT de masquer l'écran de chargement : il peut relire les données une
     // fois depuis le serveur (cache périmé, chargement raté), et l'utilisateur ne doit pas voir
-    // un portail vide entre-temps. Sans verdict (lien ?reset= ou erreur inattendue), platformInit
-    // retombe sur sa décision locale, qui n'efface jamais la session sur simple doute.
+    // un portail vide entre-temps. Sans verdict (erreur inattendue), platformInit retombe sur
+    // sa décision locale, qui n'efface jamais la session sur simple doute.
     let verdict;
-    if(!_espResetToken){
-      try { verdict = await espSessionVerdict(); } catch(e){ console.error(e); }
-    }
+    try { verdict = await espSessionVerdict(); } catch(e){ console.error(e); }
     finaliserDonnees();
     // Avec une session, un chargement raté n'est plus une alerte technique : c'est l'écran
     // "connexion instable" (platformInit) qui informe, session conservée.
     if(err && !espSession()){
       alert("Impossible de se connecter à la base de données en ligne.\n\nVérifie ta connexion internet, ainsi que les identifiants Supabase (SUPABASE_URL / SUPABASE_ANON_KEY) renseignés dans le fichier, puis recharge la page.\n\nDétail : " + err.message);
     }
-    if(_espResetToken){
-      espRenderResetPasswordScreen(_espResetToken);
-      finishSplash();
-    } else if(_espDoitJouerAnimation){
+    if(_espDoitJouerAnimation){
       platformInit(verdict);
       runSplashSequence();
     } else {
