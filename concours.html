@@ -16,7 +16,6 @@
 <meta name="apple-mobile-web-app-title" content="ORIMETIER">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <!-- Police (Inter) + icones vectorielles (Lucide) via CDN -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -101,8 +100,8 @@
 <script>
 (function(){
   try {
-    var hasResetToken = new URLSearchParams(window.location.search).get('reset');
-    if(hasResetToken) return;
+    // Lien de réinitialisation (#reset=...) : bootstrap.js affiche son propre écran.
+    if(/^#reset=/.test(window.location.hash)) return;
     var sessionRaw = localStorage.getItem('GNK_ESPACES_SESSION');
     if(!sessionRaw) return;
     var session = JSON.parse(sessionRaw);
