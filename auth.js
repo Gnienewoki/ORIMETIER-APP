@@ -872,12 +872,34 @@ async function espSubmitEmailForm(role){
 }
 
 // ---------------- Mot de passe oublié ----------------
-// Réinitialisation en libre-service suspendue (request_password_reset renvoyait le jeton au
-// navigateur) : en attendant la version serveur (Edge Function), on oriente vers le support.
-// espSubmitForgotPassword / espSubmitResetPassword restent en place mais ne sont plus appelées.
+// Demande : Edge Function request-password-reset (espRequestPasswordReset).
+// Lien reçu par e-mail : APP_URL/#reset=<jeton>, lu et retiré de l'URL par bootstrap.js,
+// puis espRenderResetPasswordScreen. Le jeton ne passe jamais par le DOM ni par les journaux.
+const ESP_RESET_ROLES = { eleve: 'Élève', inspecteur: 'Inspecteur', etablissement: 'Établissement' };
+const ESP_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // même règle que l'Edge Function
+let _espPendingResetToken = null;
+
 function espSupportContactHtml(){
   return `<p class="esp-sub">Contactez le support : <a href="tel:+2250787633481">07 87 63 34 81</a> / <a href="mailto:gnienewoki@gmail.com">gnienewoki@gmail.com</a></p>`;
 }
+// Formulaire de demande. role null : l'utilisateur choisit son espace (écran "lien invalide",
+// où le rôle du lien est inconnu).
+function espForgotFormHtml(role){
+  const arg = role ? `'${role}'` : 'null';
+  const roleField = role ? '' : `
+    <div class="esp-field" style="margin-bottom:12px;"><label>Mon espace</label>
+      <select id="esp-forgot-role">${Object.entries(ESP_RESET_ROLES).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>`;
+  return `
+    <p class="esp-sub">Saisis l'e-mail enregistré sur ton compte : tu recevras un lien pour choisir un nouveau mot de passe (valable 1 heure).</p>
+    ${roleField}
+    <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label>
+      <input type="email" id="esp-forgot-email" autocomplete="email" onkeydown="if(event.key==='Enter')espSubmitForgotPassword(${arg})"></div>
+    <button class="esp-btn esp-btn-primary" id="esp-forgot-submit-btn" onclick="espSubmitForgotPassword(${arg})">Envoyer le lien de réinitialisation</button>
+    <div id="esp-forgot-msg"></div>
+    <p class="esp-sub" style="margin-top:14px;">Aucun e-mail enregistré sur ton compte ?</p>
+    ${espSupportContactHtml()}`;
+}
+
 // Affiché à l'intérieur du conteneur d'un espace (ex : 'esp-eleve', 'esp-inspecteur', 'esp-etablissement').
 function espRenderForgotPassword(role, containerId, backToLoginFn){
   const container = document.getElementById(containerId);
@@ -885,73 +907,90 @@ function espRenderForgotPassword(role, containerId, backToLoginFn){
     <button class="esp-back" onclick="(${backToLoginFn})()">${icon('arrow-left')}Retour à la connexion</button>
     <div class="esp-card" style="max-width:520px;margin:0 auto;">
       <div class="esp-title">${icon('key')}Mot de passe oublié</div>
-      ${espSupportContactHtml()}
+      ${espForgotFormHtml(role)}
     </div>
   `;
   espRefreshIcons();
 }
 async function espSubmitForgotPassword(role){
+  role = role || document.getElementById('esp-forgot-role').value;
   const email = document.getElementById('esp-forgot-email').value.trim();
   const msgEl = document.getElementById('esp-forgot-msg');
   const btn = document.getElementById('esp-forgot-submit-btn');
-  if(!email){ msgEl.innerHTML = '<p class="esp-error">Merci de saisir un e-mail.</p>'; return; }
+  if(!ESP_EMAIL_RE.test(email)){ msgEl.innerHTML = '<p class="esp-error">Merci de saisir une adresse e-mail valide.</p>'; return; }
   btn.disabled = true; btn.textContent = 'Envoi en cours...';
   try {
-    const result = await espRequestPasswordResetRPC(role, email);
-    if(result){
-      const resetLink = window.location.origin + window.location.pathname + '?reset=' + encodeURIComponent(result.token);
-      await espSendResetEmail(result.email, resetLink);
-    }
-    // Message volontairement identique, que le compte existe ou non (protège la confidentialité des comptes).
+    await espRequestPasswordReset(role, email);
+    // Message identique que le compte existe ou non (anti-énumération).
     msgEl.innerHTML = '<p class="esp-success">Si un compte existe avec cet e-mail, un lien de réinitialisation vient d\'être envoyé. Vérifie ta boîte de réception (et tes courriers indésirables).</p>';
     btn.style.display = 'none';
   } catch(e){
-    msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>';
+    // Ni l'e-mail ni le détail de la réponse dans les journaux.
+    console.warn('[esp] demande de réinitialisation non aboutie');
+    msgEl.innerHTML = '<p class="esp-error">L\'envoi n\'a pas pu aboutir. Vérifie ta connexion internet puis réessaie.</p>';
     btn.disabled = false; btn.textContent = 'Envoyer le lien de réinitialisation';
   }
 }
 
-// Écran affiché quand l'utilisateur arrive depuis le lien reçu par e-mail (?reset=TOKEN)
-function espRenderResetPasswordScreen(token){
-  const gate = document.getElementById('auth-gate');
-  const wrap = document.getElementById('platform-wrap');
-  const gateContent = document.getElementById('gate-content');
-  wrap.style.display = 'none';
-  gate.style.display = 'flex';
-  // Les liens de réinitialisation déjà envoyés ont été invalidés côté serveur : le formulaire
-  // ne pourrait qu'échouer, on oriente directement vers le support.
-  gateContent.innerHTML = `
-    <div class="esp-card" style="max-width:480px;margin:40px auto;">
-      <div class="esp-title">${icon('key')}Réinitialisation du mot de passe</div>
-      <p class="esp-sub">Ce lien de réinitialisation n'est plus valable.</p>
-      ${espSupportContactHtml()}
-      <button class="esp-btn esp-btn-primary" onclick="window.location.href = window.location.origin + window.location.pathname">Retour à la connexion</button>
-    </div>
-  `;
+function espShowResetGate(html){
+  document.getElementById('platform-wrap').style.display = 'none';
+  document.getElementById('auth-gate').style.display = 'flex';
+  document.getElementById('gate-content').innerHTML = html;
   espRefreshIcons();
 }
-async function espSubmitResetPassword(token){
+
+// Écran affiché quand l'utilisateur arrive depuis le lien reçu par e-mail.
+// token : jeton lu dans #reset= ; '' si le lien est mal formé (tronqué par le client mail...).
+function espRenderResetPasswordScreen(token){
+  if(!token){ espRenderResetLinkInvalid(); return; }
+  _espPendingResetToken = token; // en mémoire uniquement, jamais dans le HTML
+  espShowResetGate(`
+    <div class="esp-card" style="max-width:480px;margin:40px auto;">
+      <div class="esp-title">${icon('key')}Nouveau mot de passe</div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Nouveau mot de passe</label>
+        <input type="password" id="esp-reset-pass1" autocomplete="new-password"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label>Confirmer le mot de passe</label>
+        <input type="password" id="esp-reset-pass2" autocomplete="new-password" onkeydown="if(event.key==='Enter')espSubmitResetPassword()"></div>
+      <button class="esp-btn esp-btn-primary" id="esp-reset-submit-btn" onclick="espSubmitResetPassword()">Valider le nouveau mot de passe</button>
+      <div id="esp-reset-msg"></div>
+    </div>
+  `);
+}
+
+// Un seul message pour jeton inconnu, expiré ou déjà utilisé (la RPC ne les distingue pas non plus).
+function espRenderResetLinkInvalid(){
+  _espPendingResetToken = null;
+  espShowResetGate(`
+    <div class="esp-card" style="max-width:480px;margin:40px auto;">
+      <div class="esp-title">${icon('key')}Lien de réinitialisation invalide</div>
+      <p class="esp-error">Ce lien n'est plus valable : il a peut-être expiré, déjà servi, ou il est incomplet.</p>
+      ${espForgotFormHtml(null)}
+      <button class="esp-btn" style="margin-top:12px;" onclick="window.location.replace('espaces.html')">Retour à la connexion</button>
+    </div>
+  `);
+}
+
+async function espSubmitResetPassword(){
   const pass1 = document.getElementById('esp-reset-pass1').value;
   const pass2 = document.getElementById('esp-reset-pass2').value;
   const msgEl = document.getElementById('esp-reset-msg');
   const btn = document.getElementById('esp-reset-submit-btn');
-  if(!pass1 || pass1.length < 4){ msgEl.innerHTML = '<p class="esp-error">Le mot de passe doit contenir au moins 4 caractères.</p>'; return; }
+  if(pass1.length < 4){ msgEl.innerHTML = '<p class="esp-error">Le mot de passe doit contenir au moins 4 caractères.</p>'; return; }
   if(pass1 !== pass2){ msgEl.innerHTML = '<p class="esp-error">Les deux mots de passe ne correspondent pas.</p>'; return; }
   btn.disabled = true; btn.textContent = 'Validation en cours...';
   try {
-    const ok = await espResetPasswordWithTokenRPC(token, pass1);
-    if(!ok){
-      msgEl.innerHTML = '<p class="esp-error">Ce lien est invalide ou a expiré (valable 1 heure). Merci de refaire une demande de réinitialisation.</p>';
-      btn.disabled = false; btn.textContent = 'Valider le nouveau mot de passe';
-      return;
-    }
-    msgEl.innerHTML = '<p class="esp-success">Mot de passe mis à jour ! Tu peux maintenant te connecter avec ton nouveau mot de passe.</p>';
+    const ok = await espResetPasswordWithTokenRPC(_espPendingResetToken, pass1);
+    if(!ok){ espRenderResetLinkInvalid(); return; }
+    _espPendingResetToken = null;
+    // Le serveur a révoqué toutes les sessions du compte : on oublie aussi celle de cet appareil.
+    espClearSession();
+    msgEl.innerHTML = '<p class="esp-success">Mot de passe mis à jour ! Redirection vers la connexion...</p>';
     btn.style.display = 'none';
-    setTimeout(() => {
-      window.location.href = window.location.origin + window.location.pathname; // retire ?reset=... de l'URL
-    }, 2500);
+    setTimeout(() => window.location.replace('espaces.html'), 2500);
   } catch(e){
-    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    msgEl.innerHTML = /MOT_DE_PASSE_INVALIDE/.test(e.message || '')
+      ? '<p class="esp-error">Ce mot de passe n\'est pas accepté. Choisis-en un autre (4 caractères minimum).</p>'
+      : '<p class="esp-error">La mise à jour n\'a pas pu aboutir. Vérifie ta connexion internet puis réessaie.</p>';
     btn.disabled = false; btn.textContent = 'Valider le nouveau mot de passe';
   }
 }
