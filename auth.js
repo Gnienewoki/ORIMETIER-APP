@@ -59,19 +59,25 @@ async function espAuthRpc(name, params){
 }
 // Page publique : on repasse en mode visiteur sans relancer pageInit (le visiteur garde ce
 // qu'il a à l'écran, ex : son résultat de test RIASEC). Page privée : retour au portail.
+// Le rôle est lu AVANT d'effacer la session : le bandeau renvoie vers la bonne connexion.
 function espHandleSessionInvalid(){
+  const session = espSession();
+  const role = session ? session.role : null;
   espClearSession();
   if(espCurrentPageIsPublic()) updateAuthBar();
   else platformLock();
-  espShowSessionExpiredNotice();
+  espShowSessionExpiredNotice(role);
 }
-function espShowSessionExpiredNotice(){
+// role : rôle de la session qui vient d'expirer. Le lien mène à la connexion de ce rôle ; rôle
+// inconnu ou absent : portail de choix du rôle.
+function espShowSessionExpiredNotice(role){
   if(document.getElementById('esp-session-expired')) return;
   const bar = document.createElement('div');
   bar.id = 'esp-session-expired';
   bar.setAttribute('role', 'status');
   bar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);font-size:13px;';
-  bar.innerHTML = `<span>${icon('triangle-alert')}Ta session a expiré, reconnecte-toi.</span><a class="esp-btn" href="espaces.html?role=eleve">Se connecter</a>`;
+  const loginHref = ESP_SESSION_ROLES.includes(role) ? `espaces.html?role=${role}` : 'espaces.html';
+  bar.innerHTML = `<span>${icon('triangle-alert')}Ta session a expiré, reconnecte-toi.</span><a class="esp-btn" href="${loginHref}">Se connecter</a>`;
   const wrap = document.getElementById('platform-wrap');
   if(wrap && wrap.parentNode) wrap.parentNode.insertBefore(bar, wrap);
   else document.body.insertBefore(bar, document.body.firstChild);
@@ -443,7 +449,7 @@ function platformInit(verdict){
     espClearSession();
     if(espCurrentPageIsPublic()) platformUnlockGuest();
     else platformLock();
-    if(showExpired) espShowSessionExpiredNotice();
+    if(showExpired) espShowSessionExpiredNotice(session.role);
   }
 }
 
