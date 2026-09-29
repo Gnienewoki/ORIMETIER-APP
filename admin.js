@@ -47,39 +47,6 @@ function espExportBackup(){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function espImportBackup(input){
-  const file = input.files && input.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const parsed = JSON.parse(e.target.result);
-      const imported = parsed.db ? parsed.db : parsed; // compatibilité avec anciennes sauvegardes
-      if(!imported || !Array.isArray(imported.eleves) || !Array.isArray(imported.inspecteurs) || !Array.isArray(imported.etablissements)){
-        alert("Ce fichier ne semble pas être une sauvegarde ORIMETIER valide.");
-        return;
-      }
-      if(!confirm("Importer cette sauvegarde va remplacer toutes les données actuelles (comptes élèves, inspecteurs, établissements, notes). Continuer ?")) return;
-      const session = espSession();
-      const payload = {
-        eleves: (imported.eleves||[]).map(espEleveToRow),
-        inspecteurs: (imported.inspecteurs||[]).map(espInspecteurToRow),
-        etablissements: (imported.etablissements||[]).map(espEtabToRow),
-        notes: (imported.notes||[]).map(espNoteToRow),
-      };
-      const ok = await espRestoreBackupRPC(session.password, payload);
-      if(!ok){ alert("Mot de passe administrateur invalide ou session expirée."); return; }
-      await espLoadFromSupabase(true);
-      alert("Sauvegarde importée avec succès.");
-      espRenderAdminDashboard('overview');
-    } catch(err){
-      alert("Impossible de lire ce fichier : " + err.message);
-    }
-  };
-  reader.readAsText(file);
-  input.value = '';
-}
-
 function espRenderAdminDashboard(sub){
   const db = espDB();
   const enAttente = db.etablissements.filter(e => e.statut === 'en_attente').length;
