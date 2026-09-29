@@ -513,11 +513,6 @@ async function espSetFiliereStatutRPC(adminPassword, etabId, filiereId, statut){
   if(error) throw error;
   return !!data;
 }
-async function espRestoreBackupRPC(adminPassword, payload){
-  const { data, error } = await supabaseClient.rpc('admin_restore_backup', { p_admin_password: adminPassword, p_payload: payload });
-  if(error) throw error;
-  return !!data;
-}
 // Élève : par jeton. Lève EMAIL_DEJA_UTILISE si un autre élève porte déjà cet e-mail.
 async function espUpdateEleveEmailRPC(email){
   return !!(await espAuthRpc('eleve_update_email', { p_email: email }));
