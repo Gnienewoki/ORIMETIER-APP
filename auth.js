@@ -14,16 +14,19 @@ function espClearSession(){
 }
 
 // ---------------- Sessions par jeton (migration progressive, rôle par rôle) ----------------
-// Rôles déjà migrés : la session locale est {v:2, role, id, token, exp} (exp en ms), sans
+// Rôles déjà migrés : la session locale est {v:2, role, id, token, exp[, nom]} (exp en ms), sans
 // aucun mot de passe. Le jeton est vérifié côté serveur (session_check / _session_user).
+// nom : facultatif, affiché dans la barre du haut (admin).
 // Les autres rôles gardent l'ancien format {role, id, password} jusqu'à leur phase.
 // Doit rester synchronisé avec la liste des 8 scripts inline anti-flash des pages HTML.
-const ESP_TOKEN_ROLES = ['eleve'];
+const ESP_TOKEN_ROLES = ['eleve', 'admin'];
 const ESP_TOKEN_SESSION_FALLBACK_MS = 30 * 24 * 3600 * 1000;
-function espSetTokenSession(role, id, token, expiresAt){
+function espSetTokenSession(role, id, token, expiresAt, nom){
   let exp = Date.parse(expiresAt);
   if(isNaN(exp)) exp = Date.now() + ESP_TOKEN_SESSION_FALLBACK_MS;
-  try { localStorage.setItem(ESP_SESSION_KEY, JSON.stringify({v:2, role, id, token, exp})); } catch(e){}
+  const session = {v:2, role, id, token, exp};
+  if(nom) session.nom = nom;
+  try { localStorage.setItem(ESP_SESSION_KEY, JSON.stringify(session)); } catch(e){}
 }
 function espIsTokenRole(role){ return ESP_TOKEN_ROLES.includes(role); }
 // Session d'un rôle migré inutilisable sans même interroger le serveur : ancien format
@@ -64,6 +67,8 @@ function espHandleSessionInvalid(){
   const session = espSession();
   const role = session ? session.role : null;
   espClearSession();
+  // Caches admin en mémoire (admin.js), comme à la déconnexion.
+  if(typeof espAdminResetCaches === 'function') espAdminResetCaches();
   if(espCurrentPageIsPublic()) updateAuthBar();
   else platformLock();
   espShowSessionExpiredNotice(role);
@@ -168,7 +173,7 @@ function espEtabCategorieLabel(etab){
 
 function espCurrentUserLabel(session){
   const db = espDB();
-  if(session.role === 'admin') return { nom:'Administrateur', role:'Administrateur' };
+  if(session.role === 'admin') return { nom: session.nom || 'Administrateur', role:'Administrateur' };
   if(session.role === 'inspecteur'){ const i = db.inspecteurs.find(x=>x.id===session.id); return { nom: i ? (i.nom+' '+(i.prenoms||'')).trim() : '', role:"Inspecteur d'orientation" }; }
   if(session.role === 'eleve'){ const e = db.eleves.find(x=>x.id===session.id); return { nom: e ? (e.nom+' '+(e.prenoms||'')).trim() : '', role:'Élève' }; }
   if(session.role === 'etablissement'){ const e = db.etablissements.find(x=>x.id===session.id); return { nom: e ? e.nom : '', role:'Établissement' }; }
