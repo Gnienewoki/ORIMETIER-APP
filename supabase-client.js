@@ -241,25 +241,18 @@ function espRowToDemandeInscription(r){
     dateDemande: r.date_demande, statutDemande: r.statut_demande,
   };
 }
-async function espAdminListDemandesInscriptionRPC(password){
-  const { data, error } = await supabaseClient.rpc('admin_list_demandes_inscription_etablissements', { p_admin_password: password });
-  if(error) throw error;
-  return (data || []).map(espRowToDemandeInscription);
+// Admin : authentifié par le jeton de session (espAuthRpc, auth.js), comme les élèves.
+async function espAdminListDemandesInscriptionRPC(){
+  return ((await espAuthRpc('admin_list_demandes_inscription_etablissements_v2')) || []).map(espRowToDemandeInscription);
 }
-async function espAdminMarquerDemandeTraiteeRPC(password, demandeId){
-  const { data, error } = await supabaseClient.rpc('admin_marquer_demande_traitee', { p_admin_password: password, p_demande_id: demandeId });
-  if(error) throw error;
-  return !!data;
+async function espAdminMarquerDemandeTraiteeRPC(demandeId){
+  return !!(await espAuthRpc('admin_marquer_demande_traitee_v2', { p_demande_id: demandeId }));
 }
 // Recopie photos/logo_url d'une demande vers l'établissement fraîchement importé (import
 // texte, cf. admin_bulk_import_etablissements) et marque la demande traitée en une seule
 // opération — cf. supabase-migration-2026-08-22-lien-demande-etablissement.sql.
-async function espAdminLierPhotosLogoDemandeRPC(password, demandeId, etablissementId){
-  const { data, error } = await supabaseClient.rpc('admin_lier_photos_logo_demande', {
-    p_admin_password: password, p_demande_id: demandeId, p_etablissement_id: etablissementId,
-  });
-  if(error) throw error;
-  return !!data;
+async function espAdminLierPhotosLogoDemandeRPC(demandeId, etablissementId){
+  return !!(await espAuthRpc('admin_lier_photos_logo_demande_v2', { p_demande_id: demandeId, p_etablissement_id: etablissementId }));
 }
 
 // ---------------- Connexion (vérifiée côté serveur, mot de passe jamais renvoyé) ----------------
@@ -299,10 +292,12 @@ async function espEtabGetOwnRPC(etabId, password){
   if(error) throw error;
   return (data && data[0]) ? espRowToEtab(data[0]) : null;
 }
-async function espAdminLoginRPC(password){
-  const { data, error } = await supabaseClient.rpc('admin_login', { p_password: password });
+// Ouverture de session admin par jeton : null (e-mail inconnu, mauvais mot de passe ou compte
+// désactivé, indistinguables) ou {token, expires_at, id, nom}. Session serveur de 24 h.
+async function espAdminSessionOpenRPC(email, password){
+  const { data, error } = await supabaseClient.rpc('admin_session_open', { p_email: email, p_password: password });
   if(error) throw error;
-  return !!data;
+  return data || null;
 }
 
 // ---------------- Statistiques de visites (log brut, écriture publique) ----------------
@@ -314,14 +309,11 @@ async function espLogVisiteRPC(page){
   if(error) throw error;
   return !!data;
 }
-// Statistiques agrégées (jour/page/nombre de visites), réservées à l'admin. Lève une
-// erreur "unauthorized" (via l'exception SQL) sur mot de passe invalide — géré côté
-// appelant comme les autres listes admin (admin_get_visite_stats côté base agrège déjà,
-// on ne fait que renvoyer les lignes telles quelles).
-async function espAdminGetVisiteStatsRPC(adminPassword){
-  const { data, error } = await supabaseClient.rpc('admin_get_visite_stats', { p_admin_password: adminPassword });
-  if(error) throw error;
-  return data || [];
+// Statistiques agrégées (jour/page/nombre de visites), réservées à l'admin. Jeton refusé :
+// P0401, géré par espAuthRpc (admin_get_visite_stats_v2 agrège déjà côté base, on ne fait
+// que renvoyer les lignes telles quelles).
+async function espAdminGetVisiteStatsRPC(){
+  return (await espAuthRpc('admin_get_visite_stats_v2')) || [];
 }
 
 // ---------------- Actions d'écriture sécurisées (vérifient l'identité côté serveur) ----------------
@@ -342,13 +334,11 @@ async function espPostMessageRPC(inspecteurId, password, texte, type, replyTo, a
   if(error) throw error;
   return !!data;
 }
-async function espAdminPostMessageRPC(adminPassword, texte, type, replyTo, attachment){
-  const { data, error } = await supabaseClient.rpc('admin_post_message', {
-    p_admin_password: adminPassword, p_texte: texte, p_type: type || 'O', p_reply_to: replyTo || null,
+async function espAdminPostMessageRPC(texte, type, replyTo, attachment){
+  return !!(await espAuthRpc('admin_post_message_v2', {
+    p_texte: texte, p_type: type || 'O', p_reply_to: replyTo || null,
     p_attachment_url: (attachment && attachment.url) || null, p_attachment_type: (attachment && attachment.type) || null, p_attachment_name: (attachment && attachment.name) || null,
-  });
-  if(error) throw error;
-  return !!data;
+  }));
 }
 // ---------------- Messagerie privée : envoyer / marquer comme lu ----------------
 async function espPostPrivateMessageRPC(expediteurId, password, destinataireId, texte, attachment){
@@ -434,24 +424,18 @@ async function espUploadAvatarFile(file){
   const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
   return data.publicUrl;
 }
-async function espAdminDeleteMessageRPC(adminPassword, messageId){
-  const { data, error } = await supabaseClient.rpc('admin_delete_message', { p_admin_password: adminPassword, p_message_id: messageId });
-  if(error) throw error;
-  return !!data;
+async function espAdminDeleteMessageRPC(messageId){
+  return !!(await espAuthRpc('admin_delete_message_v2', { p_message_id: messageId }));
 }
 // p_id null = création, sinon mise à jour. Retourne l'id de la ligne (ou null si refusé).
-async function espAdminUpsertLienFormationRPC(adminPassword, id, titre, description, url, audience){
-  const { data, error } = await supabaseClient.rpc('admin_upsert_lien_formation', {
-    p_admin_password: adminPassword, p_id: id || null, p_titre: titre, p_description: description,
+async function espAdminUpsertLienFormationRPC(id, titre, description, url, audience){
+  return await espAuthRpc('admin_upsert_lien_formation_v2', {
+    p_id: id || null, p_titre: titre, p_description: description,
     p_url: url, p_audience: audience,
   });
-  if(error) throw error;
-  return data;
 }
-async function espAdminDeleteLienFormationRPC(adminPassword, id){
-  const { data, error } = await supabaseClient.rpc('admin_delete_lien_formation', { p_admin_password: adminPassword, p_id: id });
-  if(error) throw error;
-  return !!data;
+async function espAdminDeleteLienFormationRPC(id){
+  return !!(await espAuthRpc('admin_delete_lien_formation_v2', { p_id: id }));
 }
 // ---------------- Bandeau d'annonce admin (site-wide) ----------------
 async function espUploadAnnonceImage(file){
@@ -464,54 +448,38 @@ async function espUploadAnnonceImage(file){
 }
 // p_id null = création (publiée immédiatement), sinon modification du contenu d'une
 // annonce précise (son statut actif/inactif n'est pas touché). Retourne l'id de la ligne
-// créée/modifiée, ou null si refusé (mot de passe invalide, contenu manquant, ou déjà 5
+// créée/modifiée, ou null si refusé (contenu manquant, annonce introuvable, ou déjà 5
 // annonces actives lors d'une création).
-async function espAdminUpsertAnnonceRPC(adminPassword, id, type, texte, imageUrl){
-  const { data, error } = await supabaseClient.rpc('admin_upsert_annonce', {
-    p_admin_password: adminPassword, p_id: id || null, p_type: type, p_texte: texte || null, p_image_url: imageUrl || null,
+async function espAdminUpsertAnnonceRPC(id, type, texte, imageUrl){
+  return await espAuthRpc('admin_upsert_annonce_v2', {
+    p_id: id || null, p_type: type, p_texte: texte || null, p_image_url: imageUrl || null,
   });
-  if(error) throw error;
-  return data;
 }
-async function espAdminSetAnnonceActiveRPC(adminPassword, id, active){
-  const { data, error } = await supabaseClient.rpc('admin_set_annonce_active', { p_admin_password: adminPassword, p_id: id, p_active: active });
-  if(error) throw error;
-  return !!data;
+async function espAdminSetAnnonceActiveRPC(id, active){
+  return !!(await espAuthRpc('admin_set_annonce_active_v2', { p_id: id, p_active: active }));
 }
-async function espAdminSupprimerAnnonceRPC(adminPassword, id){
-  const { data, error } = await supabaseClient.rpc('admin_supprimer_annonce', { p_admin_password: adminPassword, p_id: id });
-  if(error) throw error;
-  return !!data;
+async function espAdminSupprimerAnnonceRPC(id){
+  return !!(await espAuthRpc('admin_supprimer_annonce_v2', { p_id: id }));
 }
-async function espAdminSetInspecteurBanniRPC(adminPassword, inspecteurId, banni){
-  const { data, error } = await supabaseClient.rpc('admin_set_inspecteur_banni', { p_admin_password: adminPassword, p_inspecteur_id: inspecteurId, p_banni: banni });
-  if(error) throw error;
-  return !!data;
+async function espAdminSetInspecteurBanniRPC(inspecteurId, banni){
+  return !!(await espAuthRpc('admin_set_inspecteur_banni_v2', { p_inspecteur_id: inspecteurId, p_banni: banni }));
 }
-async function espAdminSetInspecteurCertifieRPC(adminPassword, inspecteurId, certifie){
-  const { data, error } = await supabaseClient.rpc('admin_set_inspecteur_certifie', { p_admin_password: adminPassword, p_inspecteur_id: inspecteurId, p_certifie: certifie });
-  if(error) throw error;
-  return !!data;
+async function espAdminSetInspecteurCertifieRPC(inspecteurId, certifie){
+  return !!(await espAuthRpc('admin_set_inspecteur_certifie_v2', { p_inspecteur_id: inspecteurId, p_certifie: certifie }));
 }
-async function espAdminSetEleveBanniRPC(adminPassword, eleveId, banni){
-  const { data, error } = await supabaseClient.rpc('admin_set_eleve_banni', { p_admin_password: adminPassword, p_eleve_id: eleveId, p_banni: banni });
-  if(error) throw error;
-  return !!data;
+async function espAdminSetEleveBanniRPC(eleveId, banni){
+  return !!(await espAuthRpc('admin_set_eleve_banni_v2', { p_eleve_id: eleveId, p_banni: banni }));
 }
-async function espSetEtabStatutRPC(adminPassword, etabId, statut){
-  const { data, error } = await supabaseClient.rpc('admin_set_etab_statut', { p_admin_password: adminPassword, p_etab_id: etabId, p_statut: statut });
-  if(error) throw error;
-  return !!data;
+async function espSetEtabStatutRPC(etabId, statut){
+  return !!(await espAuthRpc('admin_set_etab_statut_v2', { p_etab_id: etabId, p_statut: statut }));
 }
 async function espEtabUpdateLocalisationRPC(etabId, password, region, ville, quartier){
   const { data, error } = await supabaseClient.rpc('etablissement_update_localisation', { p_etab_id: etabId, p_password: password, p_region: region, p_ville: ville, p_quartier: quartier });
   if(error) throw error;
   return !!data;
 }
-async function espSetFiliereStatutRPC(adminPassword, etabId, filiereId, statut){
-  const { data, error } = await supabaseClient.rpc('admin_set_filiere_statut', { p_admin_password: adminPassword, p_etab_id: etabId, p_filiere_id: filiereId, p_statut: statut });
-  if(error) throw error;
-  return !!data;
+async function espSetFiliereStatutRPC(etabId, filiereId, statut){
+  return !!(await espAuthRpc('admin_set_filiere_statut_v2', { p_etab_id: etabId, p_filiere_id: filiereId, p_statut: statut }));
 }
 // Élève : par jeton. Lève EMAIL_DEJA_UTILISE si un autre élève porte déjà cet e-mail.
 async function espUpdateEleveEmailRPC(email){
@@ -677,43 +645,27 @@ async function espEtabDemanderPremiumRPC(etabId, password){
   if(error) throw error;
   return !!data;
 }
-async function espAdminSetEtabPremiumRPC(adminPassword, etabId, premium){
-  const { data, error } = await supabaseClient.rpc('admin_set_etab_premium', {
-    p_admin_password: adminPassword, p_etab_id: etabId, p_premium: premium,
-  });
-  if(error) throw error;
-  return !!data;
+async function espAdminSetEtabPremiumRPC(etabId, premium){
+  return !!(await espAuthRpc('admin_set_etab_premium_v2', { p_etab_id: etabId, p_premium: premium }));
 }
-async function espAdminValiderPremiumRPC(adminPassword, etabId){
-  const { data, error } = await supabaseClient.rpc('admin_valider_premium', {
-    p_admin_password: adminPassword, p_etab_id: etabId,
-  });
-  if(error) throw error;
-  return !!data;
+async function espAdminValiderPremiumRPC(etabId){
+  return !!(await espAuthRpc('admin_valider_premium_v2', { p_etab_id: etabId }));
 }
 // Version complète (responsable, contact_tel, email/tel non masqués) réservée à l'espace
 // admin : contrairement à list_etablissements() (publique, masquée), jamais mise dans le
 // cache partagé espDB() — consommée séparément par la vue "Établissements" de admin.js.
-async function espAdminListEtablissementsFullRPC(adminPassword){
-  const { data, error } = await supabaseClient.rpc('admin_list_etablissements_full', {
-    p_admin_password: adminPassword,
-  });
-  if(error) throw error;
-  return data || [];
+async function espAdminListEtablissementsFullRPC(){
+  return (await espAuthRpc('admin_list_etablissements_full_v2')) || [];
 }
 
 // ---------------- Admin : suppression et classification d'un établissement ----------------
-async function espAdminDeleteEtabRPC(adminPassword, etabId){
-  const { data, error } = await supabaseClient.rpc('admin_delete_etablissement', { p_admin_password: adminPassword, p_etab_id: etabId });
-  if(error) throw error;
-  return !!data;
+async function espAdminDeleteEtabRPC(etabId){
+  return !!(await espAuthRpc('admin_delete_etablissement_v2', { p_etab_id: etabId }));
 }
-async function espAdminUpdateEtabClassificationRPC(adminPassword, etabId, categorie, sousCategorie, secteur){
-  const { data, error } = await supabaseClient.rpc('admin_update_etab_classification', {
-    p_admin_password: adminPassword, p_etab_id: etabId, p_categorie: categorie, p_sous_categorie: sousCategorie, p_secteur: secteur,
-  });
-  if(error) throw error;
-  return !!data;
+async function espAdminUpdateEtabClassificationRPC(etabId, categorie, sousCategorie, secteur){
+  return !!(await espAuthRpc('admin_update_etab_classification_v2', {
+    p_etab_id: etabId, p_categorie: categorie, p_sous_categorie: sousCategorie, p_secteur: secteur,
+  }));
 }
 // Import en masse d'établissements (Général ou Supérieur privé) pré-inscrits par
 // l'administrateur. categorie : 'general' | 'superieur'. sousCategorie : requis
@@ -721,29 +673,19 @@ async function espAdminUpdateEtabClassificationRPC(adminPassword, etabId, catego
 // items : tableau de { nom, region, ville, quartier, secteur, responsable, tel }.
 // Retourne, pour chaque ligne importée, le code de récupération à transmettre
 // hors-plateforme à l'établissement concerné.
-async function espAdminBulkImportEtabRPC(adminPassword, categorie, sousCategorie, items){
-  const { data, error } = await supabaseClient.rpc('admin_bulk_import_etablissements', {
-    p_admin_password: adminPassword, p_categorie: categorie, p_sous_categorie: sousCategorie || null, p_items: items,
-  });
-  if(error) throw error;
-  return data || [];
+async function espAdminBulkImportEtabRPC(categorie, sousCategorie, items){
+  return (await espAuthRpc('admin_bulk_import_etablissements_v2', {
+    p_categorie: categorie, p_sous_categorie: sousCategorie || null, p_items: items,
+  })) || [];
 }
 // Liste permanente des établissements pré-inscrits pas encore réclamés, avec leur code
 // (contrairement au résultat affiché juste après un import, disponible à tout moment).
-async function espAdminListUnclaimedCodesRPC(adminPassword){
-  const { data, error } = await supabaseClient.rpc('admin_list_unclaimed_codes', {
-    p_admin_password: adminPassword,
-  });
-  if(error) throw error;
-  return data || [];
+async function espAdminListUnclaimedCodesRPC(){
+  return (await espAuthRpc('admin_list_unclaimed_codes_v2')) || [];
 }
 // Liste permanente de TOUS les établissements pré-inscrits avec leur code de
 // récupération, réclamé ou non (contrairement à admin_list_unclaimed_codes qui
 // ne renvoie que les codes pas encore réclamés) — utilisée pour l'export CSV/Excel.
-async function espAdminListAllEtabCodesRPC(adminPassword){
-  const { data, error } = await supabaseClient.rpc('admin_list_all_etablissement_codes', {
-    p_admin_password: adminPassword,
-  });
-  if(error) throw error;
-  return data || [];
+async function espAdminListAllEtabCodesRPC(){
+  return (await espAuthRpc('admin_list_all_etablissement_codes_v2')) || [];
 }
