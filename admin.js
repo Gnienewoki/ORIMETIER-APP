@@ -6,9 +6,13 @@ function espRenderAdminLogin(){
     <div class="esp-card" style="max-width:420px;margin:0 auto;">
       <div class="esp-title">${icon('wrench')}Espace Administrateur</div>
       <div id="esp-admin-error"></div>
+      <div class="esp-field">
+        <label>E-mail</label>
+        <input type="email" id="esp-admin-email" autocomplete="username" onkeydown="if(event.key==='Enter')espAdminLogin()">
+      </div>
       <div class="esp-field" style="margin-bottom:14px;">
-        <label>Mot de passe administrateur</label>
-        <input type="password" id="esp-admin-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')espAdminLogin()">
+        <label>Mot de passe</label>
+        <input type="password" id="esp-admin-pass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')espAdminLogin()">
       </div>
       <button class="esp-btn esp-btn-primary" onclick="espAdminLogin()">Se connecter</button>
     </div>
@@ -16,22 +20,27 @@ function espRenderAdminLogin(){
   espRefreshIcons();
 }
 async function espAdminLogin(){
+  const email = document.getElementById('esp-admin-email').value.trim();
   const pass = document.getElementById('esp-admin-pass').value;
-  let ok;
+  let ouverture;
   try {
-    ok = await espAdminLoginRPC(pass);
+    ouverture = await espAdminSessionOpenRPC(email, pass);
   } catch(e){
     document.getElementById('esp-admin-error').innerHTML = '<p class="esp-error">Erreur de connexion : ' + escapeHtml(e.message) + '</p>';
     return;
   }
-  if(!ok){
-    document.getElementById('esp-admin-error').innerHTML = '<p class="esp-error">Mot de passe incorrect.</p>';
+  // Même message pour un e-mail inconnu, un mauvais mot de passe ou un compte désactivé :
+  // le serveur ne les distingue pas.
+  if(!ouverture || !ouverture.token){
+    document.getElementById('esp-admin-error').innerHTML = '<p class="esp-error">E-mail ou mot de passe incorrect, ou compte désactivé.</p>';
     return;
   }
-  espSetSession('admin', null, pass);
+  espSetTokenSession('admin', ouverture.id, ouverture.token, ouverture.expires_at, ouverture.nom);
   platformUnlock();
 }
-function espAdminLogout(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; platformLogout(); }
+// Caches admin en mémoire : vidés à la déconnexion et sur session refusée (auth.js, espHandleSessionInvalid).
+function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; }
+function espAdminLogout(){ espAdminResetCaches(); platformLogout(); }
 
 function espExportBackup(){
   const db = espDB();
@@ -371,13 +380,12 @@ let _espAdminEtabFullLoading = false;
 async function espAdminEnsureEtabFullLoaded(){
   if(_espAdminEtabFull !== null || _espAdminEtabFullLoading) return;
   _espAdminEtabFullLoading = true;
-  const session = espSession();
   let rows;
   try {
-    rows = await espAdminListEtablissementsFullRPC(session.password);
+    rows = await espAdminListEtablissementsFullRPC();
   } catch(err){
     _espAdminEtabFullLoading = false;
-    if(err && /unauthorized/i.test(err.message||'')){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+    if(err.espSessionInvalid) return;
     alert("Erreur lors du chargement des établissements : " + err.message);
     return;
   }
@@ -399,13 +407,12 @@ let _espAdminDemandesInscriptionLoading = false;
 async function espAdminEnsureDemandesInscriptionLoaded(){
   if(_espAdminDemandesInscription !== null || _espAdminDemandesInscriptionLoading) return;
   _espAdminDemandesInscriptionLoading = true;
-  const session = espSession();
   let rows;
   try {
-    rows = await espAdminListDemandesInscriptionRPC(session.password);
+    rows = await espAdminListDemandesInscriptionRPC();
   } catch(err){
     _espAdminDemandesInscriptionLoading = false;
-    if(err && /unauthorized/i.test(err.message||'')){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+    if(err.espSessionInvalid) return;
     alert("Erreur lors du chargement des demandes d'inscription : " + err.message);
     return;
   }
@@ -594,46 +601,42 @@ function espAdminSearchEleve(query){
   espRefreshIcons();
 }
 async function espAdminToggleEleveBanni(eleveId, nouvelEtat){
-  const session = espSession();
   const db = espDB();
   const e = db.eleves.find(x => x.id === eleveId);
   if(!e) return;
   if(nouvelEtat && !confirm(`Bannir ${e.nom} ${e.prenoms||''} ? Cette personne ne pourra plus se connecter.`)) return;
   let ok;
-  try { ok = await espAdminSetEleveBanniRPC(session.password, eleveId, nouvelEtat); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { ok = await espAdminSetEleveBanniRPC(eleveId, nouvelEtat); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Compte introuvable (supprimé entre-temps ?)."); return; }
   e.banni = nouvelEtat; espSaveDB(db);
   const searchInput = document.getElementById('esp-ban-eleve-search');
   if(searchInput) espAdminSearchEleve(searchInput.value);
 }
 async function espAdminToggleCertifie(inspecteurId, nouvelEtat){
-  const session = espSession();
   const db = espDB();
   const i = db.inspecteurs.find(x => x.id === inspecteurId);
   if(!i) return;
   let ok;
-  try { ok = await espAdminSetInspecteurCertifieRPC(session.password, inspecteurId, nouvelEtat); }
-  catch(e){ alert('Erreur : ' + e.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { ok = await espAdminSetInspecteurCertifieRPC(inspecteurId, nouvelEtat); }
+  catch(e){ if(e.espSessionInvalid) return; alert('Erreur : ' + e.message); return; }
+  if(!ok){ alert("Compte introuvable (supprimé entre-temps ?)."); return; }
   i.certifie = nouvelEtat;
   if(nouvelEtat) i.certificationDemandee = false;
   espSaveDB(db); espRenderAdminDashboard('inspecteurs');
 }
 async function espAdminToggleBanni(inspecteurId, nouvelEtat){
-  const session = espSession();
   const db = espDB();
   const i = db.inspecteurs.find(x => x.id === inspecteurId);
   if(!i) return;
   if(nouvelEtat && !confirm(`Bannir ${i.nom} ${i.prenoms||''} ? Cette personne ne pourra plus se connecter ni publier de messages.`)) return;
   let ok;
-  try { ok = await espAdminSetInspecteurBanniRPC(session.password, inspecteurId, nouvelEtat); }
-  catch(e){ alert('Erreur : ' + e.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { ok = await espAdminSetInspecteurBanniRPC(inspecteurId, nouvelEtat); }
+  catch(e){ if(e.espSessionInvalid) return; alert('Erreur : ' + e.message); return; }
+  if(!ok){ alert("Compte introuvable (supprimé entre-temps ?)."); return; }
   i.banni = nouvelEtat; espSaveDB(db); espRenderAdminDashboard('inspecteurs');
 }
 async function espAdminSendChatMessage(){
-  const session = espSession();
   const input = document.getElementById('esp-chat-input');
   const typeSelect = document.getElementById('esp-chat-type');
   const texte = input.value.trim();
@@ -645,9 +648,10 @@ async function espAdminSendChatMessage(){
   if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Envoi en cours...'; }
   try {
     const attachment = await espChatUploadPendingAttachment();
-    const ok = await espAdminPostMessageRPC(session.password, texte, type, replyTo, attachment);
-    if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible de publier le message. Session expirée ?</p>'; return; }
+    const ok = await espAdminPostMessageRPC(texte, type, replyTo, attachment);
+    if(!ok){ errEl.innerHTML = '<p class="esp-error">Message vide ou pièce jointe non acceptée.</p>'; return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   } finally {
@@ -661,11 +665,11 @@ async function espAdminSendChatMessage(){
 }
 async function espAdminDeleteMessage(messageId){
   if(!confirm('Supprimer définitivement ce message ?')) return;
-  const session = espSession();
   try {
-    const ok = await espAdminDeleteMessageRPC(session.password, messageId);
-    if(!ok){ alert("Impossible de supprimer ce message."); return; }
+    const ok = await espAdminDeleteMessageRPC(messageId);
+    if(!ok) alert("Ce message a déjà été supprimé.");
   } catch(e){
+    if(e.espSessionInvalid) return;
     alert('Erreur : ' + e.message);
     return;
   }
@@ -712,7 +716,6 @@ function espAdminCancelEditLienFormation(){
 }
 
 async function espAdminSaveLienFormation(){
-  const session = espSession();
   const titre = document.getElementById('esp-lf-titre').value.trim();
   const url = document.getElementById('esp-lf-url').value.trim();
   const description = document.getElementById('esp-lf-description').value.trim();
@@ -721,9 +724,10 @@ async function espAdminSaveLienFormation(){
   errEl.innerHTML = '';
   if(!titre || !url){ errEl.innerHTML = '<p class="esp-error">Titre et URL sont obligatoires.</p>'; return; }
   try {
-    const id = await espAdminUpsertLienFormationRPC(session.password, _espLienFormationEditId, titre, description, url, audience);
-    if(!id){ errEl.innerHTML = "<p class=\"esp-error\">Impossible d'enregistrer ce lien. Session expirée ?</p>"; return; }
+    const id = await espAdminUpsertLienFormationRPC(_espLienFormationEditId, titre, description, url, audience);
+    if(!id){ errEl.innerHTML = '<p class="esp-error">Lien refusé : titre, URL ou audience invalide, ou lien supprimé entre-temps.</p>'; return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
@@ -733,11 +737,11 @@ async function espAdminSaveLienFormation(){
 
 async function espAdminDeleteLienFormation(id){
   if(!confirm('Supprimer définitivement ce lien de formation ?')) return;
-  const session = espSession();
   try {
-    const ok = await espAdminDeleteLienFormationRPC(session.password, id);
-    if(!ok){ alert("Impossible de supprimer ce lien."); return; }
+    const ok = await espAdminDeleteLienFormationRPC(id);
+    if(!ok) alert("Ce lien a déjà été supprimé.");
   } catch(e){
+    if(e.espSessionInvalid) return;
     alert('Erreur : ' + e.message);
     return;
   }
@@ -814,7 +818,6 @@ async function espAdminAnnonceImageChange(input){
 }
 
 async function espAdminSaveAnnonce(){
-  const session = espSession();
   const type = document.getElementById('esp-annonce-type').value;
   const texte = type === 'texte' ? document.getElementById('esp-annonce-texte').value.trim() : '';
   const imageUrl = type === 'image' ? _espAnnonceDraftImageUrl : '';
@@ -823,14 +826,15 @@ async function espAdminSaveAnnonce(){
   if(type === 'texte' && !texte){ errEl.innerHTML = '<p class="esp-error">Le texte du bandeau est obligatoire.</p>'; return; }
   if(type === 'image' && !imageUrl){ errEl.innerHTML = '<p class="esp-error">Envoie une image avant de publier.</p>'; return; }
   try {
-    const id = await espAdminUpsertAnnonceRPC(session.password, _espAnnonceEditId, type, texte, imageUrl);
+    const id = await espAdminUpsertAnnonceRPC(_espAnnonceEditId, type, texte, imageUrl);
     if(!id){
       errEl.innerHTML = _espAnnonceEditId
-        ? "<p class=\"esp-error\">Impossible d'enregistrer cette annonce. Session expirée ?</p>"
-        : "<p class=\"esp-error\">Impossible de publier : 5 annonces sont déjà actives, désactives-en une d'abord.</p>";
+        ? '<p class="esp-error">Annonce invalide, ou supprimée entre-temps.</p>'
+        : "<p class=\"esp-error\">Annonce invalide ou 5 annonces déjà actives : désactives-en une d'abord.</p>";
       return;
     }
   } catch(e){
+    if(e.espSessionInvalid) return;
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
@@ -844,14 +848,14 @@ async function espAdminSaveAnnonce(){
 }
 
 async function espAdminToggleAnnonceActive(id, active){
-  const session = espSession();
   try {
-    const ok = await espAdminSetAnnonceActiveRPC(session.password, id, active);
+    const ok = await espAdminSetAnnonceActiveRPC(id, active);
     if(!ok){
-      alert(active ? "Impossible d'activer : 5 annonces sont déjà actives." : "Impossible de désactiver cette annonce.");
+      alert(active ? "Impossible d'activer : 5 annonces sont déjà actives." : "Annonce introuvable (supprimée entre-temps ?).");
       return;
     }
   } catch(e){
+    if(e.espSessionInvalid) return;
     alert('Erreur : ' + e.message);
     return;
   }
@@ -862,11 +866,11 @@ async function espAdminToggleAnnonceActive(id, active){
 
 async function espAdminDeleteAnnonce(id){
   if(!confirm('Supprimer définitivement cette annonce ?')) return;
-  const session = espSession();
   try {
-    const ok = await espAdminSupprimerAnnonceRPC(session.password, id);
-    if(!ok){ alert("Impossible de supprimer cette annonce (encore active ?)."); return; }
+    const ok = await espAdminSupprimerAnnonceRPC(id);
+    if(!ok){ alert("Désactive d'abord l'annonce avant de la supprimer."); return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     alert('Erreur : ' + e.message);
     return;
   }
@@ -887,13 +891,12 @@ let _espVisiteFiltrePeriode = 30; // en jours ; 0 = tout l'historique
 async function espAdminEnsureVisiteStatsLoaded(){
   if(_espAdminVisiteStats !== null || _espAdminVisiteStatsLoading) return;
   _espAdminVisiteStatsLoading = true;
-  const session = espSession();
   let rows;
   try {
-    rows = await espAdminGetVisiteStatsRPC(session.password);
+    rows = await espAdminGetVisiteStatsRPC();
   } catch(err){
     _espAdminVisiteStatsLoading = false;
-    if(err && /unauthorized/i.test(err.message||'')){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+    if(err.espSessionInvalid) return;
     alert("Erreur lors du chargement des statistiques de visites : " + err.message);
     return;
   }
@@ -990,11 +993,10 @@ async function espAdminMarquerDemandeTraitee(id){
   const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
   if(!d) return;
   if(!confirm(`Marquer la demande de "${d.nom}" comme traitée ? Cela ne crée aucun établissement — assure-toi d'avoir déjà fait l'import si besoin.`)) return;
-  const session = espSession();
   let ok;
-  try { ok = await espAdminMarquerDemandeTraiteeRPC(session.password, id); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, ou demande déjà traitée. Merci de te reconnecter si besoin."); return; }
+  try { ok = await espAdminMarquerDemandeTraiteeRPC(id); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
+  if(!ok) alert("Cette demande a déjà été traitée (ou n'existe plus).");
   espAdminInvalidateDemandesInscription();
   espRenderAdminDashboard('etablissements');
 }
@@ -1007,10 +1009,9 @@ async function espAdminLierPhotosLogoDemande(demandeId){
   const input = document.getElementById('esp-admin-lien-etab-id-' + demandeId);
   const etabId = input ? input.value.trim() : '';
   if(!etabId){ alert("Indique l'id de l'établissement fraîchement importé."); return; }
-  const session = espSession();
   let ok;
-  try { ok = await espAdminLierPhotosLogoDemandeRPC(session.password, demandeId, etabId); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
+  try { ok = await espAdminLierPhotosLogoDemandeRPC(demandeId, etabId); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
   if(!ok){ alert("Échec : demande déjà traitée, ou aucun établissement trouvé avec cet id. Vérifie l'id copié depuis le résultat de l'import."); return; }
   alert('Logo/photos liés à l\'établissement, et demande marquée comme traitée.');
   espAdminInvalidateEtabFull();
@@ -1020,65 +1021,56 @@ async function espAdminLierPhotosLogoDemande(demandeId){
 }
 
 async function espAdminValiderPremium(id){
-  const session = espSession();
   const db = espDB();
   const e = db.etablissements.find(x => x.id === id);
   if(!e) return;
   if(!confirm(`Activer le Premium pour "${e.nom}" ? Confirme que cet établissement a bien souscrit à l'offre avant de valider.`)) return;
   let ok;
-  try { ok = await espAdminValiderPremiumRPC(session.password, id); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { ok = await espAdminValiderPremiumRPC(id); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Établissement introuvable (supprimé entre-temps ?)."); return; }
   e.premium = true; e.demandePremium = false; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 async function espAdminToggleEtabPremium(id){
-  const session = espSession();
   const db = espDB();
   const e = db.etablissements.find(x => x.id === id);
   if(!e) return;
   const nextPremium = !e.premium;
   if(nextPremium && !confirm(`Confirmer que "${e.nom}" a bien souscrit à l'offre premium avant d'activer cette fonctionnalité ?`)) return;
   let ok;
-  try { ok = await espAdminSetEtabPremiumRPC(session.password, id, nextPremium); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { ok = await espAdminSetEtabPremiumRPC(id, nextPremium); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Établissement introuvable (supprimé entre-temps ?)."); return; }
   e.premium = nextPremium; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 async function espAdminSetEtabStatut(id, statut){
-  const session = espSession();
   const db = espDB();
   const e = db.etablissements.find(x => x.id === id);
   if(!e) return;
   let ok;
-  try { ok = await espSetEtabStatutRPC(session.password, id, statut); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { ok = await espSetEtabStatutRPC(id, statut); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
+  if(!ok){ alert("Établissement introuvable (supprimé entre-temps ?)."); return; }
   e.statut = statut; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 async function espAdminSetPropositionStatut(etabId, filiereId, statut){
-  const session = espSession();
   const db = espDB();
   const e = db.etablissements.find(x => x.id === etabId);
   if(!e) return;
   const f = (e.filieresProposees||[]).find(x => x.id === filiereId);
   if(!f) return;
-  let ok;
-  try { ok = await espSetFiliereStatutRPC(session.password, etabId, filiereId, statut); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { await espSetFiliereStatutRPC(etabId, filiereId, statut); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
   f.statut = statut; espSaveDB(db); espAdminInvalidateEtabFull(); espRenderAdminDashboard('etablissements');
 }
 
 async function espAdminDeleteEtab(etabId){
-  const session = espSession();
   const db = espDB();
   const e = db.etablissements.find(x => x.id === etabId);
   if(!e) return;
   if(!confirm(`Supprimer définitivement "${e.nom}" ? Cette action est irréversible et supprimera aussi ses filières et photos. Continuer ?`)) return;
-  let ok;
-  try { ok = await espAdminDeleteEtabRPC(session.password, etabId); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { await espAdminDeleteEtabRPC(etabId); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
   db.etablissements = db.etablissements.filter(x => x.id !== etabId);
   espSaveDB(db);
   espAdminInvalidateEtabFull();
@@ -1115,17 +1107,17 @@ function espAdminUnclaimedCodesHtml(rows){
   `;
 }
 async function espAdminShowUnclaimedCodes(){
-  const session = espSession();
   _espAllEtabCodesResult = null;
   const otherContainer = document.getElementById('esp-admin-all-etab-codes');
   if(otherContainer) otherContainer.innerHTML = '';
   const container = document.getElementById('esp-admin-unclaimed-codes');
   container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
   try {
-    const rows = await espAdminListUnclaimedCodesRPC(session.password);
+    const rows = await espAdminListUnclaimedCodesRPC();
     _espUnclaimedCodesResult = rows;
     container.innerHTML = espAdminUnclaimedCodesHtml(rows);
   } catch(err){
+    if(err.espSessionInvalid) return;
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
 }
@@ -1193,20 +1185,20 @@ function espAdminAllEtabCodesHtml(){
   `;
 }
 async function espAdminShowAllEtabCodes(){
-  const session = espSession();
   _espUnclaimedCodesResult = null;
   const otherContainer = document.getElementById('esp-admin-unclaimed-codes');
   if(otherContainer) otherContainer.innerHTML = '';
   const container = document.getElementById('esp-admin-all-etab-codes');
   container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
   try {
-    const rows = await espAdminListAllEtabCodesRPC(session.password);
+    const rows = await espAdminListAllEtabCodesRPC();
     _espAllEtabCodesResult = rows;
     _espAllEtabCodesSearch = '';
     _espAllEtabCodesFilterCategorie = '';
     _espAllEtabCodesFilterReclame = '';
     container.innerHTML = espAdminAllEtabCodesHtml();
   } catch(err){
+    if(err.espSessionInvalid) return;
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
   espRefreshIcons();
@@ -1324,7 +1316,6 @@ function espAdminImportOnSousCategorieChange(){
   _espImportSousCategorie = document.getElementById('esp-admin-import-sous-categorie').value;
 }
 async function espAdminImportEtab(){
-  const session = espSession();
   const categorie = document.getElementById('esp-admin-import-categorie').value;
   const sousCategorie = categorie === 'superieur' ? document.getElementById('esp-admin-import-sous-categorie').value : null;
   _espImportCategorie = categorie;
@@ -1353,8 +1344,9 @@ async function espAdminImportEtab(){
   const countBefore = espDB().etablissements.length;
   let rows;
   try {
-    rows = await espAdminBulkImportEtabRPC(session.password, categorie, sousCategorie, items);
+    rows = await espAdminBulkImportEtabRPC(categorie, sousCategorie, items);
   } catch(err){
+    if(err.espSessionInvalid) return;
     resultEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
     return;
   }
@@ -1372,17 +1364,14 @@ async function espAdminImportEtab(){
 }
 
 async function espAdminSaveEtabClassification(etabId){
-  const session = espSession();
   const catSelect = document.getElementById('esp-admin-etab-cat-' + etabId);
   const sousSelect = document.getElementById('esp-admin-etab-sous-' + etabId);
   const sectSelect = document.getElementById('esp-admin-etab-sect-' + etabId);
   const categorie = catSelect.value || null;
   const sousCategorie = sousSelect.value || null;
   const secteur = sectSelect.value || null;
-  let ok;
-  try { ok = await espAdminUpdateEtabClassificationRPC(session.password, etabId, categorie, sousCategorie, secteur); }
-  catch(err){ alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
+  try { await espAdminUpdateEtabClassificationRPC(etabId, categorie, sousCategorie, secteur); }
+  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
   const db = espDB();
   const e = db.etablissements.find(x => x.id === etabId);
   if(e){ e.categorie = categorie; e.sousCategorie = sousCategorie; e.secteur = secteur; }
