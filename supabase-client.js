@@ -689,3 +689,20 @@ async function espAdminListUnclaimedCodesRPC(){
 async function espAdminListAllEtabCodesRPC(){
   return (await espAuthRpc('admin_list_all_etablissement_codes_v2')) || [];
 }
+
+// ---------------- Admin : comptes admin (5 actifs au maximum, au moins 1) ----------------
+// Liste, sans aucun mot de passe : [{id, nom, email, actif, created_at, last_login_at}].
+async function espAdminListAdminsRPC(){
+  return (await espAuthRpc('admin_list_admins_v2')) || [];
+}
+// Nouveau compte, actif : renvoie {id, nom, email}. Erreurs métier (e.message) :
+// CHAMPS_OBLIGATOIRES, EMAIL_INVALIDE, EMAIL_DEJA_UTILISE, MOT_DE_PASSE_TROP_COURT,
+// ADMINS_LIMITE_ATTEINTE.
+async function espAdminCreateAdminRPC(nom, email, password){
+  return await espAuthRpc('admin_create_admin_v2', { p_nom: nom, p_email: email, p_password: password });
+}
+// true : fait ; false : admin introuvable. Erreurs métier (e.message) : ADMIN_AUTO_DESACTIVATION,
+// DERNIER_ADMIN_ACTIF, ADMINS_LIMITE_ATTEINTE. Une désactivation ferme les sessions de l'admin visé.
+async function espAdminSetAdminActifRPC(adminId, actif){
+  return !!(await espAuthRpc('admin_set_admin_actif_v2', { p_admin_id: adminId, p_actif: actif }));
+}
