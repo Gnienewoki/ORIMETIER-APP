@@ -39,7 +39,7 @@ async function espAdminLogin(){
   platformUnlock();
 }
 // Caches admin en mémoire : vidés à la déconnexion et sur session refusée (auth.js, espHandleSessionInvalid).
-function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; }
+function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; _espAdminComptes = null; }
 function espAdminLogout(){ espAdminResetCaches(); platformLogout(); }
 
 function espExportBackup(){
@@ -336,6 +336,9 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
         </table>
       </div>
     `;
+  } else if(sub === 'comptes-admin'){
+    if(_espAdminComptes === null) espAdminEnsureComptesLoaded();
+    subHtml = espAdminComptesHtml(_espAdminComptes);
   }
 
   document.getElementById('esp-admin').innerHTML = `
@@ -355,6 +358,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">${icon('target')}Liens de formation</button>
       <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">${icon('megaphone')}Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
       <button class="esp-subtab-btn ${sub==='statistiques'?'active':''}" onclick="espRenderAdminDashboard('statistiques')">${icon('bar-chart-3')}Statistiques</button>
+      <button class="esp-subtab-btn ${sub==='comptes-admin'?'active':''}" onclick="espRenderAdminDashboard('comptes-admin')">${icon('user-cog')}Comptes admin</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
@@ -932,6 +936,140 @@ function espVisitePageLabel(page){
 function espFormatJourFr(jour){
   const [y, m, d] = String(jour).split('-');
   return (y && m && d) ? `${d}/${m}/${y}` : jour;
+}
+
+// ---------------- Comptes admin (5 actifs au maximum, au moins 1 : trigger trg_admins_quota) ----------------
+// null = pas encore chargé, [] = chargé et vide. En mémoire seulement (jamais dans espDB()),
+// vidé à la déconnexion et sur session refusée (espAdminResetCaches). Aucun mot de passe
+// conservé : les champs du formulaire sont lus au clic, puis le formulaire est reconstruit vide.
+const ESP_ADMINS_MAX_ACTIFS = 5;
+let _espAdminComptes = null;
+let _espAdminComptesLoading = false;
+
+// Codes d'erreur métier de admin_create_admin_v2 / admin_set_admin_actif_v2 (message de
+// l'exception, SQLSTATE P0001). Ceux du changement de mot de passe viendront avec 5b-4.
+const ESP_ADMIN_COMPTE_ERREURS = {
+  CHAMPS_OBLIGATOIRES: 'Nom et e-mail sont obligatoires.',
+  EMAIL_INVALIDE: 'Adresse e-mail invalide.',
+  EMAIL_DEJA_UTILISE: 'Cet e-mail est déjà utilisé par un autre admin.',
+  MOT_DE_PASSE_TROP_COURT: '8 caractères minimum.',
+  ADMINS_LIMITE_ATTEINTE: "5 admins actifs au maximum : désactive d'abord un compte.",
+  DERNIER_ADMIN_ACTIF: 'Impossible : il doit rester au moins un admin actif.',
+  ADMIN_AUTO_DESACTIVATION: 'Tu ne peux pas désactiver ton propre compte.',
+};
+function espAdminCompteErreurMessage(e){
+  const message = (e && e.message) || '';
+  const code = Object.keys(ESP_ADMIN_COMPTE_ERREURS).find(c => message.includes(c));
+  return code ? ESP_ADMIN_COMPTE_ERREURS[code] : 'Erreur : ' + (message || 'inconnue');
+}
+// timestamptz (ISO) -> "29/09/2026 18:31" ; valeur absente -> texteSiVide.
+function espFormatDateHeureFr(ts, texteSiVide){
+  if(!ts) return texteSiVide;
+  const d = new Date(ts);
+  if(isNaN(d)) return String(ts);
+  return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})
+    + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+}
+
+async function espAdminEnsureComptesLoaded(){
+  if(_espAdminComptes !== null || _espAdminComptesLoading) return;
+  _espAdminComptesLoading = true;
+  let rows;
+  try {
+    rows = await espAdminListAdminsRPC();
+  } catch(err){
+    _espAdminComptesLoading = false;
+    if(err.espSessionInvalid) return;
+    alert("Erreur lors du chargement des comptes admin : " + err.message);
+    return;
+  }
+  _espAdminComptes = rows;
+  _espAdminComptesLoading = false;
+  espRenderAdminDashboard('comptes-admin');
+}
+
+function espAdminComptesHtml(list){
+  const session = espSession();
+  const moi = session ? session.id : null;
+  const actifs = (list || []).filter(a => a.actif).length;
+  return `
+    <div class="esp-card" style="margin-bottom:18px;">
+      <div class="esp-title" style="font-size:16px;">${icon('user-cog')}Comptes admin${list !== null ? ` <span class="esp-sub">${actifs} / ${ESP_ADMINS_MAX_ACTIFS} actifs</span>` : ''}</div>
+      <p class="esp-sub">Un compte désactivé ne peut plus se connecter, et ses sessions ouvertes sont fermées. Il reste toujours au moins un admin actif, et 5 au maximum.</p>
+      ${list === null ? '<p class="esp-empty">Chargement des comptes admin…</p>' : `
+      <table class="esp-table">
+        <thead><tr><th>Nom</th><th>E-mail</th><th>Statut</th><th>Créé le</th><th>Dernière connexion</th><th></th></tr></thead>
+        <tbody>
+        ${list.length ? list.map(a => `
+          <tr>
+            <td><b>${escapeHtml(a.nom)}</b>${a.id === moi ? ' <span class="esp-sub">(vous)</span>' : ''}</td>
+            <td>${escapeHtml(a.email)}</td>
+            <td>${a.actif ? '<span class="esp-badge valide">Actif</span>' : '<span class="esp-badge refuse">Désactivé</span>'}</td>
+            <td>${escapeHtml(espFormatDateHeureFr(a.created_at, '—'))}</td>
+            <td>${escapeHtml(espFormatDateHeureFr(a.last_login_at, 'Jamais'))}</td>
+            <td>${a.id === moi ? '' : `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleCompteActif('${escapeHtml(a.id)}', ${!a.actif})">${a.actif ? icon('user-x') + 'Désactiver' : icon('user-check') + 'Réactiver'}</button>`}</td>
+          </tr>
+        `).join('') : `<tr><td colspan="6" class="esp-empty">Aucun compte admin.</td></tr>`}
+        </tbody>
+      </table>`}
+    </div>
+    <div class="esp-card">
+      <div class="esp-title" style="font-size:16px;">${icon('user-plus')}Créer un compte admin</div>
+      <p class="esp-sub">Le compte est actif dès sa création. Transmets le mot de passe initial au nouvel admin hors de l'application.</p>
+      <div id="esp-admin-create-error"></div>
+      <div class="esp-field-row">
+        <div class="esp-field"><label>Nom</label><input type="text" id="esp-admin-new-nom" autocomplete="off"></div>
+        <div class="esp-field"><label>E-mail</label><input type="email" id="esp-admin-new-email" autocomplete="off"></div>
+      </div>
+      <div class="esp-field-row" style="margin-bottom:14px;">
+        <div class="esp-field"><label>Mot de passe initial (8 caractères minimum)</label><input type="password" id="esp-admin-new-pass" autocomplete="new-password"></div>
+        <div class="esp-field"><label>Confirmation</label><input type="password" id="esp-admin-new-pass2" autocomplete="new-password"></div>
+      </div>
+      <button class="esp-btn esp-btn-primary" onclick="espAdminCreateCompte()">${icon('user-plus')}Créer le compte</button>
+    </div>
+  `;
+}
+
+async function espAdminCreateCompte(){
+  const errEl = document.getElementById('esp-admin-create-error');
+  const nom = document.getElementById('esp-admin-new-nom').value.trim();
+  const email = document.getElementById('esp-admin-new-email').value.trim();
+  const passEl = document.getElementById('esp-admin-new-pass');
+  const pass2El = document.getElementById('esp-admin-new-pass2');
+  errEl.innerHTML = '';
+  if(passEl.value !== pass2El.value){
+    errEl.innerHTML = '<p class="esp-error">Les deux mots de passe ne correspondent pas.</p>';
+    return;
+  }
+  try {
+    await espAdminCreateAdminRPC(nom, email, passEl.value);
+  } catch(e){
+    if(e.espSessionInvalid) return;
+    errEl.innerHTML = '<p class="esp-error">' + escapeHtml(espAdminCompteErreurMessage(e)) + '</p>';
+    return;
+  }
+  _espAdminComptes = null;
+  espRenderAdminDashboard('comptes-admin');
+  alert(`Compte admin créé pour ${email}. Transmets-lui son mot de passe initial hors de l'application.`);
+}
+
+async function espAdminToggleCompteActif(adminId, actif){
+  const compte = (_espAdminComptes || []).find(a => a.id === adminId);
+  const qui = compte ? `${compte.nom} (${compte.email})` : 'cet admin';
+  const question = actif
+    ? `Réactiver le compte de ${qui} ? Il pourra de nouveau se connecter.`
+    : `Désactiver le compte de ${qui} ? Il ne pourra plus se connecter et ses sessions ouvertes seront fermées.`;
+  if(!confirm(question)) return;
+  try {
+    const ok = await espAdminSetAdminActifRPC(adminId, actif);
+    if(!ok) alert('Compte admin introuvable.');
+  } catch(e){
+    if(e.espSessionInvalid) return;
+    alert(espAdminCompteErreurMessage(e));
+    return;
+  }
+  _espAdminComptes = null;
+  espRenderAdminDashboard('comptes-admin');
 }
 
 // ---------------- Demandes d'activation du mode Premium (en attente de validation) ----------------
