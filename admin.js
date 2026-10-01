@@ -358,7 +358,7 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">${icon('target')}Liens de formation</button>
       <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">${icon('megaphone')}Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
       <button class="esp-subtab-btn ${sub==='statistiques'?'active':''}" onclick="espRenderAdminDashboard('statistiques')">${icon('bar-chart-3')}Statistiques</button>
-      <button class="esp-subtab-btn ${sub==='comptes-admin'?'active':''}" onclick="espRenderAdminDashboard('comptes-admin')">${icon('user-cog')}Comptes admin</button>
+      <button class="esp-subtab-btn ${sub==='comptes-admin'?'active':''}" onclick="_espAdminComptes = null; espRenderAdminDashboard('comptes-admin')">${icon('user-cog')}Comptes admin</button>
     </div>
     <div class="esp-card">${subHtml}</div>
   `;
@@ -938,7 +938,7 @@ function espFormatJourFr(jour){
   return (y && m && d) ? `${d}/${m}/${y}` : jour;
 }
 
-// ---------------- Comptes admin (5 actifs au maximum, au moins 1 : trigger trg_admins_quota) ----------------
+// ---------------- Comptes admin (5 actifs au maximum, au moins 1 : trigger trg_admins_quota ; un seul principal, actif) ----------------
 // null = pas encore chargé, [] = chargé et vide. En mémoire seulement (jamais dans espDB()),
 // vidé à la déconnexion et sur session refusée (espAdminResetCaches). Aucun mot de passe
 // conservé : les champs du formulaire sont lus au clic, puis le formulaire est reconstruit vide.
@@ -946,8 +946,10 @@ const ESP_ADMINS_MAX_ACTIFS = 5;
 let _espAdminComptes = null;
 let _espAdminComptesLoading = false;
 
-// Codes d'erreur métier de admin_create_admin_v2 / admin_set_admin_actif_v2 (message de
-// l'exception, SQLSTATE P0001). Ceux du changement de mot de passe viendront avec 5b-4.
+// Codes d'erreur métier de admin_create_admin_v2 / admin_set_admin_actif_v2 /
+// admin_transfer_principal_v2 (message de l'exception, SQLSTATE P0001) ; ADMIN_PRINCIPAL_INVARIANT
+// vient de la contrainte-trigger trg_admins_principal (filet). Ceux du changement de mot de passe
+// viendront avec 5b-4.
 const ESP_ADMIN_COMPTE_ERREURS = {
   CHAMPS_OBLIGATOIRES: 'Nom et e-mail sont obligatoires.',
   EMAIL_INVALIDE: 'Adresse e-mail invalide.',
@@ -956,6 +958,11 @@ const ESP_ADMIN_COMPTE_ERREURS = {
   ADMINS_LIMITE_ATTEINTE: "5 admins actifs au maximum : désactive d'abord un compte.",
   DERNIER_ADMIN_ACTIF: 'Impossible : il doit rester au moins un admin actif.',
   ADMIN_AUTO_DESACTIVATION: 'Tu ne peux pas désactiver ton propre compte.',
+  ADMIN_PRINCIPAL_REQUIS: "Seul l'admin principal peut faire cette action.",
+  ADMIN_PRINCIPAL_PROTEGE: "Le compte principal ne peut pas être désactivé : transfère d'abord le rôle.",
+  TRANSFERT_VERS_SOI: "Tu es déjà l'admin principal.",
+  CIBLE_INACTIVE: 'Ce compte est désactivé : réactive-le avant de lui transférer le rôle.',
+  ADMIN_PRINCIPAL_INVARIANT: "Opération refusée : il doit toujours y avoir un seul admin principal, actif.",
 };
 function espAdminCompteErreurMessage(e){
   const message = (e && e.message) || '';
@@ -988,31 +995,44 @@ async function espAdminEnsureComptesLoaded(){
   espRenderAdminDashboard('comptes-admin');
 }
 
+// Boutons d'une ligne : seulement si je suis principal, jamais sur ma propre ligne.
+// "Transférer le rôle" : seulement vers un compte actif (le serveur refuse sinon : CIBLE_INACTIVE).
+function espAdminCompteActionsHtml(a, moi, jeSuisPrincipal){
+  if(!jeSuisPrincipal || a.id === moi) return '';
+  const id = escapeHtml(a.id);
+  const style = 'padding:5px 10px;font-size:11.5px;';
+  return `<button class="esp-btn" style="${style}" onclick="espAdminToggleCompteActif('${id}', ${!a.actif})">${a.actif ? icon('user-x') + 'Désactiver' : icon('user-check') + 'Réactiver'}</button>`
+    + (a.actif ? ` <button class="esp-btn" style="${style}" onclick="espAdminTransfererPrincipal('${id}')">${icon('crown')}Transférer le rôle</button>` : '');
+}
+
 function espAdminComptesHtml(list){
   const session = espSession();
   const moi = session ? session.id : null;
   const actifs = (list || []).filter(a => a.actif).length;
+  // Déduit de MA ligne de la liste ; le serveur revérifie à chaque action (ADMIN_PRINCIPAL_REQUIS).
+  const jeSuisPrincipal = (list || []).some(a => a.id === moi && a.est_principal === true);
   return `
     <div class="esp-card" style="margin-bottom:18px;">
       <div class="esp-title" style="font-size:16px;">${icon('user-cog')}Comptes admin${list !== null ? ` <span class="esp-sub">${actifs} / ${ESP_ADMINS_MAX_ACTIFS} actifs</span>` : ''}</div>
-      <p class="esp-sub">Un compte désactivé ne peut plus se connecter, et ses sessions ouvertes sont fermées. Il reste toujours au moins un admin actif, et 5 au maximum.</p>
+      <p class="esp-sub">Un compte désactivé ne peut plus se connecter, et ses sessions ouvertes sont fermées. Il reste toujours au moins un admin actif, et 5 au maximum. L'admin principal, toujours actif, est le seul à gérer les comptes ; il peut transférer ce rôle à un autre admin actif.</p>
       ${list === null ? '<p class="esp-empty">Chargement des comptes admin…</p>' : `
       <table class="esp-table">
         <thead><tr><th>Nom</th><th>E-mail</th><th>Statut</th><th>Créé le</th><th>Dernière connexion</th><th></th></tr></thead>
         <tbody>
         ${list.length ? list.map(a => `
           <tr>
-            <td><b>${escapeHtml(a.nom)}</b>${a.id === moi ? ' <span class="esp-sub">(vous)</span>' : ''}</td>
+            <td><b>${escapeHtml(a.nom)}</b>${a.id === moi ? ' <span class="esp-sub">(vous)</span>' : ''}${a.est_principal ? ' <span class="esp-badge non_reclame">Principal</span>' : ''}</td>
             <td>${escapeHtml(a.email)}</td>
             <td>${a.actif ? '<span class="esp-badge valide">Actif</span>' : '<span class="esp-badge refuse">Désactivé</span>'}</td>
             <td>${escapeHtml(espFormatDateHeureFr(a.created_at, '—'))}</td>
             <td>${escapeHtml(espFormatDateHeureFr(a.last_login_at, 'Jamais'))}</td>
-            <td>${a.id === moi ? '' : `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleCompteActif('${escapeHtml(a.id)}', ${!a.actif})">${a.actif ? icon('user-x') + 'Désactiver' : icon('user-check') + 'Réactiver'}</button>`}</td>
+            <td>${espAdminCompteActionsHtml(a, moi, jeSuisPrincipal)}</td>
           </tr>
         `).join('') : `<tr><td colspan="6" class="esp-empty">Aucun compte admin.</td></tr>`}
         </tbody>
       </table>`}
     </div>
+    ${list === null ? '' : jeSuisPrincipal ? `
     <div class="esp-card">
       <div class="esp-title" style="font-size:16px;">${icon('user-plus')}Créer un compte admin</div>
       <p class="esp-sub">Le compte est actif dès sa création. Transmets le mot de passe initial au nouvel admin hors de l'application.</p>
@@ -1026,7 +1046,10 @@ function espAdminComptesHtml(list){
         <div class="esp-field"><label>Confirmation</label><input type="password" id="esp-admin-new-pass2" autocomplete="new-password"></div>
       </div>
       <button class="esp-btn esp-btn-primary" onclick="espAdminCreateCompte()">${icon('user-plus')}Créer le compte</button>
-    </div>
+    </div>` : `
+    <div class="esp-card">
+      <p class="esp-sub" style="margin:0;">Seul l'admin principal peut créer, désactiver ou réactiver des comptes.</p>
+    </div>`}
   `;
 }
 
@@ -1045,6 +1068,14 @@ async function espAdminCreateCompte(){
     await espAdminCreateAdminRPC(nom, email, passEl.value);
   } catch(e){
     if(e.espSessionInvalid) return;
+    // Liste périmée (je ne suis plus principal) : message, puis rechargement de l'onglet,
+    // qui remplace le formulaire par la phrase "Seul l'admin principal…".
+    if(/ADMIN_PRINCIPAL_REQUIS/.test(e.message || '')){
+      alert(espAdminCompteErreurMessage(e));
+      _espAdminComptes = null;
+      espRenderAdminDashboard('comptes-admin');
+      return;
+    }
     errEl.innerHTML = '<p class="esp-error">' + escapeHtml(espAdminCompteErreurMessage(e)) + '</p>';
     return;
   }
@@ -1066,6 +1097,38 @@ async function espAdminToggleCompteActif(adminId, actif){
   } catch(e){
     if(e.espSessionInvalid) return;
     alert(espAdminCompteErreurMessage(e));
+    // Liste périmée (je ne suis plus principal) : rechargement pour masquer les actions.
+    if(/ADMIN_PRINCIPAL_REQUIS/.test(e.message || '')){
+      _espAdminComptes = null;
+      espRenderAdminDashboard('comptes-admin');
+    }
+    return;
+  }
+  _espAdminComptes = null;
+  espRenderAdminDashboard('comptes-admin');
+}
+
+// Transfert du rôle de principal. Après succès, je ne suis plus principal : la liste est
+// rechargée et l'écran passe en lecture seule (plus de boutons, plus de formulaire).
+async function espAdminTransfererPrincipal(adminId){
+  const compte = (_espAdminComptes || []).find(a => a.id === adminId);
+  const qui = compte ? `${compte.nom} (${compte.email})` : 'cet admin';
+  const question = `Transférer le rôle d'admin principal à ${qui} ?\n\n`
+    + `Tu perdras le droit de créer, désactiver ou réactiver des comptes, et de transférer ce rôle. `
+    + `${qui} obtiendra ces droits, et lui seul pourra te rendre le rôle.\n\n`
+    + `Tu restes connecté et gardes toutes les autres actions admin.`;
+  if(!confirm(question)) return;
+  try {
+    const ok = await espAdminTransferPrincipalRPC(adminId);
+    if(!ok) alert('Compte admin introuvable.');
+  } catch(e){
+    if(e.espSessionInvalid) return;
+    alert(espAdminCompteErreurMessage(e));
+    // Liste périmée (je ne suis plus principal) : rechargement pour masquer les actions.
+    if(/ADMIN_PRINCIPAL_REQUIS/.test(e.message || '')){
+      _espAdminComptes = null;
+      espRenderAdminDashboard('comptes-admin');
+    }
     return;
   }
   _espAdminComptes = null;
