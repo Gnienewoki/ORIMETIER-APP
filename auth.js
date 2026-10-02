@@ -19,7 +19,7 @@ function espClearSession(){
 // nom : facultatif, affiché dans la barre du haut (admin).
 // Les autres rôles gardent l'ancien format {role, id, password} jusqu'à leur phase.
 // Doit rester synchronisé avec la liste des 8 scripts inline anti-flash des pages HTML.
-const ESP_TOKEN_ROLES = ['eleve', 'admin'];
+const ESP_TOKEN_ROLES = ['eleve', 'admin', 'etablissement'];
 const ESP_TOKEN_SESSION_FALLBACK_MS = 30 * 24 * 3600 * 1000;
 function espSetTokenSession(role, id, token, expiresAt, nom){
   let exp = Date.parse(expiresAt);
@@ -69,6 +69,8 @@ function espHandleSessionInvalid(){
   espClearSession();
   // Caches admin en mémoire (admin.js), comme à la déconnexion.
   if(typeof espAdminResetCaches === 'function') espAdminResetCaches();
+  // Fiche établissement en mémoire (etablissement.js), comme à la déconnexion.
+  if(typeof espEtabResetOwn === 'function') espEtabResetOwn();
   if(espCurrentPageIsPublic()) updateAuthBar();
   else platformLock();
   espShowSessionExpiredNotice(role);
