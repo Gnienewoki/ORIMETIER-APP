@@ -285,11 +285,18 @@ async function espEtabClaimRPC(code, email, password, responsable, tel, tel2, te
   if(error) throw error;
   return !!data;
 }
+// Ouverture de session établissement par jeton : null (e-mail inconnu, mauvais mot de passe ou
+// fiche non réclamée, indistinguables) ou {token, expires_at, id, nom}. Session serveur de 30 jours.
+async function espEtabSessionOpenRPC(email, password){
+  const { data, error } = await supabaseClient.rpc('etablissement_session_open', { p_email: email, p_password: password });
+  if(error) throw error;
+  return data || null;
+}
 // Fiche complète, non masquée, de l'établissement connecté (responsable/contact_tel inclus,
 // tel/tel2/tel3/email/site_web/photos jamais masqués par le premium) — alimente son tableau de bord.
-async function espEtabGetOwnRPC(etabId, password){
-  const { data, error } = await supabaseClient.rpc('etablissement_get_own', { p_etab_id: etabId, p_password: password });
-  if(error) throw error;
+// Établissement : authentifié par le jeton de session (espAuthRpc, auth.js) ; la fiche est celle du jeton.
+async function espEtabGetOwnRPC(){
+  const data = await espAuthRpc('etablissement_get_own_v2');
   return (data && data[0]) ? espRowToEtab(data[0]) : null;
 }
 // Ouverture de session admin par jeton : null (e-mail inconnu, mauvais mot de passe ou compte
@@ -473,10 +480,8 @@ async function espAdminSetEleveBanniRPC(eleveId, banni){
 async function espSetEtabStatutRPC(etabId, statut){
   return !!(await espAuthRpc('admin_set_etab_statut_v2', { p_etab_id: etabId, p_statut: statut }));
 }
-async function espEtabUpdateLocalisationRPC(etabId, password, region, ville, quartier){
-  const { data, error } = await supabaseClient.rpc('etablissement_update_localisation', { p_etab_id: etabId, p_password: password, p_region: region, p_ville: ville, p_quartier: quartier });
-  if(error) throw error;
-  return !!data;
+async function espEtabUpdateLocalisationRPC(region, ville, quartier){
+  return !!(await espAuthRpc('etablissement_update_localisation_v2', { p_region: region, p_ville: ville, p_quartier: quartier }));
 }
 async function espSetFiliereStatutRPC(etabId, filiereId, statut){
   return !!(await espAuthRpc('admin_set_filiere_statut_v2', { p_etab_id: etabId, p_filiere_id: filiereId, p_statut: statut }));
@@ -584,20 +589,15 @@ async function espUploadEtabPhoto(file){
   const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
   return data.publicUrl;
 }
-async function espEtabUpdateInfoRPC(etabId, password, nom, type, responsable, tel, email, contactTel){
-  const { data, error } = await supabaseClient.rpc('etablissement_update_info', {
-    p_etab_id: etabId, p_password: password, p_nom: nom, p_type: type, p_responsable: responsable, p_tel: tel, p_email: email,
+// Lève EMAIL_DEJA_UTILISE si un autre établissement porte déjà cet e-mail.
+async function espEtabUpdateInfoRPC(nom, type, responsable, tel, email, contactTel){
+  return !!(await espAuthRpc('etablissement_update_info_v2', {
+    p_nom: nom, p_type: type, p_responsable: responsable, p_tel: tel, p_email: email,
     p_contact_tel: contactTel || null,
-  });
-  if(error) throw error;
-  return !!data;
+  }));
 }
-async function espEtabUpdatePhotosRPC(etabId, password, photos){
-  const { data, error } = await supabaseClient.rpc('etablissement_update_photos', {
-    p_etab_id: etabId, p_password: password, p_photos: photos,
-  });
-  if(error) throw error;
-  return !!data;
+async function espEtabUpdatePhotosRPC(photos){
+  return !!(await espAuthRpc('etablissement_update_photos_v2', { p_photos: photos }));
 }
 // Logo (un seul fichier, contrairement aux photos) : même bucket/dossier que les photos
 // d'établissement, même mécanisme d'upload.
@@ -609,41 +609,23 @@ async function espUploadEtabLogo(file){
   const { data } = supabaseClient.storage.from('orimetier-chat').getPublicUrl(path);
   return data.publicUrl;
 }
-async function espEtabUpdateLogoRPC(etabId, password, logoUrl){
-  const { data, error } = await supabaseClient.rpc('etablissement_update_logo', {
-    p_etab_id: etabId, p_password: password, p_logo_url: logoUrl || null,
-  });
-  if(error) throw error;
-  return !!data;
+async function espEtabUpdateLogoRPC(logoUrl){
+  return !!(await espAuthRpc('etablissement_update_logo_v2', { p_logo_url: logoUrl || null }));
 }
 // ---------------- Établissement Premium : contact direct, site web, filières libres ----------------
-async function espEtabUpdateContactExtrasRPC(etabId, password, tel2, tel3, siteWeb){
-  const { data, error } = await supabaseClient.rpc('etablissement_update_contact_extras', {
-    p_etab_id: etabId, p_password: password, p_tel2: tel2 || null, p_tel3: tel3 || null, p_site_web: siteWeb || null,
-  });
-  if(error) throw error;
-  return !!data;
+async function espEtabUpdateContactExtrasRPC(tel2, tel3, siteWeb){
+  return !!(await espAuthRpc('etablissement_update_contact_extras_v2', {
+    p_tel2: tel2 || null, p_tel3: tel3 || null, p_site_web: siteWeb || null,
+  }));
 }
-async function espEtabAddFiliereRPC(etabId, password, nom, diplome){
-  const { data, error } = await supabaseClient.rpc('etablissement_add_filiere', {
-    p_etab_id: etabId, p_password: password, p_nom: nom, p_diplome: diplome,
-  });
-  if(error) throw error;
-  return !!data;
+async function espEtabAddFiliereRPC(nom, diplome){
+  return !!(await espAuthRpc('etablissement_add_filiere_v2', { p_nom: nom, p_diplome: diplome }));
 }
-async function espEtabDeleteFiliereRPC(etabId, password, filiereId){
-  const { data, error } = await supabaseClient.rpc('etablissement_delete_filiere', {
-    p_etab_id: etabId, p_password: password, p_filiere_id: filiereId,
-  });
-  if(error) throw error;
-  return !!data;
+async function espEtabDeleteFiliereRPC(filiereId){
+  return !!(await espAuthRpc('etablissement_delete_filiere_v2', { p_filiere_id: filiereId }));
 }
-async function espEtabDemanderPremiumRPC(etabId, password){
-  const { data, error } = await supabaseClient.rpc('etablissement_demander_premium', {
-    p_etab_id: etabId, p_password: password,
-  });
-  if(error) throw error;
-  return !!data;
+async function espEtabDemanderPremiumRPC(){
+  return !!(await espAuthRpc('etablissement_demander_premium_v2'));
 }
 async function espAdminSetEtabPremiumRPC(etabId, premium){
   return !!(await espAuthRpc('admin_set_etab_premium_v2', { p_etab_id: etabId, p_premium: premium }));
