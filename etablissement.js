@@ -417,21 +417,24 @@ function espEtabRegisterShowConfirmation(){
 async function espEtabLogin(){
   const email = document.getElementById('esp-etab-email').value.trim();
   const pass = document.getElementById('esp-etab-pass').value;
-  let etab;
+  let ouverture;
   try {
-    etab = await espEtabLoginRPC(email, pass);
+    ouverture = await espEtabSessionOpenRPC(email, pass);
   } catch(e){
     document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">Erreur de connexion : ' + escapeHtml(e.message) + '</p>';
     return;
   }
-  if(!etab){
+  if(!ouverture || !ouverture.token){
     document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">E-mail ou mot de passe incorrect.</p>';
     return;
   }
-  espSetSession('etablissement', etab.id, pass);
+  // Session par jeton : aucun mot de passe n'est conservé sur l'appareil.
+  espSetTokenSession('etablissement', ouverture.id, ouverture.token, ouverture.expires_at, ouverture.nom);
   platformUnlock();
 }
 function espEtabLogout(){ _espEtabOwn = null; platformLogout(); }
+// Appelée par espHandleSessionInvalid (auth.js) : oublie la fiche en mémoire, comme à la déconnexion.
+function espEtabResetOwn(){ _espEtabOwn = null; }
 
 // ---------------- Récupération d'un compte pré-inscrit (import en masse) via code ----------------
 // Cas des établissements d'Enseignement Général inscrits d'office par l'administration :
@@ -494,11 +497,18 @@ async function espEtabClaim(){
     return;
   }
   try { await espLoadFromSupabase(true); } catch(e){}
-  // Le compte vient d'être réclamé : on retrouve son id fraîchement mis à jour dans le cache.
-  const db = espDB();
-  const etab = (db.etablissements || []).find(e => e.email === email);
-  if(etab){ espSetSession('etablissement', etab.id, pass); platformUnlock(); }
-  else { espRenderEtabAuth('login'); }
+  // Le compte vient d'être réclamé : ouverture de session par jeton avec les identifiants choisis,
+  // comme une connexion. (L'ancienne recherche par e-mail dans le cache public échouait pour les
+  // fiches non premium, dont list_etablissements masque l'e-mail.)
+  let ouverture = null;
+  try { ouverture = await espEtabSessionOpenRPC(email, pass); } catch(e){ console.error('[esp] ouverture de session après réclamation impossible', e); }
+  if(!ouverture || !ouverture.token){
+    espRenderEtabAuth('login');
+    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-success">Compte récupéré. Connectez-vous avec votre e-mail et votre mot de passe.</p>';
+    return;
+  }
+  espSetTokenSession('etablissement', ouverture.id, ouverture.token, ouverture.expires_at, ouverture.nom);
+  platformUnlock();
 }
 
 // ---------------- Cache non masqué de l'établissement connecté (sa propre fiche) ----------------
@@ -514,9 +524,10 @@ async function espEtabEnsureOwnLoaded(){
   _espEtabOwnLoading = true;
   let own;
   try {
-    own = await espEtabGetOwnRPC(session.id, session.password);
+    own = await espEtabGetOwnRPC();
   } catch(e){
     _espEtabOwnLoading = false;
+    if(e.espSessionInvalid) return; // bandeau "session expirée" déjà affiché
     alert("Erreur lors du chargement de votre fiche établissement : " + e.message);
     return;
   }
@@ -707,7 +718,6 @@ function espEtabToggleEditInfo(){
   form.style.display = form.style.display === 'none' ? '' : 'none';
 }
 async function espEtabSaveInfo(){
-  const session = espSession();
   const msgEl = document.getElementById('esp-etab-info-msg');
   const nom = document.getElementById('esp-etab-edit-nom').value.trim();
   const type = document.getElementById('esp-etab-edit-type').value;
@@ -721,27 +731,32 @@ async function espEtabSaveInfo(){
   }
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
   try {
-    const ok = await espEtabUpdateInfoRPC(session.id, session.password, nom, type, responsable, tel, email, contactTel);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espEtabUpdateInfoRPC(nom, type, responsable, tel, email, contactTel);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
   } catch(e){
+    if(e.espSessionInvalid) return; // bandeau "session expirée" déjà affiché
+    if(/EMAIL_DEJA_UTILISE/.test(e.message || '')){
+      msgEl.innerHTML = '<p class="esp-error">Cet e-mail est déjà utilisé par un autre établissement.</p>';
+      return;
+    }
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
 
 // ---------------- Premium : contact direct + site web ----------------
 async function espEtabSaveContactExtras(){
-  const session = espSession();
   const msgEl = document.getElementById('esp-etab-extras-msg');
   const tel2 = document.getElementById('esp-etab-extra-tel2').value.trim();
   const tel3 = document.getElementById('esp-etab-extra-tel3').value.trim();
   const siteWeb = document.getElementById('esp-etab-extra-site-web').value.trim();
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
   try {
-    const ok = await espEtabUpdateContactExtrasRPC(session.id, session.password, tel2, tel3, siteWeb);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espEtabUpdateContactExtrasRPC(tel2, tel3, siteWeb);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
   } catch(e){
+    if(e.espSessionInvalid) return;
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
@@ -789,7 +804,6 @@ function espEtabDashboardFiliereDiplomeChange(){
   diplomeAutre.style.display = diplomeSelect.value === ESP_GENERAL_AUTRE ? '' : 'none';
 }
 async function espEtabAddFiliereDashboard(){
-  const session = espSession();
   const msgEl = document.getElementById('esp-etab-add-filiere-msg');
   let nom, diplome;
   if(_espEtabOwn && _espEtabOwn.categorie === 'general'){
@@ -811,9 +825,10 @@ async function espEtabAddFiliereDashboard(){
   }
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Ajout en cours...</p>';
   try {
-    const ok = await espEtabAddFiliereRPC(session.id, session.password, nom, diplome);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Échec de l\'ajout (limite de 10 filières atteinte, ou session expirée).</p>'; return; }
+    const ok = await espEtabAddFiliereRPC(nom, diplome);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
@@ -823,11 +838,11 @@ async function espEtabAddFiliereDashboard(){
 // ---------------- Suppression d'une filière déjà ajoutée ----------------
 async function espEtabDeleteFiliereDashboard(filiereId){
   if(!confirm('Supprimer définitivement cette filière ? Cette action est irréversible.')) return;
-  const session = espSession();
   try {
-    const ok = await espEtabDeleteFiliereRPC(session.id, session.password, filiereId);
-    if(!ok){ alert("Échec de la suppression (session expirée, merci de te reconnecter)."); return; }
+    const ok = await espEtabDeleteFiliereRPC(filiereId);
+    if(!ok){ alert("Action impossible (limite atteinte ou accès refusé)."); return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     alert('Erreur : ' + e.message);
     return;
   }
@@ -836,13 +851,13 @@ async function espEtabDeleteFiliereDashboard(filiereId){
 
 // ---------------- Demande d'activation du mode Premium ----------------
 async function espEtabDemanderPremium(){
-  const session = espSession();
   const msgEl = document.getElementById('esp-etab-premium-msg');
   if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Envoi de la demande...</p>';
   try {
-    const ok = await espEtabDemanderPremiumRPC(session.id, session.password);
-    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Échec de la demande (session expirée, ou compte déjà Premium).</p>'; return; }
+    const ok = await espEtabDemanderPremiumRPC();
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   }
@@ -851,7 +866,6 @@ async function espEtabDemanderPremium(){
 
 // ---------------- Photos (modifiables après inscription) ----------------
 async function espEtabDashboardPhotosChange(input){
-  const session = espSession();
   if(!_espEtabOwn) return;
   const current = _espEtabOwn.photos || [];
   const files = Array.from(input.files || []);
@@ -867,20 +881,20 @@ async function espEtabDashboardPhotosChange(input){
   }
   const updated = [...current, ...newUrls];
   try {
-    const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
-    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espEtabUpdatePhotosRPC(updated);
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
   } catch(e){
+    if(e.espSessionInvalid) return;
     if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
 async function espEtabRemovePhoto(idx){
-  const session = espSession();
   if(!_espEtabOwn) return;
   const updated = (_espEtabOwn.photos || []).slice();
   updated.splice(idx, 1);
   try {
-    const ok = await espEtabUpdatePhotosRPC(session.id, session.password, updated);
+    const ok = await espEtabUpdatePhotosRPC(updated);
     if(!ok) return;
     await espEtabRefreshOwnAndDashboard();
   } catch(e){}
@@ -888,7 +902,6 @@ async function espEtabRemovePhoto(idx){
 
 // ---------------- Logo (modifiable après inscription, y compris pour un compte réclamé) ----------------
 async function espEtabDashboardLogoChange(input){
-  const session = espSession();
   const file = (input.files || [])[0];
   input.value = '';
   if(!file) return;
@@ -898,18 +911,18 @@ async function espEtabDashboardLogoChange(input){
   try { url = await espUploadEtabLogo(file); }
   catch(e){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>'; return; }
   try {
-    const ok = await espEtabUpdateLogoRPC(session.id, session.password, url);
-    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espEtabUpdateLogoRPC(url);
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
   } catch(e){
+    if(e.espSessionInvalid) return;
     if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
 async function espEtabRemoveLogo(){
-  const session = espSession();
   if(!_espEtabOwn) return;
   try {
-    const ok = await espEtabUpdateLogoRPC(session.id, session.password, null);
+    const ok = await espEtabUpdateLogoRPC(null);
     if(!ok) return;
     await espEtabRefreshOwnAndDashboard();
   } catch(e){}
@@ -932,7 +945,6 @@ function espEtabEditToggleVilleAutre(){
   row.style.display = villeSelect.value === '__autre__' ? '' : 'none';
 }
 async function espEtabSaveLocalisation(){
-  const session = espSession();
   const msgEl = document.getElementById('esp-etab-localisation-msg');
   const region = document.getElementById('esp-etab-edit-region').value;
   const villeSelect = document.getElementById('esp-etab-edit-ville');
@@ -944,10 +956,11 @@ async function espEtabSaveLocalisation(){
   }
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
   try {
-    const ok = await espEtabUpdateLocalisationRPC(session.id, session.password, region, ville, quartier);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espEtabUpdateLocalisationRPC(region, ville, quartier);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
   } catch(e){
+    if(e.espSessionInvalid) return;
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
