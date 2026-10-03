@@ -103,18 +103,27 @@ function espLycamSavePending(list){
 function espLycamPendingForSession(sessionId){
   return espLycamLoadPending().filter(p => p.sessionId === sessionId);
 }
+// Renvoie false si la session a expiré pendant la synchronisation (jeton refusé) : la boucle
+// s'arrête aussitôt et TOUS les résultats non encore envoyés restent en file (aucun n'est perdu).
 async function espLycamRetrySync(){
-  const session = espSession();
   const pending = espLycamLoadPending();
-  if(!pending.length) return;
+  if(!pending.length) return true;
   const stillPending = [];
-  for(const p of pending){
+  for(let i = 0; i < pending.length; i++){
+    const p = pending[i];
     try {
-      const ok = await espLycamSaveResultRPC(session.id, session.password, p.sessionId, p.eleve, p.scoreTotal, p.band, p.scores);
+      const ok = await espLycamSaveResultRPC(p.sessionId, p.eleve, p.scoreTotal, p.band, p.scores);
       if(!ok) stillPending.push(p);
-    } catch(e){ stillPending.push(p); }
+    } catch(e){
+      if(e.espSessionInvalid){
+        espLycamSavePending(stillPending.concat(pending.slice(i)));
+        return false;
+      }
+      stillPending.push(p);
+    }
   }
   espLycamSavePending(stillPending);
+  return true;
 }
 
 /* ---------------- Initialisation de l'onglet ---------------- */
@@ -123,11 +132,11 @@ async function espLycamInitTab(){
   _espLycamError = '';
   _espLycamLoading = true;
   espLycamRefreshContainer();
-  const session = espSession();
   try {
-    await espLycamRetrySync();
-    _espLycamSessions = await espLycamListSessionsRPC(session.id, session.password);
+    if(!(await espLycamRetrySync())) return; // session expirée : bandeau déjà affiché
+    _espLycamSessions = await espLycamListSessionsRPC();
   } catch(e){
+    if(e.espSessionInvalid) return;
     _espLycamError = "Impossible de charger les sessions LYCAM : " + e.message;
     _espLycamSessions = [];
   }
@@ -183,15 +192,15 @@ async function espLycamCreateSession(){
   const input = document.getElementById('esp-lycam-new-name');
   const nom = input.value.trim();
   if(!nom){ _espLycamError = "Merci de donner un nom à la session."; espLycamRefreshContainer(); return; }
-  const session = espSession();
   try {
-    const id = await espLycamCreateSessionRPC(session.id, session.password, nom);
-    if(!id){ _espLycamError = "Impossible de créer la session (session expirée ?)."; espLycamRefreshContainer(); return; }
+    const id = await espLycamCreateSessionRPC(nom);
+    if(!id){ _espLycamError = "Action impossible (limite atteinte ou accès refusé)."; espLycamRefreshContainer(); return; }
     _espLycamCurrentSession = { id, nom };
     _espLycamCurrentResults = [];
     _espLycamError = '';
     espLycamGoToIdentity();
   } catch(e){
+    if(e.espSessionInvalid) return;
     _espLycamError = "Erreur : " + e.message;
     espLycamRefreshContainer();
   }
@@ -203,15 +212,15 @@ async function espLycamOpenSession(sessionId){
   _espLycamCurrentSession = { id: s.id, nom: s.nom };
   _espLycamLoading = true;
   espLycamRefreshContainer();
-  const session = espSession();
   try {
-    const serverResults = await espLycamListResultsRPC(session.id, session.password, sessionId);
+    const serverResults = await espLycamListResultsRPC(sessionId);
     const pending = espLycamPendingForSession(sessionId).map(p => ({
       id: 'pending-' + p.tempId, sessionId, nom:p.eleve.nom, prenom:p.eleve.prenom, naissance:p.eleve.naissance,
       classe:p.eleve.classe, scoreTotal:p.scoreTotal, band:p.band, scores:p.scores, pending:true,
     }));
     _espLycamCurrentResults = [...serverResults, ...pending];
   } catch(e){
+    if(e.espSessionInvalid) return;
     _espLycamError = "Impossible de charger les résultats : " + e.message;
     _espLycamCurrentResults = espLycamPendingForSession(sessionId).map(p => ({
       id:'pending-'+p.tempId, sessionId, nom:p.eleve.nom, prenom:p.eleve.prenom, naissance:p.eleve.naissance,
@@ -352,19 +361,21 @@ async function espLycamComputeAndSave(){
   const info = espLycamBandInfo(r.band);
   _espLycamLastResult = { identity: {..._espLycamIdentity}, ...r, bandLabel: info.label, bandDesc: info.desc };
 
-  const session = espSession();
   let synced = true;
+  let sessionInvalid = false;
   try {
-    const ok = await espLycamSaveResultRPC(session.id, session.password, _espLycamCurrentSession.id, _espLycamIdentity, r.total, r.band, r.scores);
+    const ok = await espLycamSaveResultRPC(_espLycamCurrentSession.id, _espLycamIdentity, r.total, r.band, r.scores);
     if(!ok) synced = false;
-  } catch(e){ synced = false; }
+  } catch(e){ synced = false; sessionInvalid = !!e.espSessionInvalid; }
 
+  // Session expirée comprise : le résultat est mis en file, il sera envoyé à la prochaine connexion.
   if(!synced){
     const pending = espLycamLoadPending();
     const tempId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     pending.push({ tempId, sessionId: _espLycamCurrentSession.id, eleve: {..._espLycamIdentity}, scoreTotal:r.total, band:r.band, scores:r.scores });
     espLycamSavePending(pending);
   }
+  if(sessionInvalid) return; // bandeau "session expirée" déjà affiché
   _espLycamLastResult.synced = synced;
 
   _espLycamCurrentResults.push({
@@ -468,7 +479,7 @@ function espLycamRenderReport(){
 }
 
 async function espLycamManualRetrySync(){
-  await espLycamRetrySync();
+  if(!(await espLycamRetrySync())) return; // session expirée : bandeau déjà affiché
   espLycamInitTab();
 }
 
