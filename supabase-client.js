@@ -129,15 +129,19 @@ async function espLoadFromSupabase(forceRefresh){
 // Contrairement au chat de groupe, ces messages ne sont jamais lisibles publiquement :
 // la fonction RPC ne renvoie que les messages où l'inspecteur connecté est expéditeur
 // ou destinataire — jamais les conversations des autres inspecteurs.
+// Inspecteur : authentifié par le jeton de session (espAuthRpc, auth.js).
 async function espLoadPrivateMessages(){
   const session = espSession();
   if(!session || session.role !== 'inspecteur'){ _espPrivateCache = []; return; }
-  const { data, error } = await supabaseClient.rpc('inspecteur_list_private_messages', { p_inspecteur_id: session.id, p_password: session.password });
-  if(error) throw error;
+  const data = await espAuthRpc('inspecteur_list_private_messages_v2');
   _espPrivateCache = (data||[]).map(espRowToPrivateMessage);
 }
 function espPrivateMessages(){
   return _espPrivateCache || [];
+}
+// Session invalide (auth.js, espHandleSessionInvalid) : rien ne doit rester en mémoire.
+function espResetPrivateMessages(){
+  _espPrivateCache = [];
 }
 
 // ---------------- Écoute en temps réel (mises à jour reçues par tous les utilisateurs) ----------------
@@ -161,7 +165,10 @@ function espScheduleRefresh(){
       // fraîchement créé si le cache local ne le contenait pas encore.
       await espLoadFromSupabase(true);
       const session = espSession();
-      if(session && session.role === 'inspecteur') await espLoadPrivateMessages();
+      if(session && session.role === 'inspecteur'){
+        try { await espLoadPrivateMessages(); }
+        catch(e){ if(!e.espSessionInvalid) throw e; }
+      }
       // Écran/bandeau "connexion instable" affiché : les données viennent d'être rechargées avec
       // succès, on relance la résolution de session plutôt que de dessiner un tableau de bord
       // dans le portail.
@@ -263,6 +270,14 @@ async function espEleveSessionOpenRPC(tel, password){
   if(error) throw error;
   return data || null;
 }
+// Ouverture de session inspecteur par jeton : null (téléphone ou mot de passe incorrects),
+// {banni:true} (compte suspendu, aucune session créée) ou {token, expires_at, id, nom, prenoms}.
+// Téléphone comparé tel quel côté serveur. Session serveur de 30 jours.
+async function espInspecteurSessionOpenRPC(tel, password){
+  const { data, error } = await supabaseClient.rpc('inspecteur_session_open', { p_tel: tel, p_password: password });
+  if(error) throw error;
+  return data || null;
+}
 async function espInspecteurLoginRPC(tel, password){
   const { data, error } = await supabaseClient.rpc('inspecteur_login', { p_tel: tel, p_password: password });
   if(error) throw error;
@@ -328,18 +343,12 @@ async function espAdminGetVisiteStatsRPC(){
 async function espSaveRiasecRPC(riasec){
   return !!(await espAuthRpc('eleve_save_riasec', { p_riasec: riasec }));
 }
-async function espAddNoteRPC(inspecteurId, password, eleveId, texte){
-  const { data, error } = await supabaseClient.rpc('inspecteur_add_note', { p_inspecteur_id: inspecteurId, p_password: password, p_eleve_id: eleveId, p_texte: texte });
-  if(error) throw error;
-  return !!data;
-}
-async function espPostMessageRPC(inspecteurId, password, texte, type, replyTo, attachment){
-  const { data, error } = await supabaseClient.rpc('inspecteur_post_message', {
-    p_inspecteur_id: inspecteurId, p_password: password, p_texte: texte, p_type: type || 'C', p_reply_to: replyTo || null,
+// Inspecteur : authentifié par le jeton de session (espAuthRpc, auth.js) ; la fiche est celle du jeton.
+async function espPostMessageRPC(texte, type, replyTo, attachment){
+  return !!(await espAuthRpc('inspecteur_post_message_v2', {
+    p_texte: texte, p_type: type || 'C', p_reply_to: replyTo || null,
     p_attachment_url: (attachment && attachment.url) || null, p_attachment_type: (attachment && attachment.type) || null, p_attachment_name: (attachment && attachment.name) || null,
-  });
-  if(error) throw error;
-  return !!data;
+  }));
 }
 async function espAdminPostMessageRPC(texte, type, replyTo, attachment){
   return !!(await espAuthRpc('admin_post_message_v2', {
@@ -348,72 +357,49 @@ async function espAdminPostMessageRPC(texte, type, replyTo, attachment){
   }));
 }
 // ---------------- Messagerie privée : envoyer / marquer comme lu ----------------
-async function espPostPrivateMessageRPC(expediteurId, password, destinataireId, texte, attachment){
-  const { data, error } = await supabaseClient.rpc('inspecteur_post_private_message', {
-    p_expediteur_id: expediteurId, p_password: password, p_destinataire_id: destinataireId, p_texte: texte,
+async function espPostPrivateMessageRPC(destinataireId, texte, attachment){
+  return !!(await espAuthRpc('inspecteur_post_private_message_v2', {
+    p_destinataire_id: destinataireId, p_texte: texte,
     p_attachment_url: (attachment && attachment.url) || null, p_attachment_type: (attachment && attachment.type) || null, p_attachment_name: (attachment && attachment.name) || null,
-  });
-  if(error) throw error;
-  return !!data;
+  }));
 }
-async function espMarkPrivateReadRPC(inspecteurId, password, autreId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_mark_private_read', { p_inspecteur_id: inspecteurId, p_password: password, p_autre_id: autreId });
-  if(error) throw error;
-  return !!data;
+async function espMarkPrivateReadRPC(autreId){
+  return !!(await espAuthRpc('inspecteur_mark_private_read_v2', { p_autre_id: autreId }));
 }
-async function espInspecteurRequestCertificationRPC(inspecteurId, password){
-  const { data, error } = await supabaseClient.rpc('inspecteur_request_certification', { p_inspecteur_id: inspecteurId, p_password: password });
-  if(error) throw error;
-  return !!data;
+async function espInspecteurRequestCertificationRPC(){
+  return !!(await espAuthRpc('inspecteur_request_certification_v2'));
 }
-async function espInspecteurUpdateAvatarRPC(inspecteurId, password, avatarUrl){
-  const { data, error } = await supabaseClient.rpc('inspecteur_update_avatar', { p_inspecteur_id: inspecteurId, p_password: password, p_avatar_url: avatarUrl });
-  if(error) throw error;
-  return !!data;
+async function espInspecteurUpdateAvatarRPC(avatarUrl){
+  return !!(await espAuthRpc('inspecteur_update_avatar_v2', { p_avatar_url: avatarUrl }));
 }
-async function espInspecteurUpdateMessageAccueilRPC(inspecteurId, password, messageAccueil){
-  const { data, error } = await supabaseClient.rpc('inspecteur_update_message_accueil', { p_inspecteur_id: inspecteurId, p_password: password, p_message_accueil: messageAccueil });
-  if(error) throw error;
-  return !!data;
+async function espInspecteurUpdateMessageAccueilRPC(messageAccueil){
+  return !!(await espAuthRpc('inspecteur_update_message_accueil_v2', { p_message_accueil: messageAccueil }));
 }
 // ---------------- Suivi d'élèves par l'inspecteur (répertoire privé, saisie libre) ----------------
-async function espSuiviAddEleveRPC(inspecteurId, password, nom, prenoms, classe, raisons){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_add_eleve', {
-    p_inspecteur_id: inspecteurId, p_password: password,
+// Inspecteur : par jeton (espAuthRpc) ; seules les fiches de l'inspecteur du jeton sont accessibles.
+async function espSuiviAddEleveRPC(nom, prenoms, classe, raisons){
+  return await espAuthRpc('inspecteur_suivi_add_eleve_v2', {
     p_nom: nom, p_prenoms: prenoms || null, p_classe: classe, p_raisons: raisons,
   });
-  if(error) throw error;
-  return data;
 }
-async function espSuiviListElevesRPC(inspecteurId, password){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_list_eleves', { p_inspecteur_id: inspecteurId, p_password: password });
-  if(error) throw error;
-  return (data || []).map(espRowToSuiviEleve);
+async function espSuiviListElevesRPC(){
+  return ((await espAuthRpc('inspecteur_suivi_list_eleves_v2')) || []).map(espRowToSuiviEleve);
 }
-async function espSuiviGetEleveRPC(inspecteurId, password, suiviId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_get_eleve', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId });
-  if(error) throw error;
+async function espSuiviGetEleveRPC(suiviId){
+  const data = await espAuthRpc('inspecteur_suivi_get_eleve_v2', { p_suivi_id: suiviId });
   return (data && data[0]) ? espRowToSuiviEleve(data[0]) : null;
 }
-async function espSuiviDeleteEleveRPC(inspecteurId, password, suiviId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_delete_eleve', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId });
-  if(error) throw error;
-  return !!data;
+async function espSuiviDeleteEleveRPC(suiviId){
+  return !!(await espAuthRpc('inspecteur_suivi_delete_eleve_v2', { p_suivi_id: suiviId }));
 }
-async function espSuiviSetAppreciationRPC(inspecteurId, password, suiviId, appreciation){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_set_appreciation', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId, p_appreciation: appreciation });
-  if(error) throw error;
-  return !!data;
+async function espSuiviSetAppreciationRPC(suiviId, appreciation){
+  return !!(await espAuthRpc('inspecteur_suivi_set_appreciation_v2', { p_suivi_id: suiviId, p_appreciation: appreciation }));
 }
-async function espSuiviAddNoteRPC(inspecteurId, password, suiviId, dateNote, texte){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_add_note', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId, p_date_note: dateNote, p_texte: texte });
-  if(error) throw error;
-  return !!data;
+async function espSuiviAddNoteRPC(suiviId, dateNote, texte){
+  return !!(await espAuthRpc('inspecteur_suivi_add_note_v2', { p_suivi_id: suiviId, p_date_note: dateNote, p_texte: texte }));
 }
-async function espSuiviListNotesRPC(inspecteurId, password, suiviId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_suivi_list_notes', { p_inspecteur_id: inspecteurId, p_password: password, p_suivi_id: suiviId });
-  if(error) throw error;
-  return (data || []).map(espRowToSuiviNote);
+async function espSuiviListNotesRPC(suiviId){
+  return ((await espAuthRpc('inspecteur_suivi_list_notes_v2', { p_suivi_id: suiviId })) || []).map(espRowToSuiviNote);
 }
 async function espUploadChatFile(file){
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
@@ -490,10 +476,9 @@ async function espSetFiliereStatutRPC(etabId, filiereId, statut){
 async function espUpdateEleveEmailRPC(email){
   return !!(await espAuthRpc('eleve_update_email', { p_email: email }));
 }
-async function espUpdateInspecteurEmailRPC(id, password, email){
-  const { data, error } = await supabaseClient.rpc('inspecteur_update_email', { p_id: id, p_password: password, p_email: email });
-  if(error) throw error;
-  return !!data;
+// Inspecteur : par jeton. Lève EMAIL_DEJA_UTILISE si un autre inspecteur porte déjà cet e-mail.
+async function espUpdateInspecteurEmailRPC(email){
+  return !!(await espAuthRpc('inspecteur_update_email_v2', { p_email: email }));
 }
 // Mot de passe oublié : le jeton est généré et envoyé par e-mail côté serveur (Edge Function).
 // Réponse toujours { ok: true } si la requête est bien formée, que le compte existe ou non.
@@ -515,34 +500,22 @@ function espRowToLycamSession(r){ return { id:r.id, inspecteurId:r.inspecteur_id
 function espRowToLycamResultat(r){ return { id:r.id, sessionId:r.session_id, inspecteurId:r.inspecteur_id, nom:r.nom, prenom:r.prenom, naissance:r.naissance, classe:r.classe, scoreTotal:r.score_total, band:r.band, scores:r.scores, createdAt:r.created_at }; }
 
 // ---------------- Test LYCAM : sessions et résultats (espace inspecteur) ----------------
-async function espLycamCreateSessionRPC(inspecteurId, password, nom){
-  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_create_session', { p_inspecteur_id: inspecteurId, p_password: password, p_nom: nom });
-  if(error) throw error;
-  return data || null; // id de la session créée, ou null si échec
+// Inspecteur : par jeton (espAuthRpc) ; seules les sessions de l'inspecteur du jeton sont accessibles.
+async function espLycamCreateSessionRPC(nom){
+  return (await espAuthRpc('inspecteur_lycam_create_session_v2', { p_nom: nom })) || null; // id de la session créée, ou null si échec
 }
-async function espLycamSaveResultRPC(inspecteurId, password, sessionId, eleve, scoreTotal, band, scores){
-  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_save_result', {
-    p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId,
+async function espLycamSaveResultRPC(sessionId, eleve, scoreTotal, band, scores){
+  return !!(await espAuthRpc('inspecteur_lycam_save_result_v2', {
+    p_session_id: sessionId,
     p_nom: eleve.nom, p_prenom: eleve.prenom, p_naissance: eleve.naissance, p_classe: eleve.classe,
     p_score_total: scoreTotal, p_band: band, p_scores: scores,
-  });
-  if(error) throw error;
-  return !!data;
+  }));
 }
-async function espLycamListSessionsRPC(inspecteurId, password){
-  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_list_sessions', { p_inspecteur_id: inspecteurId, p_password: password });
-  if(error) throw error;
-  return (data || []).map(espRowToLycamSession);
+async function espLycamListSessionsRPC(){
+  return ((await espAuthRpc('inspecteur_lycam_list_sessions_v2')) || []).map(espRowToLycamSession);
 }
-async function espLycamListResultsRPC(inspecteurId, password, sessionId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_list_results', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
-  if(error) throw error;
-  return (data || []).map(espRowToLycamResultat);
-}
-async function espLycamDeleteSessionRPC(inspecteurId, password, sessionId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_lycam_delete_session', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
-  if(error) throw error;
-  return !!data;
+async function espLycamListResultsRPC(sessionId){
+  return ((await espAuthRpc('inspecteur_lycam_list_results_v2', { p_session_id: sessionId })) || []).map(espRowToLycamResultat);
 }
 
 // ---------------- Conversion des lignes MBTI (snake_case) <-> camelCase ----------------
@@ -550,34 +523,22 @@ function espRowToMbtiSession(r){ return { id:r.id, inspecteurId:r.inspecteur_id,
 function espRowToMbtiResultat(r){ return { id:r.id, sessionId:r.session_id, inspecteurId:r.inspecteur_id, nom:r.nom, prenom:r.prenom, naissance:r.naissance, classe:r.classe, scores:r.scores, typeLetters:r.type_letters, hierarchie:r.hierarchie, egalites:r.egalites, createdAt:r.created_at }; }
 
 // ---------------- Test MBTI : sessions et résultats (espace inspecteur) ----------------
-async function espMbtiCreateSessionRPC(inspecteurId, password, nom){
-  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_create_session', { p_inspecteur_id: inspecteurId, p_password: password, p_nom: nom });
-  if(error) throw error;
-  return data || null; // id de la session créée, ou null si échec
+// Inspecteur : par jeton (espAuthRpc) ; seules les sessions de l'inspecteur du jeton sont accessibles.
+async function espMbtiCreateSessionRPC(nom){
+  return (await espAuthRpc('inspecteur_mbti_create_session_v2', { p_nom: nom })) || null; // id de la session créée, ou null si échec
 }
-async function espMbtiSaveResultRPC(inspecteurId, password, sessionId, eleve, scores, typeLetters, hierarchie, egalites){
-  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_save_result', {
-    p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId,
+async function espMbtiSaveResultRPC(sessionId, eleve, scores, typeLetters, hierarchie, egalites){
+  return !!(await espAuthRpc('inspecteur_mbti_save_result_v2', {
+    p_session_id: sessionId,
     p_nom: eleve.nom, p_prenom: eleve.prenom, p_naissance: eleve.naissance, p_classe: eleve.classe,
     p_scores: scores, p_type_letters: typeLetters, p_hierarchie: hierarchie, p_egalites: egalites,
-  });
-  if(error) throw error;
-  return !!data;
+  }));
 }
-async function espMbtiListSessionsRPC(inspecteurId, password){
-  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_list_sessions', { p_inspecteur_id: inspecteurId, p_password: password });
-  if(error) throw error;
-  return (data || []).map(espRowToMbtiSession);
+async function espMbtiListSessionsRPC(){
+  return ((await espAuthRpc('inspecteur_mbti_list_sessions_v2')) || []).map(espRowToMbtiSession);
 }
-async function espMbtiListResultsRPC(inspecteurId, password, sessionId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_list_results', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
-  if(error) throw error;
-  return (data || []).map(espRowToMbtiResultat);
-}
-async function espMbtiDeleteSessionRPC(inspecteurId, password, sessionId){
-  const { data, error } = await supabaseClient.rpc('inspecteur_mbti_delete_session', { p_inspecteur_id: inspecteurId, p_password: password, p_session_id: sessionId });
-  if(error) throw error;
-  return !!data;
+async function espMbtiListResultsRPC(sessionId){
+  return ((await espAuthRpc('inspecteur_mbti_list_results_v2', { p_session_id: sessionId })) || []).map(espRowToMbtiResultat);
 }
 
 // ---------------- Établissement : photos et modification des informations générales ----------------
