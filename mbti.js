@@ -196,18 +196,27 @@ function espMbtiSavePending(list){
 function espMbtiPendingForSession(sessionId){
   return espMbtiLoadPending().filter(p => p.sessionId === sessionId);
 }
+// Renvoie false si la session a expiré pendant la synchronisation (jeton refusé) : la boucle
+// s'arrête aussitôt et TOUS les résultats non encore envoyés restent en file (aucun n'est perdu).
 async function espMbtiRetrySync(){
-  const session = espSession();
   const pending = espMbtiLoadPending();
-  if(!pending.length) return;
+  if(!pending.length) return true;
   const stillPending = [];
-  for(const p of pending){
+  for(let i = 0; i < pending.length; i++){
+    const p = pending[i];
     try {
-      const ok = await espMbtiSaveResultRPC(session.id, session.password, p.sessionId, p.eleve, p.scores, p.typeLetters, p.hierarchie, p.egalites);
+      const ok = await espMbtiSaveResultRPC(p.sessionId, p.eleve, p.scores, p.typeLetters, p.hierarchie, p.egalites);
       if(!ok) stillPending.push(p);
-    } catch(e){ stillPending.push(p); }
+    } catch(e){
+      if(e.espSessionInvalid){
+        espMbtiSavePending(stillPending.concat(pending.slice(i)));
+        return false;
+      }
+      stillPending.push(p);
+    }
   }
   espMbtiSavePending(stillPending);
+  return true;
 }
 
 /* ---------------- Initialisation de l'onglet ---------------- */
@@ -216,11 +225,11 @@ async function espMbtiInitTab(){
   _espMbtiError = '';
   _espMbtiLoading = true;
   espMbtiRefreshContainer();
-  const session = espSession();
   try {
-    await espMbtiRetrySync();
-    _espMbtiSessions = await espMbtiListSessionsRPC(session.id, session.password);
+    if(!(await espMbtiRetrySync())) return; // session expirée : bandeau déjà affiché
+    _espMbtiSessions = await espMbtiListSessionsRPC();
   } catch(e){
+    if(e.espSessionInvalid) return;
     _espMbtiError = "Impossible de charger les sessions MBTI : " + e.message;
     _espMbtiSessions = [];
   }
@@ -277,15 +286,15 @@ async function espMbtiCreateSession(){
   const input = document.getElementById('esp-mbti-new-name');
   const nom = input.value.trim();
   if(!nom){ _espMbtiError = "Merci de donner un nom à la session."; espMbtiRefreshContainer(); return; }
-  const session = espSession();
   try {
-    const id = await espMbtiCreateSessionRPC(session.id, session.password, nom);
-    if(!id){ _espMbtiError = "Impossible de créer la session (session expirée ?)."; espMbtiRefreshContainer(); return; }
+    const id = await espMbtiCreateSessionRPC(nom);
+    if(!id){ _espMbtiError = "Action impossible (limite atteinte ou accès refusé)."; espMbtiRefreshContainer(); return; }
     _espMbtiCurrentSession = { id, nom };
     _espMbtiCurrentResults = [];
     _espMbtiError = '';
     espMbtiGoToIdentity();
   } catch(e){
+    if(e.espSessionInvalid) return;
     _espMbtiError = "Erreur : " + e.message;
     espMbtiRefreshContainer();
   }
@@ -297,15 +306,15 @@ async function espMbtiOpenSession(sessionId){
   _espMbtiCurrentSession = { id: s.id, nom: s.nom };
   _espMbtiLoading = true;
   espMbtiRefreshContainer();
-  const session = espSession();
   try {
-    const serverResults = await espMbtiListResultsRPC(session.id, session.password, sessionId);
+    const serverResults = await espMbtiListResultsRPC(sessionId);
     const pending = espMbtiPendingForSession(sessionId).map(p => ({
       id: 'pending-' + p.tempId, sessionId, nom:p.eleve.nom, prenom:p.eleve.prenom, naissance:p.eleve.naissance,
       classe:p.eleve.classe, scores:p.scores, typeLetters:p.typeLetters, hierarchie:p.hierarchie, egalites:p.egalites, pending:true,
     }));
     _espMbtiCurrentResults = [...serverResults, ...pending];
   } catch(e){
+    if(e.espSessionInvalid) return;
     _espMbtiError = "Impossible de charger les résultats : " + e.message;
     _espMbtiCurrentResults = espMbtiPendingForSession(sessionId).map(p => ({
       id:'pending-'+p.tempId, sessionId, nom:p.eleve.nom, prenom:p.eleve.prenom, naissance:p.eleve.naissance,
@@ -506,19 +515,21 @@ async function espMbtiComputeAndSave(){
 
   _espMbtiLastResult = { identity: {..._espMbtiIdentity}, scores, typeLetters, hierarchie, egalites: egalitesResolues };
 
-  const session = espSession();
   let synced = true;
+  let sessionInvalid = false;
   try {
-    const ok = await espMbtiSaveResultRPC(session.id, session.password, _espMbtiCurrentSession.id, _espMbtiIdentity, scores, typeLetters, hierarchie, egalitesResolues);
+    const ok = await espMbtiSaveResultRPC(_espMbtiCurrentSession.id, _espMbtiIdentity, scores, typeLetters, hierarchie, egalitesResolues);
     if(!ok) synced = false;
-  } catch(e){ synced = false; }
+  } catch(e){ synced = false; sessionInvalid = !!e.espSessionInvalid; }
 
+  // Session expirée comprise : le résultat est mis en file, il sera envoyé à la prochaine connexion.
   if(!synced){
     const pending = espMbtiLoadPending();
     const tempId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     pending.push({ tempId, sessionId: _espMbtiCurrentSession.id, eleve: {..._espMbtiIdentity}, scores, typeLetters, hierarchie, egalites: egalitesResolues });
     espMbtiSavePending(pending);
   }
+  if(sessionInvalid) return; // bandeau "session expirée" déjà affiché
   _espMbtiLastResult.synced = synced;
 
   _espMbtiCurrentResults.push({
@@ -711,7 +722,7 @@ function espMbtiRenderReport(){
 }
 
 async function espMbtiManualRetrySync(){
-  await espMbtiRetrySync();
+  if(!(await espMbtiRetrySync())) return; // session expirée : bandeau déjà affiché
   espMbtiInitTab();
 }
 
