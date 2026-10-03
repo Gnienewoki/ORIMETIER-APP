@@ -19,7 +19,7 @@ function espClearSession(){
 // nom : facultatif, affiché dans la barre du haut (admin).
 // Les autres rôles gardent l'ancien format {role, id, password} jusqu'à leur phase.
 // Doit rester synchronisé avec la liste des 8 scripts inline anti-flash des pages HTML.
-const ESP_TOKEN_ROLES = ['eleve', 'admin', 'etablissement'];
+const ESP_TOKEN_ROLES = ['eleve', 'admin', 'etablissement', 'inspecteur'];
 const ESP_TOKEN_SESSION_FALLBACK_MS = 30 * 24 * 3600 * 1000;
 function espSetTokenSession(role, id, token, expiresAt, nom){
   let exp = Date.parse(expiresAt);
@@ -71,6 +71,8 @@ function espHandleSessionInvalid(){
   if(typeof espAdminResetCaches === 'function') espAdminResetCaches();
   // Fiche établissement en mémoire (etablissement.js), comme à la déconnexion.
   if(typeof espEtabResetOwn === 'function') espEtabResetOwn();
+  // Messages privés de l'inspecteur en mémoire (supabase-client.js), comme à la déconnexion.
+  if(typeof espResetPrivateMessages === 'function') espResetPrivateMessages();
   if(espCurrentPageIsPublic()) updateAuthBar();
   else platformLock();
   espShowSessionExpiredNotice(role);
@@ -272,7 +274,10 @@ function platformUnlock(){
   if(session && session.role === 'inspecteur'){
     // Charge les messages privés de l'inspecteur avant d'initialiser la page,
     // pour que le compteur de messages non-lus soit correct dès l'affichage.
-    espLoadPrivateMessages().catch(e => console.error('[esp] échec du chargement des messages privés', e)).finally(() => {
+    // Jeton refusé (P0401) : espAuthRpc a déjà déconnecté ; sur une page privée, le portail
+    // est réaffiché et la page ne doit pas s'initialiser sans session.
+    espLoadPrivateMessages().catch(e => { if(!e.espSessionInvalid) console.error('[esp] échec du chargement des messages privés', e); }).finally(() => {
+      if(!espSession() && !espCurrentPageIsPublic()) return;
       if(typeof window.pageInit === 'function') window.pageInit();
     });
   } else {
@@ -802,8 +807,7 @@ function espPrivateSearchInput(value){
 async function espOpenConversationPrivee(contactId){
   _espPrivateActiveContact = contactId;
   _espPrivateSearchQuery = '';
-  const session = espSession();
-  try { await espMarkPrivateReadRPC(session.id, session.password, contactId); await espLoadPrivateMessages(); } catch(e){}
+  try { await espMarkPrivateReadRPC(contactId); await espLoadPrivateMessages(); } catch(e){ if(e.espSessionInvalid) return; }
   espRenderInspecteurDashboard('prive');
 }
 
@@ -813,7 +817,6 @@ function espCloseConversationPrivee(){
 }
 
 async function espSendPrivateMessage(){
-  const session = espSession();
   const input = document.getElementById('esp-priv-input');
   const texte = input.value.trim();
   const errEl = document.getElementById('esp-priv-error');
@@ -822,9 +825,10 @@ async function espSendPrivateMessage(){
   if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Envoi en cours...'; }
   try {
     const attachment = await espPrivUploadPendingAttachment();
-    const ok = await espPostPrivateMessageRPC(session.id, session.password, _espPrivateActiveContact, texte, attachment);
-    if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible d\'envoyer le message (session expirée). Merci de te reconnecter.</p>'; return; }
+    const ok = await espPostPrivateMessageRPC(_espPrivateActiveContact, texte, attachment);
+    if(!ok){ errEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   } finally {
@@ -832,7 +836,7 @@ async function espSendPrivateMessage(){
   }
   input.value = '';
   espPrivClearAttachment('esp-priv-file-input');
-  await espLoadPrivateMessages();
+  try { await espLoadPrivateMessages(); } catch(e){ if(e.espSessionInvalid) return; throw e; }
   espRenderInspecteurDashboard('prive');
 }
 
@@ -859,8 +863,8 @@ async function espSubmitEmailForm(role){
       ok = await espUpdateEleveEmailRPC(email);
       if(!ok){ msgEl.innerHTML = '<p class="esp-error">Impossible d\'enregistrer l\'e-mail.</p>'; return; }
     } else if(role === 'inspecteur'){
-      ok = await espUpdateInspecteurEmailRPC(session.id, session.password, email);
-      if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+      ok = await espUpdateInspecteurEmailRPC(email);
+      if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     }
     const db = espDB();
     if(role === 'eleve'){
