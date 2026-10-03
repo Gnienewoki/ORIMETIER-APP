@@ -80,8 +80,16 @@ async function espInspecteurRegister(){
     // espDB() relu après les attendus : un rafraîchissement temps réel a pu remplacer le cache.
     const db = espDB();
     db.inspecteurs.push(nouvelInsp);
-    espSaveDB(db);
-    espSetSession('inspecteur', id, pass);
+    espSaveDB(db); // le cache d'onglet n'enregistre jamais la clé "password"
+    // Ouverture de session par jeton, comme une connexion : aucun mot de passe en session.
+    let ouverture = null;
+    try { ouverture = await espInspecteurSessionOpenRPC(tel, pass); } catch(e){ console.error('[esp] ouverture de session après inscription impossible', e); }
+    if(!ouverture || !ouverture.token){
+      espRenderInspecteurAuth('login');
+      document.getElementById('esp-insp-error').innerHTML = '<p class="esp-success">Compte créé. Connecte-toi avec ton téléphone et ton mot de passe.</p>';
+      return;
+    }
+    espSetTokenSession('inspecteur', ouverture.id, ouverture.token, ouverture.expires_at);
     platformUnlock();
   } finally {
     _espInspRegisterBusy = false;
@@ -92,25 +100,31 @@ async function espInspecteurLogin(){
   const telSaisi = document.getElementById('esp-insp-tel').value.trim();
   const tel = normalizeTel(telSaisi);
   const pass = document.getElementById('esp-insp-pass').value;
-  let insp;
+  // Ouverture de session par jeton : null (identifiants incorrects), {banni:true} (compte
+  // suspendu, aucune session créée) ou {token, expires_at, id, ...}.
+  let ouverture;
   try {
-    insp = await espInspecteurLoginRPC(tel, pass);
+    ouverture = await espInspecteurSessionOpenRPC(tel, pass);
     // Repli pour les comptes créés avant la normalisation, dont le numéro stocké garde ses
     // espaces ou son indicatif : on retente avec la saisie brute.
-    if(!insp && telSaisi && telSaisi !== tel) insp = await espInspecteurLoginRPC(telSaisi, pass);
+    if(!ouverture && telSaisi && telSaisi !== tel) ouverture = await espInspecteurSessionOpenRPC(telSaisi, pass);
   } catch(e){
     document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Erreur de connexion : ' + escapeHtml(e.message) + '</p>';
     return;
   }
-  if(!insp){
+  if(!ouverture){
     document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Téléphone ou mot de passe incorrect.</p>';
     return;
   }
-  if(insp.banni){
+  if(ouverture.banni){
     document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Ce compte a été suspendu par l\'administration. Contacte l\'administrateur de la plateforme pour plus d\'informations.</p>';
     return;
   }
-  espSetSession('inspecteur', insp.id, pass);
+  if(!ouverture.token){
+    document.getElementById('esp-insp-error').innerHTML = '<p class="esp-error">Erreur de connexion : réponse inattendue du serveur.</p>';
+    return;
+  }
+  espSetTokenSession('inspecteur', ouverture.id, ouverture.token, ouverture.expires_at);
   platformUnlock();
 }
 function espInspecteurLogout(){ platformLogout(); }
@@ -251,7 +265,6 @@ function espRenderInspecteurDashboard(sub){
 }
 
 async function espSendChatMessage(){
-  const session = espSession();
   const input = document.getElementById('esp-chat-input');
   const typeSelect = document.getElementById('esp-chat-type');
   const texte = input.value.trim();
@@ -263,9 +276,10 @@ async function espSendChatMessage(){
   if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Envoi en cours...'; }
   try {
     const attachment = await espChatUploadPendingAttachment();
-    const ok = await espPostMessageRPC(session.id, session.password, texte, type, replyTo, attachment);
-    if(!ok){ errEl.innerHTML = '<p class="esp-error">Impossible d\'envoyer le message (session expirée, ou compte suspendu). Merci de te reconnecter.</p>'; return; }
+    const ok = await espPostMessageRPC(texte, type, replyTo, attachment);
+    if(!ok){ errEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
   } catch(e){
+    if(e.espSessionInvalid) return;
     errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
     return;
   } finally {
@@ -286,14 +300,15 @@ async function espInspecteurUploadAvatar(input){
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Envoi en cours...</p>';
   try {
     const url = await espUploadAvatarFile(file);
-    const ok = await espInspecteurUpdateAvatarRPC(session.id, session.password, url);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espInspecteurUpdateAvatarRPC(url);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     const db = espDB();
     const insp = db.inspecteurs.find(i => i.id === session.id);
     if(insp) insp.avatarUrl = url;
     espSaveDB(db);
     espRenderInspecteurDashboard('chat');
   } catch(e){
+    if(e.espSessionInvalid) return;
     msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>';
   }
 }
@@ -305,8 +320,8 @@ async function espInspecteurSaveMessageAccueil(){
   const session = espSession();
   msgEl.innerHTML = '<p class="esp-sub" style="margin:6px 0 0;">Enregistrement...</p>';
   try {
-    const ok = await espInspecteurUpdateMessageAccueilRPC(session.id, session.password, message);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espInspecteurUpdateMessageAccueilRPC(message);
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     const db = espDB();
     const insp = db.inspecteurs.find(i => i.id === session.id);
     if(insp) insp.messageAccueil = message;
@@ -314,6 +329,7 @@ async function espInspecteurSaveMessageAccueil(){
     msgEl.innerHTML = `<p class="esp-sub" style="margin:6px 0 0;color:var(--green-dark);">Message enregistré ${icon('badge-check')}</p>`;
     espRefreshIcons();
   } catch(e){
+    if(e.espSessionInvalid) return;
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
@@ -322,14 +338,15 @@ async function espInspecteurRequestCertification(){
   const session = espSession();
   const msgEl = document.getElementById('esp-insp-certif-msg');
   try {
-    const ok = await espInspecteurRequestCertificationRPC(session.id, session.password);
-    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Session expirée, merci de te reconnecter.</p>'; return; }
+    const ok = await espInspecteurRequestCertificationRPC();
+    if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     const db = espDB();
     const insp = db.inspecteurs.find(i => i.id === session.id);
     if(insp) insp.certificationDemandee = true;
     espSaveDB(db);
     espRenderInspecteurDashboard('chat');
   } catch(e){
+    if(e.espSessionInvalid) return;
     msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
   }
 }
