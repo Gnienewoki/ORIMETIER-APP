@@ -34,16 +34,24 @@ let _espSuiviCurrentNotes = [];
 let _espSuiviDetailLoading = false;
 let _espSuiviDetailError = '';
 
+// Message affichable d'une erreur serveur du suivi : 'unauthorized' (fiche d'un autre
+// inspecteur ou introuvable) n'est jamais montré brut. Une session expirée (espSessionInvalid)
+// est filtrée avant par chaque appelant : le bandeau "session expirée" est déjà affiché.
+function espSuiviErrorMessage(e){
+  const msg = (e && e.message) || '';
+  return /unauthorized/i.test(msg) ? 'Accès refusé à cette fiche.' : msg;
+}
+
 async function espSuiviInitTab(){
   _espSuiviView = 'list';
   _espSuiviError = '';
   _espSuiviLoading = true;
   espSuiviRefreshContainer();
-  const session = espSession();
   try {
-    _espSuiviEleves = await espSuiviListElevesRPC(session.id, session.password);
+    _espSuiviEleves = await espSuiviListElevesRPC();
   } catch(e){
-    _espSuiviError = "Impossible de charger le répertoire : " + e.message;
+    if(e.espSessionInvalid) return;
+    _espSuiviError = "Impossible de charger le répertoire : " + espSuiviErrorMessage(e);
     _espSuiviEleves = [];
   }
   _espSuiviLoading = false;
@@ -147,11 +155,11 @@ async function espSuiviSubmitAdd(){
   if(!nom || !classe){ errorEl.innerHTML = '<p class="esp-error">Nom et classe sont obligatoires.</p>'; return; }
   if(!raisons.length){ errorEl.innerHTML = '<p class="esp-error">Sélectionne au moins une raison de suivi.</p>'; return; }
 
-  const session = espSession();
   try {
-    await espSuiviAddEleveRPC(session.id, session.password, nom, prenoms, classe, raisons);
+    await espSuiviAddEleveRPC(nom, prenoms, classe, raisons);
   } catch(e){
-    errorEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    if(e.espSessionInvalid) return;
+    errorEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(espSuiviErrorMessage(e)) + '</p>';
     return;
   }
   await espSuiviInitTab();
@@ -161,11 +169,11 @@ async function espSuiviDeleteEleve(id){
   const e = _espSuiviEleves.find(x => x.id === id);
   if(!e) return;
   if(!confirm(`Retirer ${e.nom} ${e.prenoms||''} du répertoire de suivi ? Toutes ses notes de remédiation seront supprimées définitivement.`)) return;
-  const session = espSession();
   try {
-    await espSuiviDeleteEleveRPC(session.id, session.password, id);
+    await espSuiviDeleteEleveRPC(id);
   } catch(err){
-    alert('Erreur : ' + err.message);
+    if(err.espSessionInvalid) return;
+    alert('Erreur : ' + espSuiviErrorMessage(err));
     return;
   }
   await espSuiviInitTab();
@@ -181,16 +189,16 @@ async function espSuiviOpenDetail(id){
   _espSuiviDetailLoading = true;
   espSuiviRefreshContainer();
 
-  const session = espSession();
   try {
     const [eleve, notes] = await Promise.all([
-      espSuiviGetEleveRPC(session.id, session.password, id),
-      espSuiviListNotesRPC(session.id, session.password, id),
+      espSuiviGetEleveRPC(id),
+      espSuiviListNotesRPC(id),
     ]);
     _espSuiviCurrentEleve = eleve;
     _espSuiviCurrentNotes = notes;
   } catch(e){
-    _espSuiviDetailError = "Impossible de charger la fiche : " + e.message;
+    if(e.espSessionInvalid) return;
+    _espSuiviDetailError = "Impossible de charger la fiche : " + espSuiviErrorMessage(e);
   }
   _espSuiviDetailLoading = false;
   espSuiviRefreshContainer();
@@ -257,14 +265,14 @@ async function espSuiviSubmitNote(){
   const texte = texteInput.value.trim();
   if(!dateFr || !texte){ errorEl.innerHTML = '<p class="esp-error">Date et texte sont obligatoires.</p>'; return; }
 
-  const session = espSession();
   try {
-    await espSuiviAddNoteRPC(session.id, session.password, _espSuiviCurrentId, dateFr, texte);
+    await espSuiviAddNoteRPC(_espSuiviCurrentId, dateFr, texte);
+    _espSuiviCurrentNotes = await espSuiviListNotesRPC(_espSuiviCurrentId);
   } catch(e){
-    errorEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    if(e.espSessionInvalid) return;
+    errorEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(espSuiviErrorMessage(e)) + '</p>';
     return;
   }
-  _espSuiviCurrentNotes = await espSuiviListNotesRPC(session.id, session.password, _espSuiviCurrentId);
   espSuiviRefreshContainer();
 }
 
@@ -273,11 +281,11 @@ async function espSuiviSaveAppreciation(){
   const msgEl = document.getElementById('esp-suivi-appreciation-msg');
   msgEl.innerHTML = '';
   const texte = textarea.value.trim();
-  const session = espSession();
   try {
-    await espSuiviSetAppreciationRPC(session.id, session.password, _espSuiviCurrentId, texte);
+    await espSuiviSetAppreciationRPC(_espSuiviCurrentId, texte);
   } catch(e){
-    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    if(e.espSessionInvalid) return;
+    msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(espSuiviErrorMessage(e)) + '</p>';
     return;
   }
   if(_espSuiviCurrentEleve) _espSuiviCurrentEleve.appreciationFinale = texte;
