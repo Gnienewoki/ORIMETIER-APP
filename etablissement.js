@@ -612,16 +612,18 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">${icon('image')}Logo & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Premium requis'}</span></div>
+      <div class="esp-title" style="font-size:15px;">${icon('image')}Logo & photos <span class="esp-badge ${etab.premium ? 'valide' : 'non_reclame'}" style="margin-left:6px;">${etab.premium ? 'Premium actif' : 'Visible avec Premium'}</span></div>
       ${!etab.premium ? `
-        <p class="esp-sub">Fonctionnalité réservée aux établissements ayant souscrit à l'offre Premium. Contactez l'administration de la plateforme pour l'activer sur votre compte.</p>
-        ${etab.demandePremium ? `
-          <p class="esp-sub"><span class="esp-badge en_attente">${icon('clock')}Demande en attente de validation</span>${etab.demandePremiumDate ? ' — envoyée le ' + escapeHtml(etab.demandePremiumDate) : ''}</p>
-        ` : `
-          <button class="esp-btn esp-btn-primary" onclick="espEtabDemanderPremium()">Demander le mode Premium</button>
-          <div id="esp-etab-premium-msg"></div>
-        `}
-      ` : `
+        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed var(--border);">
+          <p class="esp-sub">Votre logo et vos photos sont enregistrés. Ils seront visibles par le public une fois le Premium activé.</p>
+          ${etab.demandePremium ? `
+            <p class="esp-sub"><span class="esp-badge en_attente">${icon('clock')}Demande en attente de validation</span>${etab.demandePremiumDate ? ' — envoyée le ' + escapeHtml(etab.demandePremiumDate) : ''}</p>
+          ` : `
+            <button class="esp-btn esp-btn-primary" onclick="espEtabDemanderPremium()">Demander le mode Premium</button>
+            <div id="esp-etab-premium-msg"></div>
+          `}
+        </div>
+      ` : ''}
         <div class="esp-title" style="font-size:14px;">Logo</div>
         <p class="esp-sub" style="margin-bottom:10px;">Affiché dans le médaillon de votre fiche établissement.</p>
         <div id="esp-etab-logo-dash-preview" class="esp-etab-photos-grid">
@@ -636,7 +638,7 @@ function espRenderEtabDashboard(){
         <div id="esp-etab-logo-dash-msg"></div>
 
         <div class="esp-title" style="font-size:14px;margin-top:18px;border-top:1px dashed var(--border);padding-top:14px;">Mes photos (${(etab.photos||[]).length}/10)</div>
-        <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche.</p>
+        <p class="esp-sub" style="margin-bottom:10px;">Visibles par les visiteurs qui consultent votre établissement dans la recherche${etab.premium ? '' : ', une fois le Premium activé'}.</p>
         <div id="esp-etab-photos-dash-grid" class="esp-etab-photos-grid">
           ${(etab.photos||[]).map((u,i) => `
             <div class="esp-etab-photo-thumb">
@@ -647,7 +649,6 @@ function espRenderEtabDashboard(){
         </div>
         ${(etab.photos||[]).length < 10 ? `<input type="file" id="esp-etab-photos-dash-input" accept="image/*" multiple onchange="espEtabDashboardPhotosChange(this)">` : `<p class="esp-sub">Maximum de 10 photos atteint.</p>`}
         <div id="esp-etab-photos-dash-msg"></div>
-      `}
     </div>
 
     <div class="esp-card">
@@ -744,7 +745,7 @@ async function espEtabSaveInfo(){
   }
 }
 
-// ---------------- Premium : contact direct + site web ----------------
+// ---------------- Contacts supplémentaires + site web (modifiables par tous ; affichés au public avec Premium) ----------------
 async function espEtabSaveContactExtras(){
   const msgEl = document.getElementById('esp-etab-extras-msg');
   const tel2 = document.getElementById('esp-etab-extra-tel2').value.trim();
@@ -864,7 +865,7 @@ async function espEtabDemanderPremium(){
   await espEtabRefreshOwnAndDashboard();
 }
 
-// ---------------- Photos (modifiables après inscription) ----------------
+// ---------------- Photos (modifiables après inscription, Premium ou non ; affichées au public avec Premium) ----------------
 async function espEtabDashboardPhotosChange(input){
   if(!_espEtabOwn) return;
   const current = _espEtabOwn.photos || [];
@@ -875,18 +876,27 @@ async function espEtabDashboardPhotosChange(input){
   const msgEl = document.getElementById('esp-etab-photos-dash-msg');
   if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
   const newUrls = [];
+  const echecs = [];
   for(const file of toUpload){
     try { newUrls.push(await espUploadEtabPhoto(file)); }
-    catch(e){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>'; }
+    catch(e){ echecs.push(file.name + ' (' + e.message + ')'); }
   }
+  input.value = '';
+  const echecsTexte = echecs.length
+    ? (echecs.length > 1 ? 'Ces photos n\'ont pas pu être envoyées : ' : 'Cette photo n\'a pas pu être envoyée : ') + echecs.join(', ') + '. Vérifiez votre connexion et réessayez.'
+    : '';
+  if(!newUrls.length){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">' + escapeHtml(echecsTexte) + '</p>'; return; }
   const updated = [...current, ...newUrls];
   try {
     const ok = await espEtabUpdatePhotosRPC(updated);
-    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Vos photos ont été envoyées mais n\'ont pas pu être enregistrées sur votre fiche (fiche introuvable). Rechargez la page puis réessayez.</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
+    // Le tableau de bord est redessiné (rechargement asynchrone de la fiche) : un message posé
+    // dans le bloc serait effacé, d'où l'alerte pour les photos restées en échec.
+    if(echecsTexte) alert(echecsTexte);
   } catch(e){
     if(e.espSessionInvalid) return;
-    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Vos photos n\'ont pas pu être enregistrées : ' + escapeHtml(e.message) + '</p>';
   }
 }
 async function espEtabRemovePhoto(idx){
@@ -900,7 +910,7 @@ async function espEtabRemovePhoto(idx){
   } catch(e){}
 }
 
-// ---------------- Logo (modifiable après inscription, y compris pour un compte réclamé) ----------------
+// ---------------- Logo (modifiable après inscription, Premium ou non, y compris pour un compte réclamé ; affiché au public avec Premium) ----------------
 async function espEtabDashboardLogoChange(input){
   const file = (input.files || [])[0];
   input.value = '';
@@ -909,14 +919,14 @@ async function espEtabDashboardLogoChange(input){
   if(msgEl) msgEl.innerHTML = '<p class="esp-sub" style="margin:4px 0;">Envoi en cours...</p>';
   let url;
   try { url = await espUploadEtabLogo(file); }
-  catch(e){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur lors de l\'envoi : ' + escapeHtml(e.message) + '</p>'; return; }
+  catch(e){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Le logo n\'a pas pu être envoyé : ' + escapeHtml(e.message) + '. Vérifiez votre connexion et réessayez.</p>'; return; }
   try {
     const ok = await espEtabUpdateLogoRPC(url);
-    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
+    if(!ok){ if(msgEl) msgEl.innerHTML = '<p class="esp-error">Le logo a été envoyé mais n\'a pas pu être enregistré sur votre fiche (fiche introuvable). Rechargez la page puis réessayez.</p>'; return; }
     await espEtabRefreshOwnAndDashboard();
   } catch(e){
     if(e.espSessionInvalid) return;
-    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    if(msgEl) msgEl.innerHTML = '<p class="esp-error">Le logo n\'a pas pu être enregistré : ' + escapeHtml(e.message) + '</p>';
   }
 }
 async function espEtabRemoveLogo(){
