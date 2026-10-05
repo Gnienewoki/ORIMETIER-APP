@@ -3,6 +3,21 @@ function normalize(s){
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
 
+// Forme de comparaison commune aux recherches par texte (filtres de l'enseignement général,
+// choix de sa fiche pour la récupérer) : normalize (minuscules, sans accents) + ponctuation
+// remplacée par une espace et espaces réduits, pour que "notre dame" trouve "Collège Notre-Dame".
+function espTexteRecherche(s){
+  return normalize(s || '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Assistant de saisie natif (<datalist>) : valeurs uniques, non vides, triées en français.
+function espFillDatalist(id, values){
+  const dl = document.getElementById(id);
+  if(!dl) return;
+  const unique = Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'fr'));
+  dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
+}
+
 // Forme canonique d'un numéro de téléphone saisi : sans espaces (insécables inclus), points
 // ni tirets, et sans indicatif +225 / 00225 en tête. N'ajoute jamais de 0 initial et ne
 // contrôle pas la longueur : un numéro comme 1314131413 reste valide tel quel.
