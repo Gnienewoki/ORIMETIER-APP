@@ -414,6 +414,12 @@ async function espAdminEnsureDemandesInscriptionLoaded(){
   let rows;
   try {
     rows = await espAdminListDemandesInscriptionRPC();
+    // Fiche(s) proche(s) de chaque demande (même nom et même ville normalisés), affichées
+    // avant de valider. Un échec ponctuel laisse simplement l'indicateur vide (null).
+    await Promise.all(rows.map(async d => {
+      try { d.fichesProches = await espAdminFichesProchesDemandeRPC(d.id); }
+      catch(e){ if(e.espSessionInvalid) throw e; d.fichesProches = null; }
+    }));
   } catch(err){
     _espAdminDemandesInscriptionLoading = false;
     if(err.espSessionInvalid) return;
@@ -1151,74 +1157,103 @@ function espAdminDemandesPremiumHtml(list){
     </div>
   `;
 }
-// ---------------- Demandes d'inscription en attente (formulaire direct, à examiner avant import) ----------------
+// ---------------- Demandes d'inscription en attente (formulaire direct) ----------------
+// "Valider" copie la demande dans etablissements (filières validées, logo et photos
+// compris) : l'établissement se connecte ensuite avec l'e-mail et le mot de passe choisis
+// à l'inscription, sans code. "Refuser" la retire de la liste, avec un motif facultatif.
+// Aucun mot de passe ni hash n'est jamais renvoyé ni affiché ici.
 function espAdminDemandesInscriptionHtml(list){
   const demandes = list || [];
   if(!demandes.length) return '';
   return `
     <div class="esp-card" style="margin-bottom:18px;">
       <div class="esp-title" style="font-size:16px;">${icon('file-text')}Demandes d'inscription en attente (${demandes.length})</div>
-      <p class="esp-sub">Vérifie chaque demande (doublons non détectés automatiquement : variantes d'orthographe, etc.), puis copie la ligne au format d'import et colle-la dans le champ d'import ci-dessus. "Marquer comme traité" ne crée aucun établissement — l'import reste à faire séparément.</p>
-      ${demandes.map(d => `
+      <p class="esp-sub">Vérifie chaque demande (doublons : variantes d'orthographe, fiche proche signalée), puis valide-la ou refuse-la. La validation crée la fiche : l'établissement se connecte avec l'e-mail et le mot de passe choisis à l'inscription.</p>
+      ${demandes.map(d => {
+        const nbFilieres = (d.filieresProposees || []).length;
+        const nbPhotos = (d.photos || []).length;
+        const proches = d.fichesProches || [];
+        return `
         <div class="esp-note-item" style="border-left-color:var(--orange, #ff7a1a);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span><b>${escapeHtml(d.nom)}</b> — ${[d.ville, d.region].filter(Boolean).map(escapeHtml).join(' · ')}${d.quartier ? ` · ${escapeHtml(d.quartier)}` : ''} · ${d.secteur === 'prive' ? 'Privé' : d.secteur === 'public' ? 'Public' : escapeHtml(d.secteur||'')}${d.responsable ? ` · Responsable : ${escapeHtml(d.responsable)}` : ''}${d.tel ? ` · Tél : ${escapeHtml(d.tel)}` : ''}${d.email ? ` · E-mail : ${escapeHtml(d.email)}` : ''} <span class="esp-sub">(demande du ${escapeHtml(d.dateDemande||'')})</span></span>
+          <span><b>${escapeHtml(d.nom)}</b> — ${escapeHtml(d.ville || '')} · ${espEtabCategorieLabel(d)} · E-mail : ${escapeHtml(d.email || '')} · ${nbFilieres} filière(s) · Logo : ${d.logoUrl ? 'oui' : 'non'} · ${nbPhotos} photo(s) <span class="esp-sub">(demande du ${escapeHtml(d.dateDemande || '')})</span></span>
           <span style="display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;">
-            <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminCopierDemandeLigne('${d.id}')">${icon('copy')}Copier (format import)</button>
-            <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;" onclick="espAdminMarquerDemandeTraitee('${d.id}')">${icon('check')}Marquer comme traité</button>
+            <button class="esp-btn esp-btn-primary" style="padding:5px 10px;font-size:12px;" onclick="espAdminValiderDemande('${escapeHtml(d.id)}')">${icon('check')}Valider</button>
+            <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminRefuserDemande('${escapeHtml(d.id)}')">${icon('x')}Refuser</button>
           </span>
-          ${((d.photos && d.photos.length) || d.logoUrl) ? `
-            <div style="width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);">
-              <span class="esp-sub" style="margin:0;">${icon('image')}${d.logoUrl ? 'Logo' : ''}${d.logoUrl && (d.photos||[]).length ? ' + ' : ''}${(d.photos||[]).length ? (d.photos.length + ' photo(s)') : ''} en attente de liaison, une fois l'établissement importé :</span>
-              <input type="text" id="esp-admin-lien-etab-id-${d.id}" placeholder="ID établissement importé" style="flex:1;min-width:160px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;">
-              <button class="esp-btn" style="padding:5px 10px;font-size:12px;" onclick="espAdminLierPhotosLogoDemande('${d.id}')">${icon('link')}Lier logo/photos &amp; marquer traité</button>
+          ${proches.length ? `
+            <div style="width:100%;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);">
+              <span class="esp-sub" style="margin:0;">${icon('triangle-alert')}Fiche proche : ${proches.map(f => `<b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.ville || '—')}) — ${f.reclame ? 'réclamée' : 'non réclamée'}`).join(' ; ')}</span>
             </div>
           ` : ''}
         </div>
-      `).join('')}
+      `; }).join('')}
     </div>
   `;
 }
-function espAdminCopierDemandeLigne(id){
-  const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
-  if(!d) return;
-  const ligne = [d.nom, d.region||'', d.ville, d.quartier||'', d.secteur||'', d.responsable||'', d.tel||''].join(';');
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(ligne)
-      .then(() => alert('Ligne copiée, colle-la dans le champ d\'import ci-dessus :\n\n' + ligne))
-      .catch(() => prompt('Copie cette ligne pour l\'importer :', ligne));
-  } else {
-    prompt('Copie cette ligne pour l\'importer :', ligne);
-  }
+
+// Codes d'erreur de admin_valider_demande_v2 / admin_refuser_demande_v2 (message de
+// l'exception, SQLSTATE P0001).
+const ESP_ADMIN_DEMANDE_ERREURS = {
+  DEMANDE_INTROUVABLE: "Cette demande n'existe plus (supprimée entre-temps ?).",
+  DEMANDE_DEJA_TRAITEE: 'Cette demande a déjà été validée ou refusée (par un autre admin ?).',
+  EMAIL_DEJA_UTILISE: "L'e-mail de cette demande est déjà utilisé par un établissement inscrit : impossible de créer un second compte avec cet e-mail.",
+  FICHE_PROCHE: 'Une fiche de même nom et de même ville, non réclamée, existe déjà.',
+};
+function espAdminDemandeErreurMessage(e){
+  const message = (e && e.message) || '';
+  const code = Object.keys(ESP_ADMIN_DEMANDE_ERREURS).find(c => message.includes(c));
+  return code ? ESP_ADMIN_DEMANDE_ERREURS[code] : 'Erreur : ' + (message || 'inconnue');
 }
-async function espAdminMarquerDemandeTraitee(id){
-  const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
-  if(!d) return;
-  if(!confirm(`Marquer la demande de "${d.nom}" comme traitée ? Cela ne crée aucun établissement — assure-toi d'avoir déjà fait l'import si besoin.`)) return;
-  let ok;
-  try { ok = await espAdminMarquerDemandeTraiteeRPC(id); }
-  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
-  if(!ok) alert("Cette demande a déjà été traitée (ou n'existe plus).");
+// Après chaque action (réussie ou non) : caches vidés et liste rechargée depuis le serveur.
+async function espAdminRechargerDemandes(){
   espAdminInvalidateDemandesInscription();
+  espAdminInvalidateEtabFull();
+  try { await espLoadFromSupabase(true); }
+  catch(e){ console.error('[esp] rechargement des données après une action sur une demande', e); }
   espRenderAdminDashboard('etablissements');
 }
 
-// Recopie le logo/les photos d'une demande vers l'établissement fraîchement créé par
-// l'import texte (les deux actions sont aujourd'hui indépendantes — cf. diagnostic — donc
-// l'admin doit coller ici l'id de l'établissement qu'il vient d'importer) et marque la
-// demande traitée dans la foulée.
-async function espAdminLierPhotosLogoDemande(demandeId){
-  const input = document.getElementById('esp-admin-lien-etab-id-' + demandeId);
-  const etabId = input ? input.value.trim() : '';
-  if(!etabId){ alert("Indique l'id de l'établissement fraîchement importé."); return; }
-  let ok;
-  try { ok = await espAdminLierPhotosLogoDemandeRPC(demandeId, etabId); }
-  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Échec : demande déjà traitée, ou aucun établissement trouvé avec cet id. Vérifie l'id copié depuis le résultat de l'import."); return; }
-  alert('Logo/photos liés à l\'établissement, et demande marquée comme traitée.');
-  espAdminInvalidateEtabFull();
-  espAdminInvalidateDemandesInscription();
-  await espLoadFromSupabase(true);
-  espRenderAdminDashboard('etablissements');
+async function espAdminValiderDemande(id, forcer){
+  const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
+  if(!d) return;
+  if(!forcer && !confirm(`Valider la demande de "${d.nom}" (${d.ville || '—'}) ?\n\nLa fiche sera créée et visible dans l'annuaire. L'établissement pourra se connecter avec l'e-mail ${d.email} et le mot de passe choisi à l'inscription.`)) return;
+  try { await espAdminValiderDemandeRPC(id, !!forcer); }
+  catch(err){
+    if(err.espSessionInvalid) return;
+    if(!forcer && /FICHE_PROCHE/.test(err.message || '')){
+      // Liste fraîche des fiches proches : celle affichée peut dater du chargement de la page.
+      let proches = d.fichesProches || [];
+      try { proches = await espAdminFichesProchesDemandeRPC(id); }
+      catch(e){ if(e.espSessionInvalid) return; }
+      const f = proches.find(x => !x.reclame) || proches[0];
+      const libelle = f ? `${f.nom} (${f.ville || '—'})` : 'une fiche de même nom et de même ville';
+      if(confirm(`Une fiche proche existe : ${libelle}. Valider quand même en créant une nouvelle fiche ?`)){
+        await espAdminValiderDemande(id, true);
+      }
+      return;
+    }
+    alert(espAdminDemandeErreurMessage(err));
+    await espAdminRechargerDemandes();
+    return;
+  }
+  alert(`"${d.nom}" est validé. L'établissement peut se connecter avec l'e-mail ${d.email} et le mot de passe choisi à l'inscription.`);
+  await espAdminRechargerDemandes();
+}
+
+async function espAdminRefuserDemande(id){
+  const d = (_espAdminDemandesInscription || []).find(x => x.id === id);
+  if(!d) return;
+  const motif = prompt(`Refuser la demande de "${d.nom}" (${d.ville || '—'}) ?\n\nMotif du refus (facultatif) :`, '');
+  if(motif === null) return;
+  try { await espAdminRefuserDemandeRPC(id, motif.trim()); }
+  catch(err){
+    if(err.espSessionInvalid) return;
+    alert(espAdminDemandeErreurMessage(err));
+    await espAdminRechargerDemandes();
+    return;
+  }
+  alert(`La demande de "${d.nom}" est refusée.`);
+  await espAdminRechargerDemandes();
 }
 
 async function espAdminValiderPremium(id){
