@@ -9,10 +9,8 @@ function espEtabGeneral(secteur){
 }
 
 // Chaque filière stocke son Cycle dans "nom" et son Diplôme dans "diplome" (cf.
-// etablissement.js, saisie via menus déroulants Cycle -> Diplôme + "Autre" texte libre).
-// Un "Autre" personnalisé reste affiché tel quel ici ; il ne ressort du filtre "Autre"
-// (cf. renderGeneralTable) que par exclusion des valeurs prédéfinies, jamais par
-// comparaison texte, puisque la valeur stockée n'est jamais littéralement "Autre".
+// etablissement.js) : une ligne du tableau par filière, colonnes affichées telles quelles.
+// nomTexte : nom brut de l'établissement (nom = cellule HTML), utilisé par le filtre.
 function espGeneralRows(secteur){
   const rows = [];
   espEtabGeneral(secteur).forEach(e => {
@@ -20,14 +18,21 @@ function espGeneralRows(secteur){
     const nom = espEtabNomCellHtml(e);
     const filieres = e.filieresProposees || [];
     if(!filieres.length){
-      rows.push({ nom, ville: e.ville, cycle: '—', diplome: '—', contact });
+      rows.push({ nom, nomTexte: e.nom, ville: e.ville, cycle: '—', diplome: '—', contact });
     } else {
       filieres.forEach(f => {
-        rows.push({ nom, ville: e.ville, cycle: f.nom || '—', diplome: f.diplome || '—', contact });
+        rows.push({ nom, nomTexte: e.nom, ville: e.ville, cycle: f.nom || '—', diplome: f.diplome || '—', contact });
       });
     }
   });
   return rows;
+}
+
+// Forme de comparaison commune aux filtres Ville et Établissement : normalize (utils.js :
+// minuscules, sans accents) + ponctuation remplacée par une espace et espaces réduits,
+// pour que "notre dame" trouve "Collège Notre-Dame".
+function espGeneralTexteRecherche(s){
+  return normalize(s || '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 // ---------------- Assistant de saisie (suggestions natives du navigateur) ----------------
@@ -38,23 +43,9 @@ function espFillGeneralDatalist(id, values){
   dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
-// ---------------- Filtre Diplôme dépendant du Cycle choisi (listes fermées, cf. utils.js) ----------------
-// Cycle = "" (Tous) ou "__autre__" : le diplôme prédéfini n'est pas rattaché à un cycle
-// précis, donc la liste proposée couvre tous les diplômes prédéfinis (tous cycles) + "Autre".
-function espGeneralFilterCycleChange(secteur){
-  const prefix = 'general-' + secteur;
-  const cycleSelect = document.getElementById('f-' + prefix + '-cycle');
-  const diplomeSelect = document.getElementById('f-' + prefix + '-diplome');
-  if(!cycleSelect || !diplomeSelect) return;
-  const cycle = cycleSelect.value;
-  const diplomes = (cycle && cycle !== ESP_GENERAL_AUTRE) ? espGeneralDiplomesPourCycle(cycle) : espGeneralTousDiplomesPredefinis();
-  diplomeSelect.innerHTML = '<option value="">Tous</option>'
-    + diplomes.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('')
-    + `<option value="${ESP_GENERAL_AUTRE}">Autre</option>`;
-  renderGeneralTable(secteur);
-}
-
 // ---------------- Rendu d'un des deux tableaux (public ou privé) ----------------
+// Filtres Ville et Établissement (combinés en ET) : recherche d'un morceau du texte, sans
+// tenir compte de la casse, des accents ni de la ponctuation (espGeneralTexteRecherche).
 function renderGeneralTable(secteur){
   const prefix = 'general-' + secteur;
   const tbody = document.getElementById(prefix + '-results');
@@ -62,42 +53,21 @@ function renderGeneralTable(secteur){
   const emptyEl = document.getElementById(prefix + '-empty-msg');
   if(!tbody) return;
 
-  // Suggestions de ville à jour à chaque rendu (les établissements inscrits peuvent évoluer)
+  const villeInput = document.getElementById('f-' + prefix + '-ville');
+  const nomInput = document.getElementById('f-' + prefix + '-nom');
+  const nVille = espGeneralTexteRecherche(villeInput ? villeInput.value : '');
+  const nNom = espGeneralTexteRecherche(nomInput ? nomInput.value : '');
+  const villeCorrespond = v => !nVille || espGeneralTexteRecherche(v).includes(nVille);
+
+  // Suggestions reconstruites à chaque rendu (les établissements inscrits peuvent évoluer) :
+  // villes de l'onglet ; noms des établissements de l'onglet, restreints à la ville saisie.
   const allForSector = espEtabGeneral(secteur);
   espFillGeneralDatalist('dl-' + prefix + '-ville', allForSector.map(e => e.ville));
+  espFillGeneralDatalist('dl-' + prefix + '-nom', allForSector.filter(e => villeCorrespond(e.ville)).map(e => e.nom));
 
-  const villeInput = document.getElementById('f-' + prefix + '-ville');
-  const cycleSelect = document.getElementById('f-' + prefix + '-cycle');
-  const diplomeSelect = document.getElementById('f-' + prefix + '-diplome');
-  const qVille = (villeInput ? villeInput.value : '').trim();
-  const qCycle = cycleSelect ? cycleSelect.value : '';
-  const qDiplome = diplomeSelect ? diplomeSelect.value : '';
-  const nVille = normalize(qVille);
-
-  // Comparaison exacte sur Cycle/Diplôme (listes fermées). Le filtre "Autre" (valeur
-  // ESP_GENERAL_AUTRE) ne peut pas être une comparaison exacte : la valeur réellement
-  // stockée n'est jamais littéralement "Autre" mais le texte personnalisé saisi par
-  // l'établissement (cf. etablissement.js). On le détecte donc par exclusion : tout ce
-  // qui n'est ni une valeur prédéfinie ni la marque "—" (aucune filière renseignée).
   const rows = espGeneralRows(secteur).filter(r => {
-    if(nVille && !normalize(r.ville||'').includes(nVille)) return false;
-    if(qCycle){
-      if(qCycle === ESP_GENERAL_AUTRE){
-        if(!r.cycle || r.cycle === '—' || ESP_GENERAL_CYCLES.includes(r.cycle)) return false;
-      } else if(r.cycle !== qCycle){
-        return false;
-      }
-    }
-    if(qDiplome){
-      if(qDiplome === ESP_GENERAL_AUTRE){
-        // Diplômes "connus" à exclure : ceux du cycle sélectionné si un cycle prédéfini
-        // est actif, sinon tous les diplômes prédéfinis (tous cycles confondus).
-        const diplomesConnus = (qCycle && qCycle !== ESP_GENERAL_AUTRE) ? espGeneralDiplomesPourCycle(qCycle) : espGeneralTousDiplomesPredefinis();
-        if(!r.diplome || r.diplome === '—' || diplomesConnus.includes(r.diplome)) return false;
-      } else if(r.diplome !== qDiplome){
-        return false;
-      }
-    }
+    if(!villeCorrespond(r.ville)) return false;
+    if(nNom && !espGeneralTexteRecherche(r.nomTexte).includes(nNom)) return false;
     return true;
   });
 
@@ -120,7 +90,7 @@ function renderGeneralTable(secteur){
   if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
 
   if(rows.length === 0){
-    const filtres = !!(nVille || qCycle || qDiplome);
+    const filtres = !!(nVille || nNom);
     const label = secteur === 'prive' ? 'privé' : 'public';
     espRenderEmptyState(emptyEl, filtres ? {
       icon: 'search-x',
@@ -142,14 +112,10 @@ function renderGeneralTable(secteur){
 function resetGeneralFilters(secteur){
   const prefix = 'general-' + secteur;
   const ville = document.getElementById('f-' + prefix + '-ville');
-  const cycle = document.getElementById('f-' + prefix + '-cycle');
+  const nom = document.getElementById('f-' + prefix + '-nom');
   if(ville) ville.value = '';
-  if(cycle){
-    cycle.value = '';
-    espGeneralFilterCycleChange(secteur); // reconstruit la liste Diplôme (-> "Tous") puis rerender
-  } else {
-    renderGeneralTable(secteur);
-  }
+  if(nom) nom.value = '';
+  renderGeneralTable(secteur);
 }
 
 // ---------------- Sous-onglets Public / Privé ----------------
@@ -168,19 +134,15 @@ function espShowGeneralSubTab(tab){
 
 function initGeneral(){
   const searchPubVille = document.getElementById('f-general-public-ville');
-  const searchPubCycle = document.getElementById('f-general-public-cycle');
-  const searchPubDiplome = document.getElementById('f-general-public-diplome');
+  const searchPubNom = document.getElementById('f-general-public-nom');
   const searchPrivVille = document.getElementById('f-general-prive-ville');
-  const searchPrivCycle = document.getElementById('f-general-prive-cycle');
-  const searchPrivDiplome = document.getElementById('f-general-prive-diplome');
+  const searchPrivNom = document.getElementById('f-general-prive-nom');
   const renderPublicDebounced = espDebounce(() => renderGeneralTable('public'), 180);
   const renderPriveDebounced = espDebounce(() => renderGeneralTable('prive'), 180);
   if(searchPubVille) searchPubVille.addEventListener('input', renderPublicDebounced);
-  if(searchPubCycle) searchPubCycle.addEventListener('change', () => espGeneralFilterCycleChange('public'));
-  if(searchPubDiplome) searchPubDiplome.addEventListener('change', () => renderGeneralTable('public'));
+  if(searchPubNom) searchPubNom.addEventListener('input', renderPublicDebounced);
   if(searchPrivVille) searchPrivVille.addEventListener('input', renderPriveDebounced);
-  if(searchPrivCycle) searchPrivCycle.addEventListener('change', () => espGeneralFilterCycleChange('prive'));
-  if(searchPrivDiplome) searchPrivDiplome.addEventListener('change', () => renderGeneralTable('prive'));
+  if(searchPrivNom) searchPrivNom.addEventListener('input', renderPriveDebounced);
 
   renderGeneralTable('public'); // onglet actif par défaut
 }
