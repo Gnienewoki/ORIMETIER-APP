@@ -226,12 +226,7 @@ window.pageDataReady = function(){
 };
 
 // ---------------- Assistant de saisie (suggestions natives du navigateur) ----------------
-function espFillDatalist(id, values){
-  const dl = document.getElementById(id);
-  if(!dl) return;
-  const unique = Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'fr'));
-  dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
-}
+// espFillDatalist : définie dans utils.js (commune à formations, général et récupération).
 function espFillPublicDatalists(){
   espFillDatalist('dl-filiere-publique', DATA.map(d => d[0]));
   espFillDatalist('dl-diplome-publique', DATA.map(d => d[1]));
