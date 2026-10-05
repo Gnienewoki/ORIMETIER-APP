@@ -295,17 +295,19 @@ async function espEtabLoginRPC(email, password){
   if(error) throw error;
   return (data && data[0]) || null;
 }
-// Récupération d'un compte établissement pré-inscrit (import en masse) via le
-// code unique remis hors-plateforme. L'établissement choisit à ce moment-là
-// son propre e-mail et mot de passe.
-async function espEtabClaimRPC(code, email, password, responsable, tel, tel2, tel3, siteWeb, contactTel){
-  const { data, error } = await supabaseClient.rpc('etablissement_claim_by_code', {
-    p_code: code, p_email: email, p_password: password,
+// Récupération d'un compte établissement pré-inscrit : id de la fiche choisie + code reçu par
+// courrier (le code seul ne suffit pas ; 5 essais ratés par heure et par fiche). L'établissement
+// choisit à ce moment-là son propre e-mail et mot de passe.
+// Renvoie le jsonb du serveur tel quel : {ok:true, id} ou {ok:false, erreur, essais_restants |
+// reessayer_dans_s, message}. Ne journalise jamais les paramètres (le code ne doit fuiter nulle part).
+async function espEtabClaimV2RPC(etabId, code, email, password, responsable, tel, tel2, tel3, siteWeb, contactTel){
+  const { data, error } = await supabaseClient.rpc('etablissement_claim_v2', {
+    p_etab_id: etabId, p_code: code, p_email: email, p_password: password,
     p_responsable: responsable || null, p_tel: tel || null, p_tel2: tel2 || null, p_tel3: tel3 || null,
     p_site_web: siteWeb || null, p_contact_tel: contactTel || null,
   });
   if(error) throw error;
-  return !!data;
+  return data || { ok: false, erreur: 'REPONSE_VIDE' };
 }
 // Ouverture de session établissement par jeton : null (e-mail inconnu, mauvais mot de passe ou
 // fiche non réclamée, indistinguables) ou {token, expires_at, id, nom}. Session serveur de 30 jours.
