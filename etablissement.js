@@ -436,79 +436,203 @@ function espEtabLogout(){ _espEtabOwn = null; platformLogout(); }
 // Appelée par espHandleSessionInvalid (auth.js) : oublie la fiche en mémoire, comme à la déconnexion.
 function espEtabResetOwn(){ _espEtabOwn = null; }
 
-// ---------------- Récupération d'un compte pré-inscrit (import en masse) via code ----------------
-// Cas des établissements d'Enseignement Général inscrits d'office par l'administration :
-// ils apparaissent tout de suite dans l'annuaire, mais n'ont ni e-mail ni mot de passe tant
-// que l'établissement n'a pas utilisé le code reçu hors-plateforme (courrier officiel) pour
-// définir ses propres identifiants et prendre le contrôle de son compte.
+// ---------------- Récupération d'un compte pré-inscrit (code reçu par courrier) ----------------
+// Les établissements inscrits d'office apparaissent dans l'annuaire sans e-mail ni mot de passe.
+// Pour en prendre le contrôle, l'établissement retrouve SA fiche (ville + nom, parmi les fiches
+// non récupérées du cache public), puis saisit le code de CETTE fiche : etablissement_claim_v2
+// (id + code ; 5 essais ratés par heure et par fiche). L'id choisi et le code restent en mémoire
+// seulement : jamais dans l'adresse, la console ni le stockage du navigateur.
+let _espEtabClaimFicheId = null;
+let _espEtabClaimTimer = null;
+const ESP_ETAB_CLAIM_MAX_FICHES = 10;
+const ESP_ETAB_CLAIM_BOUTON = 'Récupérer mon établissement';
+
+function espEtabClaimArreterMinuteur(){
+  if(_espEtabClaimTimer){ clearInterval(_espEtabClaimTimer); _espEtabClaimTimer = null; }
+}
+function espEtabClaimQuitter(){
+  espEtabClaimArreterMinuteur();
+  _espEtabClaimFicheId = null;
+  espRenderEtabAuth('login');
+}
+function espEtabClaimFichesLibres(){
+  return (espDB().etablissements || []).filter(e => !e.reclame);
+}
+
 function espRenderEtabClaim(){
+  espEtabClaimArreterMinuteur();
+  _espEtabClaimFicheId = null;
   document.getElementById('esp-etablissement').innerHTML = `
-    <button class="esp-back" onclick="espRenderEtabAuth('login')">${icon('arrow-left')}Retour</button>
+    <button class="esp-back" onclick="espEtabClaimQuitter()">${icon('arrow-left')}Retour</button>
     <div class="esp-card" style="max-width:560px;margin:0 auto;">
       <div class="esp-title">${icon('school')}Récupérer mon établissement</div>
-      <p class="esp-sub">Votre établissement a été inscrit d'office par l'administration et apparaît déjà dans l'annuaire. Saisissez le code de récupération reçu (courrier officiel) et choisissez votre e-mail et mot de passe pour prendre le contrôle du compte.</p>
-      <div id="esp-etab-claim-error"></div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>Code de récupération</label><input type="text" id="esp-etab-claim-code" placeholder="Ex : A7K9QPX2" style="text-transform:uppercase;"></div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>E-mail de l'établissement</label><input type="email" id="esp-etab-claim-email" placeholder="contact@etablissement.ci"></div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>Nom du responsable</label><input type="text" id="esp-etab-claim-resp" placeholder="Optionnel si déjà renseigné par l'administration"></div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>Téléphone du responsable</label><input type="tel" id="esp-etab-claim-resp-tel" placeholder="Optionnel — usage interne, jamais public"></div>
-      <div class="esp-field-row" style="margin-bottom:12px;">
-        <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-etab-claim-tel" placeholder="Optionnel"></div>
-        <div class="esp-field"><label>Téléphone 2</label><input type="tel" id="esp-etab-claim-tel2" placeholder="Optionnel"></div>
+      <p class="esp-sub">Votre établissement figure déjà dans l'annuaire. Retrouvez sa fiche, saisissez le code reçu par courrier, puis choisissez l'e-mail et le mot de passe qui serviront à vous connecter.</p>
+      <div id="esp-etab-claim-error" role="alert"></div>
+      <div class="esp-field-row" style="margin-bottom:8px;">
+        <div class="esp-field"><label for="esp-etab-claim-ville">Ville</label><input type="text" id="esp-etab-claim-ville" list="dl-etab-claim-ville" placeholder="Ex : Abidjan, Bouaké..."><datalist id="dl-etab-claim-ville"></datalist></div>
+        <div class="esp-field"><label for="esp-etab-claim-nom">Nom de l'établissement</label><input type="text" id="esp-etab-claim-nom" list="dl-etab-claim-nom" placeholder="Ex : Lycée Sainte Marie"><datalist id="dl-etab-claim-nom"></datalist></div>
       </div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>Téléphone 3</label><input type="tel" id="esp-etab-claim-tel3" placeholder="Optionnel"></div>
-      <div class="esp-field" style="margin-bottom:12px;"><label>Site web</label><input type="text" id="esp-etab-claim-siteweb" placeholder="Optionnel"></div>
-      <div class="esp-field" style="margin-bottom:8px;"><label>Choisir un mot de passe</label><input type="password" id="esp-etab-claim-pass"></div>
-      <div class="esp-field" style="margin-bottom:14px;"><label>Confirmer le mot de passe</label><input type="password" id="esp-etab-claim-pass2" onkeydown="if(event.key==='Enter')espEtabClaim()"></div>
-      <button class="esp-btn esp-btn-primary" onclick="espEtabClaim()">Récupérer mon compte</button>
+      <div id="esp-etab-claim-fiches" style="margin-bottom:12px;"></div>
+      <div class="esp-field" style="margin-bottom:12px;">
+        <label for="esp-etab-claim-code">Code de récupération (8 signes)</label>
+        <input type="text" id="esp-etab-claim-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ex : A7K9QPX2" style="text-transform:uppercase;letter-spacing:2px;">
+        <p class="esp-sub" style="margin:4px 0 0;">Pas de lettres O, I, L ni de chiffres 0, 1 dans les codes.</p>
+      </div>
+      <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-email">E-mail de l'établissement</label><input type="email" id="esp-etab-claim-email" placeholder="contact@etablissement.ci"></div>
+      <div class="esp-field" style="margin-bottom:8px;"><label for="esp-etab-claim-pass">Choisir un mot de passe (4 caractères minimum)</label><input type="password" id="esp-etab-claim-pass" autocomplete="new-password"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-pass2">Confirmer le mot de passe</label><input type="password" id="esp-etab-claim-pass2" autocomplete="new-password" onkeydown="if(event.key==='Enter')espEtabClaim()"></div>
+      <p class="esp-sub" style="margin:4px 0 8px;">Facultatif :</p>
+      <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-resp">Nom du responsable</label><input type="text" id="esp-etab-claim-resp" placeholder="Optionnel si déjà renseigné par l'administration"></div>
+      <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-resp-tel">Téléphone du responsable</label><input type="tel" id="esp-etab-claim-resp-tel" placeholder="Optionnel — usage interne, jamais public"></div>
+      <div class="esp-field-row" style="margin-bottom:12px;">
+        <div class="esp-field"><label for="esp-etab-claim-tel">Téléphone</label><input type="tel" id="esp-etab-claim-tel" placeholder="Optionnel"></div>
+        <div class="esp-field"><label for="esp-etab-claim-tel2">Téléphone 2</label><input type="tel" id="esp-etab-claim-tel2" placeholder="Optionnel"></div>
+      </div>
+      <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-tel3">Téléphone 3</label><input type="tel" id="esp-etab-claim-tel3" placeholder="Optionnel"></div>
+      <div class="esp-field" style="margin-bottom:14px;"><label for="esp-etab-claim-siteweb">Site web</label><input type="text" id="esp-etab-claim-siteweb" placeholder="Optionnel"></div>
+      <button class="esp-btn esp-btn-primary" id="esp-etab-claim-btn" onclick="espEtabClaim()">${ESP_ETAB_CLAIM_BOUTON}</button>
     </div>
   `;
+  const majFiches = espDebounce(espEtabClaimMajFiches, 150);
+  document.getElementById('esp-etab-claim-ville').addEventListener('input', majFiches);
+  document.getElementById('esp-etab-claim-nom').addEventListener('input', majFiches);
+  // Code : majuscules, sans espace ni tiret, 8 signes au plus (un code collé avec espaces passe).
+  const codeEl = document.getElementById('esp-etab-claim-code');
+  codeEl.addEventListener('input', () => {
+    const v = codeEl.value.toUpperCase().replace(/[\s-]+/g, '').slice(0, 8);
+    if(v !== codeEl.value) codeEl.value = v;
+  });
+  espEtabClaimMajFiches();
   espRefreshIcons();
 }
+
+// Suggestions Ville / Nom (fiches non récupérées ; noms restreints à la ville saisie) et liste
+// des fiches correspondantes à cocher : départage les homonymes, sélection unique pré-cochée.
+function espEtabClaimMajFiches(){
+  const box = document.getElementById('esp-etab-claim-fiches');
+  if(!box) return;
+  const nVille = espTexteRecherche(document.getElementById('esp-etab-claim-ville').value);
+  const nNom = espTexteRecherche(document.getElementById('esp-etab-claim-nom').value);
+  const libres = espEtabClaimFichesLibres();
+  const dansVille = libres.filter(e => !nVille || espTexteRecherche(e.ville).includes(nVille));
+  espFillDatalist('dl-etab-claim-ville', libres.map(e => e.ville));
+  espFillDatalist('dl-etab-claim-nom', dansVille.map(e => e.nom));
+
+  const message = texte => { _espEtabClaimFicheId = null; box.innerHTML = '<p class="esp-sub" style="margin:0;">' + escapeHtml(texte) + '</p>'; };
+  if(!nVille && !nNom) return message("Saisissez la ville et le nom de votre établissement pour retrouver sa fiche.");
+  const trouvees = dansVille
+    .filter(e => !nNom || espTexteRecherche(e.nom).includes(nNom))
+    .sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr') || (a.ville || '').localeCompare(b.ville || '', 'fr'));
+  if(!trouvees.length) return message("Aucune fiche non récupérée ne correspond. Vérifiez l'orthographe ; si votre établissement a déjà été récupéré, connectez-vous.");
+  if(trouvees.length > ESP_ETAB_CLAIM_MAX_FICHES) return message(trouvees.length + ' fiches correspondent : précisez la ville ou le nom.');
+  if(!trouvees.some(e => e.id === _espEtabClaimFicheId)) _espEtabClaimFicheId = trouvees.length === 1 ? trouvees[0].id : null;
+  box.innerHTML = '<p class="esp-sub" style="margin:0 0 6px;">Choisissez votre établissement :</p>' + trouvees.map(e => `
+    <label style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;">
+      <input type="radio" name="esp-etab-claim-fiche" value="${escapeHtml(e.id)}" ${e.id === _espEtabClaimFicheId ? 'checked' : ''} onchange="_espEtabClaimFicheId = this.value">
+      <span><b>${escapeHtml(e.nom)}</b><br><span class="esp-sub" style="margin:0;">${[e.ville, e.quartier].filter(Boolean).map(escapeHtml).join(' · ')} · ${espEtabCategorieLabel(e)}</span></span>
+    </label>`).join('');
+}
+
+// TROP_D_ESSAIS : message du serveur + compte à rebours ; bouton désactivé jusqu'à la fin du
+// délai. Le minuteur s'arrête seul si l'écran a été quitté.
+function espEtabClaimBloquer(message, secondes){
+  espEtabClaimArreterMinuteur();
+  const fin = Date.now() + Math.max(1, Math.round(Number(secondes) || 3600)) * 1000;
+  const texte = message || "Trop d'essais ratés pour cet établissement.";
+  const afficher = () => {
+    const btn = document.getElementById('esp-etab-claim-btn');
+    const errEl = document.getElementById('esp-etab-claim-error');
+    if(!btn || !errEl){ espEtabClaimArreterMinuteur(); return; }
+    const reste = Math.ceil((fin - Date.now()) / 1000);
+    if(reste <= 0){
+      espEtabClaimArreterMinuteur();
+      btn.disabled = false;
+      btn.textContent = ESP_ETAB_CLAIM_BOUTON;
+      errEl.innerHTML = '<p class="esp-success">Vous pouvez réessayer.</p>';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Réessayer dans ' + Math.floor(reste / 60) + ' min ' + String(reste % 60).padStart(2, '0') + ' s';
+    errEl.innerHTML = '<p class="esp-error">' + escapeHtml(texte) + '</p>';
+  };
+  afficher();
+  _espEtabClaimTimer = setInterval(afficher, 1000);
+}
+
 async function espEtabClaim(){
-  const code = document.getElementById('esp-etab-claim-code').value.trim().toUpperCase();
+  const errEl = document.getElementById('esp-etab-claim-error');
+  const btn = document.getElementById('esp-etab-claim-btn');
+  if(!errEl || (btn && btn.disabled)) return;
+  const codeEl = document.getElementById('esp-etab-claim-code');
+  const code = codeEl.value.toUpperCase().replace(/[\s-]+/g, '');
   const email = document.getElementById('esp-etab-claim-email').value.trim();
+  const pass = document.getElementById('esp-etab-claim-pass').value;
+  const pass2 = document.getElementById('esp-etab-claim-pass2').value;
   const responsable = document.getElementById('esp-etab-claim-resp').value.trim();
   const contactTel = document.getElementById('esp-etab-claim-resp-tel').value.trim();
   const tel = document.getElementById('esp-etab-claim-tel').value.trim();
   const tel2 = document.getElementById('esp-etab-claim-tel2').value.trim();
   const tel3 = document.getElementById('esp-etab-claim-tel3').value.trim();
   const siteWeb = document.getElementById('esp-etab-claim-siteweb').value.trim();
-  const pass = document.getElementById('esp-etab-claim-pass').value;
-  const pass2 = document.getElementById('esp-etab-claim-pass2').value;
-  const errEl = document.getElementById('esp-etab-claim-error');
-  if(!code || !email || !pass){
-    errEl.innerHTML = '<p class="esp-error">Code, e-mail et mot de passe sont obligatoires.</p>';
-    return;
-  }
-  if(pass !== pass2){
-    errEl.innerHTML = '<p class="esp-error">Les mots de passe ne correspondent pas.</p>';
-    return;
-  }
-  let ok;
+  const erreur = texte => { errEl.innerHTML = '<p class="esp-error">' + escapeHtml(texte) + '</p>'; };
+  if(!_espEtabClaimFicheId) return erreur("Choisissez d'abord la fiche de votre établissement (ville et nom).");
+  if(code.length !== 8) return erreur('Le code de récupération compte 8 signes.');
+  if(!email) return erreur("L'e-mail de l'établissement est obligatoire.");
+  if(!ESP_EMAIL_RE.test(email)) return erreur('Merci de saisir une adresse e-mail valide.');
+  if(pass.length < 4) return erreur('Le mot de passe doit contenir au moins 4 caractères.');
+  if(pass !== pass2) return erreur('Les mots de passe ne correspondent pas.');
+
+  errEl.innerHTML = '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Vérification…'; }
+  const libererBouton = () => { if(btn){ btn.disabled = false; btn.textContent = ESP_ETAB_CLAIM_BOUTON; } };
+  let rep;
   try {
-    ok = await espEtabClaimRPC(code, email, pass, responsable, tel, tel2, tel3, siteWeb, contactTel);
+    rep = await espEtabClaimV2RPC(_espEtabClaimFicheId, code, email, pass, responsable, tel, tel2, tel3, siteWeb, contactTel);
   } catch(e){
-    errEl.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(e.message) + '</p>';
+    libererBouton();
+    return erreur('Le serveur ne répond pas pour le moment. Réessayez dans quelques instants.');
+  }
+
+  if(rep && rep.ok){
+    codeEl.value = '';
+    _espEtabClaimFicheId = null;
+    try { await espLoadFromSupabase(true); } catch(e){}
+    // Fiche récupérée : ouverture de session par jeton avec les identifiants choisis, comme une connexion.
+    let ouverture = null;
+    try { ouverture = await espEtabSessionOpenRPC(email, pass); } catch(e){}
+    if(!ouverture || !ouverture.token){
+      espRenderEtabAuth('login');
+      document.getElementById('esp-etab-error').innerHTML = '<p class="esp-success">Établissement récupéré. Connectez-vous avec votre e-mail et votre mot de passe.</p>';
+      return;
+    }
+    espSetTokenSession('etablissement', ouverture.id, ouverture.token, ouverture.expires_at, ouverture.nom);
+    platformUnlock();
     return;
   }
-  if(!ok){
-    errEl.innerHTML = '<p class="esp-error">Code invalide, déjà utilisé, ou e-mail déjà associé à un autre établissement.</p>';
-    return;
+
+  libererBouton();
+  switch(rep && rep.erreur){
+    case 'CODE_INVALIDE': {
+      const n = Math.max(0, Number(rep.essais_restants) || 0);
+      return erreur('Code incorrect, il vous reste ' + n + ' essai(s).' + (n === 0 ? ' La récupération de cette fiche est bloquée pendant une heure.' : ''));
+    }
+    case 'TROP_D_ESSAIS':
+      codeEl.value = '';
+      return espEtabClaimBloquer(rep.message, rep.reessayer_dans_s);
+    case 'FICHE_DEJA_RECLAMEE':
+      errEl.innerHTML = '<p class="esp-error">Cette fiche est déjà récupérée, connectez-vous. <span class="esp-toggle-link" onclick="espEtabClaimQuitter()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Se connecter</span></p>';
+      return;
+    case 'EMAIL_DEJA_UTILISE':
+      return erreur('Cet e-mail est déjà utilisé par un autre établissement. Choisissez-en un autre.');
+    case 'FICHE_INTROUVABLE':
+      _espEtabClaimFicheId = null;
+      espEtabClaimMajFiches();
+      return erreur("Cette fiche n'existe plus. Recherchez à nouveau votre établissement.");
+    case 'CHAMPS_OBLIGATOIRES':
+      return erreur('La fiche, le code, l\'e-mail et le mot de passe sont obligatoires.');
+    default:
+      return erreur('La récupération a échoué. Réessayez dans quelques instants.');
   }
-  try { await espLoadFromSupabase(true); } catch(e){}
-  // Le compte vient d'être réclamé : ouverture de session par jeton avec les identifiants choisis,
-  // comme une connexion. (L'ancienne recherche par e-mail dans le cache public échouait pour les
-  // fiches non premium, dont list_etablissements masque l'e-mail.)
-  let ouverture = null;
-  try { ouverture = await espEtabSessionOpenRPC(email, pass); } catch(e){ console.error('[esp] ouverture de session après réclamation impossible', e); }
-  if(!ouverture || !ouverture.token){
-    espRenderEtabAuth('login');
-    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-success">Compte récupéré. Connectez-vous avec votre e-mail et votre mot de passe.</p>';
-    return;
-  }
-  espSetTokenSession('etablissement', ouverture.id, ouverture.token, ouverture.expires_at, ouverture.nom);
-  platformUnlock();
 }
 
 // ---------------- Cache non masqué de l'établissement connecté (sa propre fiche) ----------------
