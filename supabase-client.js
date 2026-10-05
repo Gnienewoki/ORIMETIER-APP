@@ -235,9 +235,10 @@ async function espEtabVerifierDoublonRPC(nom){
 }
 
 // ---------------- Demandes d'inscription en attente (admin) ----------------
-// Les inscriptions directes n'insèrent plus dans etablissements : elles créent une
-// demande que l'admin examine (doublons non détectés automatiquement) avant de
-// l'importer lui-même via le circuit d'import en masse existant.
+// Les inscriptions directes n'insèrent pas dans etablissements : elles créent une
+// demande que l'admin examine (doublons non détectés automatiquement), puis valide
+// (copie complète dans etablissements, mot de passe d'origine conservé) ou refuse.
+// Le hash du mot de passe n'est jamais renvoyé par ces fonctions.
 function espRowToDemandeInscription(r){
   return {
     id: r.id, nom: r.nom, region: r.region||'', ville: r.ville, quartier: r.quartier||'', type: r.type,
@@ -245,21 +246,27 @@ function espRowToDemandeInscription(r){
     siteWeb: r.site_web||'', contactTel: r.contact_tel||'', dateInscription: r.date_inscription,
     filieresProposees: r.filieres_proposees||[], photos: r.photos||[], logoUrl: r.logo_url||'',
     categorie: r.categorie||'', sousCategorie: r.sous_categorie||'', secteur: r.secteur||'',
-    dateDemande: r.date_demande, statutDemande: r.statut_demande,
+    dateDemande: r.date_demande, statutDemande: r.statut_demande, motifRefus: r.motif_refus||'',
   };
 }
 // Admin : authentifié par le jeton de session (espAuthRpc, auth.js), comme les élèves.
 async function espAdminListDemandesInscriptionRPC(){
   return ((await espAuthRpc('admin_list_demandes_inscription_etablissements_v2')) || []).map(espRowToDemandeInscription);
 }
-async function espAdminMarquerDemandeTraiteeRPC(demandeId){
-  return !!(await espAuthRpc('admin_marquer_demande_traitee_v2', { p_demande_id: demandeId }));
+// Valide une demande : crée la fiche et renvoie son id. Lève DEMANDE_INTROUVABLE,
+// DEMANDE_DEJA_TRAITEE, EMAIL_DEJA_UTILISE ou FICHE_PROCHE (fiche non réclamée de même
+// nom et même ville) ; forcer = true passe outre FICHE_PROCHE et crée une nouvelle fiche.
+async function espAdminValiderDemandeRPC(demandeId, forcer){
+  return await espAuthRpc('admin_valider_demande_v2', { p_demande_id: demandeId, p_forcer: !!forcer });
 }
-// Recopie photos/logo_url d'une demande vers l'établissement fraîchement importé (import
-// texte, cf. admin_bulk_import_etablissements) et marque la demande traitée en une seule
-// opération — cf. supabase-migration-2026-08-22-lien-demande-etablissement.sql.
-async function espAdminLierPhotosLogoDemandeRPC(demandeId, etablissementId){
-  return !!(await espAuthRpc('admin_lier_photos_logo_demande_v2', { p_demande_id: demandeId, p_etablissement_id: etablissementId }));
+// Refuse une demande (motif facultatif). Lève DEMANDE_INTROUVABLE ou DEMANDE_DEJA_TRAITEE.
+async function espAdminRefuserDemandeRPC(demandeId, motif){
+  return !!(await espAuthRpc('admin_refuser_demande_v2', { p_demande_id: demandeId, p_motif: motif || null }));
+}
+// Fiches de même nom et même ville (normalisés : sans accents ni ponctuation) qu'une demande.
+async function espAdminFichesProchesDemandeRPC(demandeId){
+  return ((await espAuthRpc('admin_fiches_proches_demande_v2', { p_demande_id: demandeId })) || [])
+    .map(r => ({ id: r.id, nom: r.nom, ville: r.ville || '', reclame: !!r.reclame, aUnCode: !!r.a_un_code }));
 }
 
 // ---------------- Connexion (vérifiée côté serveur, mot de passe jamais renvoyé) ----------------
