@@ -28,24 +28,9 @@ function espGeneralRows(secteur){
   return rows;
 }
 
-// Forme de comparaison commune aux filtres Ville et Établissement : normalize (utils.js :
-// minuscules, sans accents) + ponctuation remplacée par une espace et espaces réduits,
-// pour que "notre dame" trouve "Collège Notre-Dame".
-function espGeneralTexteRecherche(s){
-  return normalize(s || '').replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-// ---------------- Assistant de saisie (suggestions natives du navigateur) ----------------
-function espFillGeneralDatalist(id, values){
-  const dl = document.getElementById(id);
-  if(!dl) return;
-  const unique = Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'fr'));
-  dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}">`).join('');
-}
-
 // ---------------- Rendu d'un des deux tableaux (public ou privé) ----------------
 // Filtres Ville et Établissement (combinés en ET) : recherche d'un morceau du texte, sans
-// tenir compte de la casse, des accents ni de la ponctuation (espGeneralTexteRecherche).
+// tenir compte de la casse, des accents ni de la ponctuation (espTexteRecherche).
 function renderGeneralTable(secteur){
   const prefix = 'general-' + secteur;
   const tbody = document.getElementById(prefix + '-results');
@@ -55,19 +40,19 @@ function renderGeneralTable(secteur){
 
   const villeInput = document.getElementById('f-' + prefix + '-ville');
   const nomInput = document.getElementById('f-' + prefix + '-nom');
-  const nVille = espGeneralTexteRecherche(villeInput ? villeInput.value : '');
-  const nNom = espGeneralTexteRecherche(nomInput ? nomInput.value : '');
-  const villeCorrespond = v => !nVille || espGeneralTexteRecherche(v).includes(nVille);
+  const nVille = espTexteRecherche(villeInput ? villeInput.value : '');
+  const nNom = espTexteRecherche(nomInput ? nomInput.value : '');
+  const villeCorrespond = v => !nVille || espTexteRecherche(v).includes(nVille);
 
   // Suggestions reconstruites à chaque rendu (les établissements inscrits peuvent évoluer) :
   // villes de l'onglet ; noms des établissements de l'onglet, restreints à la ville saisie.
   const allForSector = espEtabGeneral(secteur);
-  espFillGeneralDatalist('dl-' + prefix + '-ville', allForSector.map(e => e.ville));
-  espFillGeneralDatalist('dl-' + prefix + '-nom', allForSector.filter(e => villeCorrespond(e.ville)).map(e => e.nom));
+  espFillDatalist('dl-' + prefix + '-ville', allForSector.map(e => e.ville));
+  espFillDatalist('dl-' + prefix + '-nom', allForSector.filter(e => villeCorrespond(e.ville)).map(e => e.nom));
 
   const rows = espGeneralRows(secteur).filter(r => {
     if(!villeCorrespond(r.ville)) return false;
-    if(nNom && !espGeneralTexteRecherche(r.nomTexte).includes(nNom)) return false;
+    if(nNom && !espTexteRecherche(r.nomTexte).includes(nNom)) return false;
     return true;
   });
 
