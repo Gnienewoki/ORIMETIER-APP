@@ -39,7 +39,7 @@ async function espAdminLogin(){
   platformUnlock();
 }
 // Caches admin en mémoire : vidés à la déconnexion et sur session refusée (auth.js, espHandleSessionInvalid).
-function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; _espAdminComptes = null; }
+function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; _espAdminComptes = null; _espCodesListe = null; }
 function espAdminLogout(){ espAdminResetCaches(); platformLogout(); }
 
 function espExportBackup(){
@@ -98,9 +98,8 @@ function espRenderAdminDashboard(sub){
         </div>
         <textarea id="esp-admin-import-etab-textarea" rows="6" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid var(--border);" placeholder="Lycée Moderne 1 Bouaké;Vallée du Bandama;Bouaké;;public;;
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
-        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowUnclaimedCodes()">${icon('key')}Voir tous les codes non réclamés</button> <button class="esp-btn" onclick="espAdminShowAllEtabCodes()">${icon('clipboard-list')}Codes établissements</button></p>
-        <div id="esp-admin-unclaimed-codes">${_espUnclaimedCodesResult ? espAdminUnclaimedCodesHtml(_espUnclaimedCodesResult) : ''}</div>
-        <div id="esp-admin-all-etab-codes">${_espAllEtabCodesResult ? espAdminAllEtabCodesHtml() : ''}</div>
+        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowCodes()">${icon('key')}Codes de récupération</button></p>
+        <div id="esp-admin-codes">${_espCodesListe ? espAdminCodesHtml() : ''}</div>
         <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">${icon('triangle-alert')}${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
           <p class="esp-error">${icon('triangle-alert')}<b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
           <div class="table-wrap"><table>
@@ -364,6 +363,8 @@ Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
   `;
   espUpdateReplyPreview();
   espRefreshIcons();
+  // Carte des codes ouverte : son <datalist> des villes vient d'être recréé vide.
+  if(sub === 'etablissements' && _espCodesListe) espAdminCodesRemplirVilles();
   if(sub === 'ban-eleve') document.getElementById('esp-ban-eleve-search').focus();
 }
 
@@ -1316,181 +1317,210 @@ async function espAdminDeleteEtab(etabId){
 let _espLastEtabImportResult = null;
 let _espLastEtabSkipped = null;
 let _espLastEtabImportWarning = null;
-let _espUnclaimedCodesResult = null;
-let _espAllEtabCodesResult = null;
-let _espAllEtabCodesSearch = '';
-let _espAllEtabCodesFilterCategorie = '';
-let _espAllEtabCodesFilterReclame = '';
-let _espAllEtabCodesSearchDebounceTimer = null;
+// Carte « Codes de récupération » : lignes de admin_lister_codes_v2 (null = carte fermée).
+// Seuls les codes restent en mémoire : vidés à la fermeture et à la déconnexion.
+let _espCodesListe = null;
+let _espCodesVille = '';
+let _espCodesFiltreCategorie = '';
+let _espCodesVilleTimer = null;
+let _espCodesActionEnCours = false;
+// Au-delà, on demande d'affiner (4 000+ lignes d'un coup : trop lourd sur mobile) ; l'export contient tout.
+const ESP_CODES_AFFICHAGE_MAX = 200;
 let _espImportCategorie = 'general';
 let _espImportSousCategorie = 'universite';
 
-function espAdminUnclaimedCodesHtml(rows){
-  if(!rows.length){
-    return '<p class="esp-sub" style="margin-top:10px;">Aucun code en attente pour le moment. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard(\'etablissements\')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>';
-  }
-  const catLabel = (categorie, sousCategorie) => {
-    if(categorie === 'general') return 'Général';
-    if(categorie === 'superieur') return sousCategorie === 'universite' ? 'Supérieur — Université' : 'Supérieur — Grande école';
-    return categorie || '—';
-  };
+// ---------------- Codes de récupération (toutes les fiches) : régénérer, annuler, export ----------------
+// Le courrier aux établissements se fait hors de l'application, à partir de l'export.
+// Deux filtres combinés (ET) : ville (assistant de saisie, sans accents ni casse) et catégorie.
+const ESP_CODES_CATEGORIES = { general: 'Général', technique: 'Technique', superieur: 'Supérieur' };
+function espAdminEtabCodesCatLabel(categorie){
+  return ESP_CODES_CATEGORIES[categorie] || categorie || '—';
+}
+// 'reclamee' | 'non_reclamee' | 'code_annule' (non réclamée, sans code : récupération impossible).
+function espAdminCodeStatut(r){
+  if(r.reclame) return 'reclamee';
+  return r.code ? 'non_reclamee' : 'code_annule';
+}
+const ESP_CODE_STATUTS = {
+  non_reclamee: { label: 'Non réclamée', badge: 'non_reclame' },
+  reclamee: { label: 'Réclamée', badge: 'valide' },
+  code_annule: { label: 'Code annulé', badge: 'refuse' },
+};
+function espAdminCodesParCategorie(){
+  const all = _espCodesListe || [];
+  return _espCodesFiltreCategorie ? all.filter(r => r.categorie === _espCodesFiltreCategorie) : all;
+}
+// Résultat des deux filtres : c'est aussi exactement ce qu'exportent le CSV et l'Excel.
+function espAdminCodesFiltres(){
+  const nVille = espTexteRecherche(_espCodesVille);
+  return espAdminCodesParCategorie().filter(r => !nVille || espTexteRecherche(r.ville).includes(nVille));
+}
+function espAdminCodesLigneHtml(r){
+  const statut = espAdminCodeStatut(r);
+  const s = ESP_CODE_STATUTS[statut];
+  const id = escapeHtml(r.etab_id);
+  const actions = statut === 'reclamee' ? '—' :
+    `<button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminRegenererCode('${id}')">${icon('refresh-cw')}Régénérer</button>`
+    + (statut === 'non_reclamee' ? ` <button class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminAnnulerCode('${id}')">${icon('ban')}Annuler le code</button>` : '');
+  return `<tr>
+    <td>${escapeHtml(r.nom)}</td><td>${escapeHtml(espAdminEtabCodesCatLabel(r.categorie))}</td><td>${escapeHtml(r.quartier||'—')}</td>
+    <td><span class="esp-badge ${s.badge}">${s.label}</span></td>
+    <td>${r.code ? `<code>${escapeHtml(r.code)}</code>` : '—'}</td>
+    <td style="white-space:nowrap;">${actions}</td>
+  </tr>`;
+}
+// Compteur + export + tableau : seule partie redessinée quand un filtre change (le champ
+// ville n'est jamais redessiné pendant la saisie : focus et assistant de saisie conservés).
+function espAdminCodesResultatHtml(){
+  const filtered = espAdminCodesFiltres();
+  const shown = filtered.slice(0, ESP_CODES_AFFICHAGE_MAX);
+  const nb = st => filtered.filter(r => espAdminCodeStatut(r) === st).length;
   return `
-    <p class="esp-sub" style="margin-top:10px;"><b>${rows.length}</b> établissement(s) en attente de récupération. <span class="esp-toggle-link" onclick="_espUnclaimedCodesResult=null;espRenderAdminDashboard('etablissements')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>
+    <p class="esp-sub"><b>${filtered.length}</b> fiche(s) : <b>${nb('non_reclamee')}</b> non réclamée(s), <b>${nb('reclamee')}</b> réclamée(s), <b>${nb('code_annule')}</b> code(s) annulé(s).${filtered.length > shown.length ? ` Seules les <b>${shown.length}</b> premières sont affichées : affinez avec la ville ou la catégorie (l'export contient tout).` : ''}</p>
+    <p style="margin:8px 0;"><button class="esp-btn" onclick="espAdminExportEtabCodesCSV()">${icon('download')}Exporter en CSV</button> <button class="esp-btn" onclick="espAdminExportEtabCodesExcel()">${icon('download')}Exporter en Excel</button></p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Établissement</th><th>Catégorie</th><th>Ville</th><th>Secteur</th><th>Inscrit le</th><th>Code</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(catLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : 'Privé'}</td><td>${escapeHtml(r.date_inscription||'')}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td></tr>`).join('')}</tbody>
+      <thead><tr><th>Établissement</th><th>Catégorie</th><th>Quartier</th><th>Statut</th><th>Code</th><th>Actions</th></tr></thead>
+      <tbody>${shown.length ? shown.map(espAdminCodesLigneHtml).join('') : `<tr><td colspan="6" class="esp-empty">Aucune fiche ne correspond à ces filtres.</td></tr>`}</tbody>
     </table></div>
   `;
 }
-async function espAdminShowUnclaimedCodes(){
-  _espAllEtabCodesResult = null;
-  const otherContainer = document.getElementById('esp-admin-all-etab-codes');
-  if(otherContainer) otherContainer.innerHTML = '';
-  const container = document.getElementById('esp-admin-unclaimed-codes');
-  container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
-  try {
-    const rows = await espAdminListUnclaimedCodesRPC();
-    _espUnclaimedCodesResult = rows;
-    container.innerHTML = espAdminUnclaimedCodesHtml(rows);
-  } catch(err){
-    if(err.espSessionInvalid) return;
-    container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
-  }
-}
-
-// ---------------- Codes établissements (tous, réclamés ou non) + export CSV/Excel ----------------
-function espAdminEtabCodesCatLabel(categorie, sousCategorie){
-  if(categorie === 'general') return 'Général';
-  if(categorie === 'technique') return 'Technique';
-  if(categorie === 'superieur') return sousCategorie === 'universite' ? 'Supérieur — Université' : sousCategorie === 'grande_ecole' ? 'Supérieur — Grande école' : 'Supérieur';
-  return categorie || '—';
-}
-function espAdminAllEtabCodesFilteredList(){
-  const all = _espAllEtabCodesResult || [];
-  const nq = (_espAllEtabCodesSearch||'').trim().toLowerCase();
-  return all.filter(r => {
-    if(_espAllEtabCodesFilterCategorie && r.categorie !== _espAllEtabCodesFilterCategorie) return false;
-    if(_espAllEtabCodesFilterReclame === 'oui' && !r.reclame) return false;
-    if(_espAllEtabCodesFilterReclame === 'non' && r.reclame) return false;
-    if(nq){
-      const hay = [r.nom, r.ville].filter(Boolean).join(' ').toLowerCase();
-      if(!hay.includes(nq)) return false;
-    }
-    return true;
-  });
-}
-function espAdminAllEtabCodesHtml(){
-  const all = _espAllEtabCodesResult || [];
+function espAdminCodesHtml(){
+  const all = _espCodesListe || [];
+  const fermer = `<span class="esp-toggle-link" onclick="espAdminFermerCodes()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span>`;
   if(!all.length){
-    return '<p class="esp-sub" style="margin-top:10px;">Aucun établissement pré-inscrit pour le moment. <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard(\'etablissements\')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span></p>';
+    return `<p class="esp-sub" style="margin-top:10px;">Aucun établissement pour le moment. ${fermer}</p>`;
   }
-  const filtered = espAdminAllEtabCodesFilteredList();
   return `
-    <p class="esp-sub" style="margin-top:10px;">
-      <span class="esp-toggle-link" onclick="_espAllEtabCodesResult=null;espRenderAdminDashboard('etablissements')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Fermer</span>
-    </p>
+    <p class="esp-sub" style="margin-top:10px;">${fermer}</p>
     <div class="esp-field-row" style="margin-bottom:10px;align-items:flex-end;">
       <div class="esp-field" style="flex:2;min-width:220px;">
-        <label>Rechercher</label>
-        <input type="text" id="esp-admin-all-etab-codes-search" placeholder="Nom, ville..." value="${escapeHtml(_espAllEtabCodesSearch)}" oninput="espAdminAllEtabCodesOnSearchInput(this.value)">
+        <label for="esp-admin-codes-ville">Ville</label>
+        <input type="text" id="esp-admin-codes-ville" placeholder="Ex : Abidjan, Bouaké..." list="dl-admin-codes-ville" value="${escapeHtml(_espCodesVille)}" oninput="espAdminCodesOnVilleInput(this.value)">
+        <datalist id="dl-admin-codes-ville"></datalist>
       </div>
       <div class="esp-field">
-        <label>Catégorie</label>
-        <select id="esp-admin-all-etab-codes-filter-cat" onchange="espAdminAllEtabCodesOnFilterChange()">
+        <label for="esp-admin-codes-filter-cat">Catégorie</label>
+        <select id="esp-admin-codes-filter-cat" onchange="espAdminCodesOnCategorieChange(this.value)">
           <option value="">Toutes</option>
-          <option value="general" ${_espAllEtabCodesFilterCategorie==='general'?'selected':''}>Général</option>
-          <option value="technique" ${_espAllEtabCodesFilterCategorie==='technique'?'selected':''}>Technique</option>
-          <option value="superieur" ${_espAllEtabCodesFilterCategorie==='superieur'?'selected':''}>Supérieur</option>
-        </select>
-      </div>
-      <div class="esp-field">
-        <label>Statut</label>
-        <select id="esp-admin-all-etab-codes-filter-reclame" onchange="espAdminAllEtabCodesOnFilterChange()">
-          <option value="">Tous</option>
-          <option value="oui" ${_espAllEtabCodesFilterReclame==='oui'?'selected':''}>Réclamé</option>
-          <option value="non" ${_espAllEtabCodesFilterReclame==='non'?'selected':''}>Non réclamé</option>
+          ${Object.keys(ESP_CODES_CATEGORIES).map(k => `<option value="${k}" ${_espCodesFiltreCategorie===k?'selected':''}>${ESP_CODES_CATEGORIES[k]}</option>`).join('')}
         </select>
       </div>
     </div>
-    <p class="esp-sub"><b>${filtered.length}</b> établissement(s) trouvé(s) sur <b>${all.length}</b> au total.</p>
-    <p style="margin:8px 0;"><button class="esp-btn" onclick="espAdminExportEtabCodesCSV()">${icon('download')}Exporter en CSV</button> <button class="esp-btn" onclick="espAdminExportEtabCodesExcel()">${icon('download')}Exporter en Excel</button></p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Établissement</th><th>Catégorie</th><th>Sous-catégorie</th><th>Ville</th><th>Secteur</th><th>Code</th><th>Statut</th></tr></thead>
-      <tbody>${filtered.length ? filtered.map(r => `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie))}</td><td>${escapeHtml(r.sous_categorie||'—')}</td><td>${escapeHtml(r.ville)}</td><td>${r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '—'}</td><td><code>${escapeHtml(r.code_recuperation)}</code></td><td><span class="esp-badge ${r.reclame ? 'valide' : 'non_reclame'}">${r.reclame ? 'Réclamé' : 'Non réclamé'}</span></td></tr>`).join('') : `<tr><td colspan="7" class="esp-empty">Aucun établissement ne correspond à cette recherche.</td></tr>`}</tbody>
-    </table></div>
+    <div id="esp-admin-codes-resultat">${espAdminCodesResultatHtml()}</div>
   `;
 }
-async function espAdminShowAllEtabCodes(){
-  _espUnclaimedCodesResult = null;
-  const otherContainer = document.getElementById('esp-admin-unclaimed-codes');
-  if(otherContainer) otherContainer.innerHTML = '';
-  const container = document.getElementById('esp-admin-all-etab-codes');
+// Assistant de saisie : villes des fiches de la catégorie choisie. À rappeler après chaque
+// rendu de la carte (le <datalist> est recréé vide).
+function espAdminCodesRemplirVilles(){
+  espFillDatalist('dl-admin-codes-ville', espAdminCodesParCategorie().map(r => r.ville));
+}
+function espAdminRefreshCodesResultat(){
+  const container = document.getElementById('esp-admin-codes-resultat');
+  if(!container) return;
+  container.innerHTML = espAdminCodesResultatHtml();
+  espRefreshIcons();
+}
+async function espAdminShowCodes(){
+  const container = document.getElementById('esp-admin-codes');
   container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
   try {
-    const rows = await espAdminListAllEtabCodesRPC();
-    _espAllEtabCodesResult = rows;
-    _espAllEtabCodesSearch = '';
-    _espAllEtabCodesFilterCategorie = '';
-    _espAllEtabCodesFilterReclame = '';
-    container.innerHTML = espAdminAllEtabCodesHtml();
+    _espCodesListe = await espAdminListerCodesRPC();
+    _espCodesVille = '';
+    _espCodesFiltreCategorie = '';
+    container.innerHTML = espAdminCodesHtml();
+    espAdminCodesRemplirVilles();
   } catch(err){
     if(err.espSessionInvalid) return;
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
   }
   espRefreshIcons();
 }
-function espAdminRefreshAllEtabCodesSection(){
-  const container = document.getElementById('esp-admin-all-etab-codes');
-  if(!container) return;
-  const searchInput = document.getElementById('esp-admin-all-etab-codes-search');
-  const hadFocus = !!(searchInput && document.activeElement === searchInput);
-  const selStart = hadFocus ? searchInput.selectionStart : null;
-  const selEnd = hadFocus ? searchInput.selectionEnd : null;
-  container.innerHTML = espAdminAllEtabCodesHtml();
-  if(hadFocus){
-    const newInput = document.getElementById('esp-admin-all-etab-codes-search');
-    if(newInput){
-      newInput.focus();
-      try { newInput.setSelectionRange(selStart, selEnd); } catch(err){}
-    }
-  }
-  espRefreshIcons();
+function espAdminFermerCodes(){
+  _espCodesListe = null;
+  _espCodesVille = '';
+  _espCodesFiltreCategorie = '';
+  espRenderAdminDashboard('etablissements');
 }
-function espAdminAllEtabCodesOnSearchInput(value){
-  _espAllEtabCodesSearch = value;
-  if(_espAllEtabCodesSearchDebounceTimer) clearTimeout(_espAllEtabCodesSearchDebounceTimer);
-  _espAllEtabCodesSearchDebounceTimer = setTimeout(() => {
-    _espAllEtabCodesSearchDebounceTimer = null;
-    espAdminRefreshAllEtabCodesSection();
+function espAdminCodesOnVilleInput(value){
+  _espCodesVille = value;
+  if(_espCodesVilleTimer) clearTimeout(_espCodesVilleTimer);
+  _espCodesVilleTimer = setTimeout(() => {
+    _espCodesVilleTimer = null;
+    espAdminRefreshCodesResultat();
   }, 200);
 }
-function espAdminAllEtabCodesOnFilterChange(){
-  _espAllEtabCodesFilterCategorie = document.getElementById('esp-admin-all-etab-codes-filter-cat').value;
-  _espAllEtabCodesFilterReclame = document.getElementById('esp-admin-all-etab-codes-filter-reclame').value;
-  espAdminRefreshAllEtabCodesSection();
+function espAdminCodesOnCategorieChange(value){
+  _espCodesFiltreCategorie = value;
+  espAdminCodesRemplirVilles();
+  espAdminRefreshCodesResultat();
 }
-// Transforme les lignes brutes RPC en objets { "En-tête FR": valeur }, utilisés
-// à la fois par l'export CSV (colonnes = clés) et par l'export Excel (SheetJS
-// json_to_sheet lit directement ce format).
+
+// Erreurs de admin_regenerer_code_v2 / admin_annuler_code_v2 (message de l'exception).
+const ESP_ADMIN_CODE_ERREURS = {
+  FICHE_INTROUVABLE: "Cette fiche n'existe plus (supprimée entre-temps ?).",
+  FICHE_DEJA_RECLAMEE: "Cette fiche vient d'être réclamée par l'établissement : son code n'existe plus.",
+};
+// Action sur le code d'une fiche : confirmation, appel, mise à jour de la ligne en mémoire.
+// Sur FICHE_INTROUVABLE / FICHE_DEJA_RECLAMEE, la liste est rechargée (filtres conservés).
+async function espAdminCodeAction(etabId, appel, question, maj){
+  const r = (_espCodesListe || []).find(x => x.etab_id === etabId);
+  if(!r || _espCodesActionEnCours) return;
+  if(!confirm(question(r))) return;
+  _espCodesActionEnCours = true;
+  try {
+    maj(r, await appel(etabId));
+    espAdminRefreshCodesResultat();
+  } catch(err){
+    if(err.espSessionInvalid) return;
+    const message = (err && err.message) || '';
+    const code = Object.keys(ESP_ADMIN_CODE_ERREURS).find(c => message.includes(c));
+    alert(code ? ESP_ADMIN_CODE_ERREURS[code] : 'Erreur : ' + (message || 'inconnue'));
+    if(code){
+      try { _espCodesListe = await espAdminListerCodesRPC(); espAdminCodesRemplirVilles(); espAdminRefreshCodesResultat(); }
+      catch(e){ if(!e.espSessionInvalid) console.error('[esp] rechargement des codes', e); }
+    }
+  } finally {
+    _espCodesActionEnCours = false;
+  }
+}
+function espAdminRegenererCode(etabId){
+  return espAdminCodeAction(etabId, espAdminRegenererCodeRPC,
+    r => `Générer un nouveau code pour "${r.nom}" (${r.ville || '—'}) ?\n\n${r.code ? "L'ancien code ne marchera plus : un courrier déjà envoyé avec celui-ci devient inutile." : 'La récupération de la fiche redevient possible avec le nouveau code.'}`,
+    (r, code) => { r.code = code; });
+}
+function espAdminAnnulerCode(etabId){
+  return espAdminCodeAction(etabId, espAdminAnnulerCodeRPC,
+    r => `Annuler le code de "${r.nom}" (${r.ville || '—'}) ?\n\nPlus personne ne pourra récupérer cette fiche tant qu'un nouveau code n'aura pas été généré.`,
+    r => { r.code = null; });
+}
+
+// Transforme les lignes en objets { "En-tête FR": valeur }, utilisés à la fois par
+// l'export CSV (colonnes = clés) et par l'export Excel (SheetJS json_to_sheet lit
+// directement ce format).
+const ESP_CODES_EXPORT_COLONNES = ['Nom','Ville','Quartier','Catégorie','Statut','Code de récupération'];
 function espAdminEtabCodesRowsForExport(rows){
   return rows.map(r => ({
     'Nom': r.nom || '',
-    'Catégorie': espAdminEtabCodesCatLabel(r.categorie, r.sous_categorie),
-    'Sous-catégorie': r.sous_categorie || '',
     'Ville': r.ville || '',
-    'Secteur': r.secteur === 'public' ? 'Public' : r.secteur === 'prive' ? 'Privé' : '',
-    'Code de récupération': r.code_recuperation || '',
-    'Réclamé': r.reclame ? 'Oui' : 'Non',
-    "Date d'inscription": r.date_inscription || '',
+    'Quartier': r.quartier || '',
+    'Catégorie': espAdminEtabCodesCatLabel(r.categorie),
+    'Statut': ESP_CODE_STATUTS[espAdminCodeStatut(r)].label,
+    'Code de récupération': r.code || '',
   }));
 }
 function espAdminEtabCodesCsvContent(rows){
   const data = espAdminEtabCodesRowsForExport(rows);
-  const header = ['Nom','Catégorie','Sous-catégorie','Ville','Secteur','Code de récupération','Réclamé',"Date d'inscription"];
   const esc = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
-  const lines = [header.map(esc).join(';')];
-  data.forEach(row => lines.push(header.map(h => esc(row[h])).join(';')));
+  const lines = [ESP_CODES_EXPORT_COLONNES.map(esc).join(';')];
+  data.forEach(row => lines.push(ESP_CODES_EXPORT_COLONNES.map(h => esc(row[h])).join(';')));
   return lines.join('\r\n');
+}
+// Nom du fichier exporté : ville filtrée (sans accents ni espaces, "toutes-villes" si vide),
+// catégorie si filtrée, date. Ex : bouake-general-2026-10-06.csv
+function espAdminCodesNomFichier(ext){
+  const ville = espTexteRecherche(_espCodesVille).replace(/ /g, '-') || 'toutes-villes';
+  const categorie = _espCodesFiltreCategorie ? '-' + _espCodesFiltreCategorie : '';
+  return `${ville}${categorie}-${new Date().toISOString().slice(0,10)}.${ext}`;
 }
 function espAdminDownloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
@@ -1503,12 +1533,11 @@ function espAdminDownloadBlob(blob, filename){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 function espAdminExportEtabCodesCSV(){
-  const rows = espAdminAllEtabCodesFilteredList();
-  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « Codes établissements », ou élargis la recherche/les filtres."); return; }
-  const stamp = new Date().toISOString().slice(0,10);
+  const rows = espAdminCodesFiltres();
+  if(!rows.length){ alert('Aucune fiche à exporter avec ces filtres (ville, catégorie).'); return; }
   const csv = espAdminEtabCodesCsvContent(rows);
   // BOM UTF-8 en tête pour qu'Excel affiche correctement les accents à l'ouverture du .csv.
-  espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8;' }), `ORIMETIER-codes-etablissements-${stamp}.csv`);
+  espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8;' }), espAdminCodesNomFichier('csv'));
 }
 // Charge SheetJS depuis le même CDN que les autres scripts tiers du projet
 // (cdnjs.cloudflare.com, déjà utilisé par html2canvas/jsPDF dans test.html),
@@ -1524,22 +1553,21 @@ function espLoadScriptOnce(src){
   });
 }
 async function espAdminExportEtabCodesExcel(){
-  const rows = espAdminAllEtabCodesFilteredList();
-  if(!rows.length){ alert("Aucune donnée à exporter — clique d'abord sur « Codes établissements », ou élargis la recherche/les filtres."); return; }
-  const stamp = new Date().toISOString().slice(0,10);
+  const rows = espAdminCodesFiltres();
+  if(!rows.length){ alert('Aucune fiche à exporter avec ces filtres (ville, catégorie).'); return; }
   try {
     if(!window.XLSX){
       await espLoadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     }
     if(!window.XLSX) throw new Error('Bibliothèque Excel indisponible');
-    const ws = XLSX.utils.json_to_sheet(espAdminEtabCodesRowsForExport(rows));
+    const ws = XLSX.utils.json_to_sheet(espAdminEtabCodesRowsForExport(rows), { header: ESP_CODES_EXPORT_COLONNES });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Codes établissements');
-    XLSX.writeFile(wb, `ORIMETIER-codes-etablissements-${stamp}.xlsx`);
+    XLSX.writeFile(wb, espAdminCodesNomFichier('xlsx'));
   } catch(err){
     console.error('[esp] export Excel indisponible, repli en CSV renommé .xls', err);
     const csv = espAdminEtabCodesCsvContent(rows);
-    espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'application/vnd.ms-excel' }), `ORIMETIER-codes-etablissements-${stamp}.xls`);
+    espAdminDownloadBlob(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'application/vnd.ms-excel' }), espAdminCodesNomFichier('xls'));
   }
 }
 
