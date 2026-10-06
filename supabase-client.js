@@ -145,8 +145,12 @@ function espResetPrivateMessages(){
 }
 
 // ---------------- Écoute en temps réel (mises à jour reçues par tous les utilisateurs) ----------------
+// Pas de table etablissements ici : la clé publique n'a plus aucun droit direct sur cette table
+// (lecture comprise), or postgres_changes n'envoie un changement qu'à un rôle qui peut lire la
+// ligne. Les fiches se rechargent quand même via list_etablissements : à chaque changement des
+// autres tables écoutées, et après chaque action de l'utilisateur (forceRefresh).
 function espSetupRealtime(){
-  ['eleves','inspecteurs','etablissements','notes','messages_inspecteurs','messages_prives'].forEach(table => {
+  ['eleves','inspecteurs','notes','messages_inspecteurs','messages_prives'].forEach(table => {
     supabaseClient
       .channel('esp-' + table)
       .on('postgres_changes', { event: '*', schema: 'public', table }, () => espScheduleRefresh())
