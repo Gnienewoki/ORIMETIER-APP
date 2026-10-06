@@ -98,7 +98,7 @@ function espRenderAdminDashboard(sub){
         </div>
         <textarea id="esp-admin-import-etab-textarea" rows="6" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid var(--border);" placeholder="Lycée Moderne 1 Bouaké;Vallée du Bandama;Bouaké;;public;;
 Collège Sainte-Marie;Lagunes;Abidjan;Cocody;prive;;"></textarea>
-        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button class="esp-btn" onclick="espAdminShowCodes()">${icon('key')}Codes de récupération</button></p>
+        <p style="margin:10px 0;"><button class="esp-btn esp-btn-primary" onclick="espAdminImportEtab()">Importer</button> <button id="esp-admin-codes-btn" class="${espAdminCodesBoutonClasse()}" aria-pressed="${_espCodesListe ? 'true' : 'false'}" onclick="espAdminToggleCodes()">${icon('key')}Codes de récupération</button></p>
         <div id="esp-admin-codes">${_espCodesListe ? espAdminCodesHtml() : ''}</div>
         <div id="esp-admin-import-etab-result">${_espLastEtabImportWarning ? `<p class="esp-error">${icon('triangle-alert')}${escapeHtml(_espLastEtabImportWarning)}</p>` : ''}${_espLastEtabSkipped && _espLastEtabSkipped.length ? `
           <p class="esp-error">${icon('triangle-alert')}<b>${_espLastEtabSkipped.length}</b> ligne(s) ignorée(s) :</p>
@@ -1420,7 +1420,25 @@ function espAdminRefreshCodesResultat(){
   container.innerHTML = espAdminCodesResultatHtml();
   espRefreshIcons();
 }
+// Bouton « Codes de récupération » : mis en avant tant que la carte est ouverte.
+function espAdminCodesBoutonClasse(){
+  return _espCodesListe ? 'esp-btn esp-btn-primary' : 'esp-btn';
+}
+function espAdminCodesMajBouton(){
+  const btn = document.getElementById('esp-admin-codes-btn');
+  if(!btn) return;
+  btn.className = espAdminCodesBoutonClasse();
+  btn.setAttribute('aria-pressed', _espCodesListe ? 'true' : 'false');
+}
+// Bascule : carte ouverte -> fermée (sans rechargement) ; fermée -> chargée et ouverte.
+function espAdminToggleCodes(){
+  if(_espCodesListe) espAdminFermerCodes();
+  else espAdminShowCodes();
+}
+let _espCodesChargement = false;
 async function espAdminShowCodes(){
+  if(_espCodesChargement) return;
+  _espCodesChargement = true;
   const container = document.getElementById('esp-admin-codes');
   container.innerHTML = '<p class="sub" style="margin-top:10px;">Chargement…</p>';
   try {
@@ -1429,9 +1447,12 @@ async function espAdminShowCodes(){
     _espCodesFiltreCategorie = '';
     container.innerHTML = espAdminCodesHtml();
     espAdminCodesRemplirVilles();
+    espAdminCodesMajBouton();
   } catch(err){
     if(err.espSessionInvalid) return;
     container.innerHTML = '<p class="esp-error">Erreur : ' + escapeHtml(err.message) + '</p>';
+  } finally {
+    _espCodesChargement = false;
   }
   espRefreshIcons();
 }
