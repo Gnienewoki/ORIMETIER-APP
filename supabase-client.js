@@ -630,16 +630,21 @@ async function espAdminBulkImportEtabRPC(categorie, sousCategorie, items){
     p_categorie: categorie, p_sous_categorie: sousCategorie || null, p_items: items,
   })) || [];
 }
-// Liste permanente des établissements pré-inscrits pas encore réclamés, avec leur code
-// (contrairement au résultat affiché juste après un import, disponible à tout moment).
-async function espAdminListUnclaimedCodesRPC(){
-  return (await espAuthRpc('admin_list_unclaimed_codes_v2')) || [];
+// Codes de récupération : TOUTES les fiches, en une fois.
+// [{etab_id, nom, ville, quartier, categorie, secteur, reclame, code}] ; code = null si la
+// fiche est réclamée ou si son code a été annulé.
+async function espAdminListerCodesRPC(){
+  return (await espAuthRpc('admin_lister_codes_v2')) || [];
 }
-// Liste permanente de TOUS les établissements pré-inscrits avec leur code de
-// récupération, réclamé ou non (contrairement à admin_list_unclaimed_codes qui
-// ne renvoie que les codes pas encore réclamés) — utilisée pour l'export CSV/Excel.
-async function espAdminListAllEtabCodesRPC(){
-  return (await espAuthRpc('admin_list_all_etablissement_codes_v2')) || [];
+// Nouveau code (l'ancien ne marche plus, compteur d'essais remis à zéro). Renvoie le code.
+// Erreurs (message) : FICHE_INTROUVABLE, FICHE_DEJA_RECLAMEE.
+async function espAdminRegenererCodeRPC(etabId){
+  return await espAuthRpc('admin_regenerer_code_v2', { p_etab_id: etabId });
+}
+// Code effacé : récupération impossible jusqu'à la prochaine régénération.
+// Erreurs (message) : FICHE_INTROUVABLE, FICHE_DEJA_RECLAMEE.
+async function espAdminAnnulerCodeRPC(etabId){
+  return await espAuthRpc('admin_annuler_code_v2', { p_etab_id: etabId });
 }
 
 // ---------------- Admin : comptes admin (5 actifs au maximum, au moins 1 ; un seul principal) ----------------
