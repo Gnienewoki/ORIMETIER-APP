@@ -70,7 +70,11 @@ function espRenderEtabAuth(mode){
           <div class="esp-field"><label>Téléphone 3</label><input type="tel" id="esp-etab-tel3" placeholder="Optionnel"></div>
         </div>
         <div class="esp-field"><label>Site web</label><input type="text" id="esp-etab-siteweb" placeholder="Optionnel"></div>
-        <div class="esp-field" style="margin-bottom:14px;"><label>Mot de passe</label><input type="password" id="esp-etab-pass2"></div>
+        <div class="esp-field-row">
+          <div class="esp-field"><label for="esp-etab-pass2">Mot de passe</label><input type="password" id="esp-etab-pass2" autocomplete="new-password"></div>
+          <div class="esp-field"><label for="esp-etab-pass2-confirm">Confirmer le mot de passe</label><input type="password" id="esp-etab-pass2-confirm" autocomplete="new-password"></div>
+        </div>
+        <p style="margin:0 0 14px;font-size:12.5px;"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="esp-etab-pass2-afficher" onchange="espEtabRegisterAfficherPass(this.checked)">Afficher les mots de passe</label></p>
         <div class="esp-field" style="margin-bottom:8px;">
           <label>Filières proposées (jusqu'à 10, avec diplôme préparé)</label>
         </div>
@@ -104,6 +108,11 @@ function espRenderEtabAuth(mode){
     const nomInput = document.getElementById('esp-etab-nom');
     if(nomInput){
       nomInput.addEventListener('input', espEtabNomDoublonCheck);
+      // En quittant le champ : vérification immédiate, sans attendre la fin de la temporisation.
+      nomInput.addEventListener('blur', () => {
+        clearTimeout(_espEtabNomDoublonTimer);
+        espEtabNomDoublonVerifier(nomInput.value.trim());
+      });
     } else {
       console.error('[esp-etab] #esp-etab-nom introuvable au moment de l\'attachement du listener');
     }
@@ -118,28 +127,53 @@ function espRenderEtabAuth(mode){
 }
 
 // ---------------- Vérification de doublon en temps réel (avertissement non bloquant) ----------------
+// L'avertissement ne bloque rien côté navigateur : il propose l'écran « Récupérer mon
+// établissement » (code reçu par courrier) et laisse poursuivre la saisie.
 let _espEtabNomDoublonTimer = null;
 function espEtabNomDoublonCheck(){
   clearTimeout(_espEtabNomDoublonTimer);
-  const warnEl = document.getElementById('esp-etab-nom-doublon-warning');
   const input = document.getElementById('esp-etab-nom');
-  if(!warnEl || !input) return;
+  if(!input) return;
   const nom = input.value.trim();
+  if(!nom){ espEtabNomDoublonVerifier(''); return; }
+  _espEtabNomDoublonTimer = setTimeout(() => espEtabNomDoublonVerifier(nom), 500);
+}
+async function espEtabNomDoublonVerifier(nom){
+  const warnEl = document.getElementById('esp-etab-nom-doublon-warning');
+  if(!warnEl) return;
   if(!nom){ warnEl.style.display = 'none'; warnEl.textContent = ''; return; }
-  _espEtabNomDoublonTimer = setTimeout(async () => {
-    let doublon = false;
-    try { doublon = await espEtabVerifierDoublonRPC(nom); } catch(e){ console.error('espEtabNomDoublonCheck:', e); return; }
-    // Le nom a pu changer pendant l'appel réseau : on ignore une réponse devenue obsolète.
-    if(document.getElementById('esp-etab-nom').value.trim() !== nom) return;
-    if(doublon){
-      warnEl.innerHTML = icon('triangle-alert') + "Établissement déjà préinscrit, contacter le support pour récupérer vos codes de connexion. Tél : 07 87 63 34 81 - Email : gnienewoki@gmail.com";
-      warnEl.style.display = '';
-      espRefreshIcons();
-    } else {
-      warnEl.style.display = 'none';
-      warnEl.textContent = '';
-    }
-  }, 500);
+  let doublon = false;
+  try { doublon = await espEtabVerifierDoublonRPC(nom); } catch(e){ console.error('espEtabNomDoublonVerifier:', e); return; }
+  // Le nom a pu changer pendant l'appel réseau : on ignore une réponse devenue obsolète.
+  const input = document.getElementById('esp-etab-nom');
+  if(!input || input.value.trim() !== nom) return;
+  if(doublon){
+    warnEl.innerHTML = espEtabDoublonAvertissementHtml();
+    warnEl.style.display = '';
+    espRefreshIcons();
+  } else {
+    warnEl.style.display = 'none';
+    warnEl.textContent = '';
+  }
+}
+function espEtabDoublonAvertissementHtml(){
+  return icon('triangle-alert') + "Un établissement porte déjà ce nom. Si c'est le vôtre, ne le réinscrivez pas : "
+    + `<span class="esp-toggle-link" onclick="espEtabDoublonVersRecuperation()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${ESP_ETAB_CLAIM_BOUTON}</span>`
+    + " avec le code reçu par courrier (ou connectez-vous s'il est déjà récupéré). Sinon, précisez le nom (par exemple avec la ville ou le quartier) et poursuivez l'inscription.";
+}
+// Ouvre l'écran de récupération avec le nom déjà saisi (la recherche de fiche se fait sur ville + nom).
+function espEtabDoublonVersRecuperation(){
+  const input = document.getElementById('esp-etab-nom');
+  const nom = input ? input.value.trim() : '';
+  espRenderEtabClaim();
+  const claimNom = document.getElementById('esp-etab-claim-nom');
+  if(claimNom && nom){ claimNom.value = nom; espEtabClaimMajFiches(); }
+}
+function espEtabRegisterAfficherPass(afficher){
+  ['esp-etab-pass2', 'esp-etab-pass2-confirm'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.type = afficher ? 'text' : 'password';
+  });
 }
 
 // ---------------- Catégorie / Sous-catégorie (Sous-catégorie visible seulement si Enseignement supérieur) ----------------
@@ -375,8 +409,13 @@ async function espEtabRegister(){
   const siteWeb = document.getElementById('esp-etab-siteweb').value.trim();
   const email = document.getElementById('esp-etab-email2').value.trim();
   const pass = document.getElementById('esp-etab-pass2').value;
+  const passConfirm = document.getElementById('esp-etab-pass2-confirm').value;
   if(!nom || !ville || !email || !pass){
     document.getElementById('esp-etab-error').innerHTML = "<p class=\"esp-error\">Nom de l'établissement, ville, e-mail et mot de passe sont obligatoires.</p>";
+    return;
+  }
+  if(pass !== passConfirm){
+    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">Les deux mots de passe ne correspondent pas : saisissez le même mot de passe dans « Mot de passe » et « Confirmer le mot de passe ».</p>';
     return;
   }
   const db = espDB();
@@ -398,8 +437,15 @@ async function espEtabRegister(){
     await espInsertEtablissement(espEtabToRow(nouvelEtab));
   } catch(e){
     const msg = (e.message || '').trim();
-    const texte = msg.startsWith('DOUBLON:') ? msg.slice('DOUBLON:'.length).trim() : "Erreur lors de l'inscription : " + msg;
-    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + escapeHtml(texte) + '</p>';
+    // Nom identique à une fiche ou à une demande en attente : le serveur refuse ; on propose la
+    // récupération, et le message du serveur (contact du support) reste affiché en dessous.
+    if(msg.startsWith('DOUBLON:')){
+      document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + espEtabDoublonAvertissementHtml() + '</p>'
+        + '<p class="esp-sub">' + escapeHtml(msg.slice('DOUBLON:'.length).trim()) + '</p>';
+      espRefreshIcons();
+      return;
+    }
+    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + escapeHtml("Erreur lors de l'inscription : " + msg) + '</p>';
     return;
   }
   espEtabRegisterShowConfirmation();
