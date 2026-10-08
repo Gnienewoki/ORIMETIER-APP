@@ -623,17 +623,6 @@ async function espAdminUpdateEtabClassificationRPC(etabId, categorie, sousCatego
     p_etab_id: etabId, p_categorie: categorie, p_sous_categorie: sousCategorie, p_secteur: secteur,
   }));
 }
-// Import en masse d'établissements (Général ou Supérieur privé) pré-inscrits par
-// l'administrateur. categorie : 'general' | 'superieur'. sousCategorie : requis
-// seulement si categorie='superieur' ('universite' | 'grande_ecole'), sinon null.
-// items : tableau de { nom, region, ville, quartier, secteur, responsable, tel }.
-// Retourne, pour chaque ligne importée, le code de récupération à transmettre
-// hors-plateforme à l'établissement concerné.
-async function espAdminBulkImportEtabRPC(categorie, sousCategorie, items){
-  return (await espAuthRpc('admin_bulk_import_etablissements_v2', {
-    p_categorie: categorie, p_sous_categorie: sousCategorie || null, p_items: items,
-  })) || [];
-}
 // Codes de récupération : TOUTES les fiches, en une fois.
 // [{etab_id, nom, ville, quartier, categorie, secteur, reclame, code}] ; code = null si la
 // fiche est réclamée ou si son code a été annulé.
