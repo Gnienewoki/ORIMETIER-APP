@@ -76,7 +76,7 @@ function espRenderEtabAuth(mode){
         </div>
         <p style="margin:0 0 14px;font-size:12.5px;"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="esp-etab-pass2-afficher" onchange="espEtabRegisterAfficherPass(this.checked)">Afficher les mots de passe</label></p>
         <div class="esp-field" style="margin-bottom:8px;">
-          <label>Filières proposées (jusqu'à 10, avec diplôme préparé)</label>
+          <label>Filières proposées (jusqu'à ${ESP_ETAB_FILIERES_MAX}, avec diplôme préparé)</label>
         </div>
         <div id="esp-etab-filieres-rows"></div>
         <p style="margin:6px 0 14px;">
@@ -201,7 +201,11 @@ function espEtabToggleVilleAutre(){
   row.style.display = villeSelect.value === '__autre__' ? '' : 'none';
 }
 
-// ---------------- Filières proposées dès l'inscription (jusqu'à 10) ----------------
+// Nombre maximum de filières d'un établissement : inscription et tableau de bord.
+// Le serveur applique la même limite (etablissement_add_filiere_v2).
+const ESP_ETAB_FILIERES_MAX = 15;
+
+// ---------------- Filières proposées dès l'inscription (jusqu'à ESP_ETAB_FILIERES_MAX) ----------------
 // Enseignement général : Cycle -> Diplôme en menus déroulants dépendants (+ "Autre" texte
 // libre chacun, cf. ESP_GENERAL_* dans utils.js). Autres catégories (technique, supérieur) :
 // nom + diplôme en texte libre, inchangé.
@@ -238,7 +242,7 @@ function espEtabFiliereRowLibreHtml(){
   `;
 }
 function espEtabAddFiliereRow(){
-  if(_espEtabFiliereRowCount >= 10) return;
+  if(_espEtabFiliereRowCount >= ESP_ETAB_FILIERES_MAX) return;
   _espEtabFiliereRowCount++;
   const idx = _espEtabFiliereRowCount;
   const container = document.getElementById('esp-etab-filieres-rows');
@@ -251,7 +255,7 @@ function espEtabAddFiliereRow(){
   `;
   container.appendChild(row);
   const addBtn = document.getElementById('esp-etab-add-filiere-btn');
-  if(addBtn) addBtn.style.display = _espEtabFiliereRowCount >= 10 ? 'none' : '';
+  if(addBtn) addBtn.style.display = _espEtabFiliereRowCount >= ESP_ETAB_FILIERES_MAX ? 'none' : '';
   espRefreshIcons();
 }
 function espEtabRemoveFiliereRow(idx){
@@ -843,14 +847,14 @@ function espRenderEtabDashboard(){
     </div>
 
     <div class="esp-card">
-      <div class="esp-title" style="font-size:15px;">Mes filières (${(etab.filieresProposees||[]).length}/10)</div>
+      <div class="esp-title" style="font-size:15px;">Mes filières (${(etab.filieresProposees||[]).length}/${ESP_ETAB_FILIERES_MAX})</div>
       ${(etab.filieresProposees||[]).length ? etab.filieresProposees.map(f => `
         <div class="esp-note-item" style="border-left-color:var(--green-dark);display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span><b>${escapeHtml(f.nom)}</b> (${escapeHtml(f.diplome)}) <span class="esp-badge ${f.statut}" style="margin-left:6px;">${f.statut === 'en_attente' ? 'En attente' : f.statut === 'valide' ? 'Validée' : 'Refusée'}</span></span>
           <button class="esp-btn esp-btn-danger" style="padding:4px 9px;font-size:12px;flex-shrink:0;" title="Supprimer cette filière" onclick="espEtabDeleteFiliereDashboard('${f.id}')">${icon('trash-2')}</button>
         </div>
       `).join('') : `<p class="esp-empty">Aucune filière renseignée.</p>`}
-      ${(etab.filieresProposees||[]).length < 10 ? `
+      ${(etab.filieresProposees||[]).length < ESP_ETAB_FILIERES_MAX ? `
         <div id="esp-etab-add-filiere-form" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:14px;">
           ${etab.categorie === 'general' ? espEtabFiliereGeneralFormHtml() : `
             <div class="esp-field-row">
@@ -861,7 +865,7 @@ function espRenderEtabDashboard(){
           <button class="esp-btn esp-btn-primary" onclick="espEtabAddFiliereDashboard()">+ Ajouter cette filière</button>
           <div id="esp-etab-add-filiere-msg"></div>
         </div>
-      ` : `<p class="esp-sub" style="margin-top:10px;">Maximum de 10 filières atteint.</p>`}
+      ` : `<p class="esp-sub" style="margin-top:10px;">Maximum de ${ESP_ETAB_FILIERES_MAX} filières atteint.</p>`}
     </div>
   `;
 
@@ -932,7 +936,7 @@ async function espEtabSaveContactExtras(){
   }
 }
 
-// ---------------- Ajout d'une filière depuis le tableau de bord (jusqu'à 10) ----------------
+// ---------------- Ajout d'une filière depuis le tableau de bord (jusqu'à ESP_ETAB_FILIERES_MAX) ----------------
 // Enseignement général : Cycle -> Diplôme en menus déroulants dépendants (+ "Autre"), comme
 // à l'inscription (cf. espEtabFiliereRowGeneralHtml). Autres catégories : texte libre inchangé.
 function espEtabFiliereGeneralFormHtml(){
