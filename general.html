@@ -25,35 +25,14 @@
 </head>
 <body>
 
-<div id="splash-screen" class="splash-screen">
-  <div class="splash-content" id="splash-logo-content">
-    <h1 class="splash-logo">ORIMETIER</h1>
-    <p class="splash-powered">powered by GNIENEWOKI</p>
-  </div>
-  <div class="splash-content splash-hidden" id="splash-slogan-content">
-    <p class="splash-slogan">Orimetier, choisissez votre avenir</p>
-  </div>
-  <button class="splash-skip" id="splash-skip-btn" onclick="splashSkip()">Passer →</button>
-</div>
-<script>
-(function(){
-  var path = window.location.pathname;
-  var isHome = path === '/' || path === '' || /\/index\.html$/.test(path);
-  var already = sessionStorage.getItem('orimetier_splash_shown');
-  if(!isHome || already){
-    var s = document.getElementById('splash-screen');
-    if(s) s.style.display = 'none';
-  }
-})();
-</script>
-
 <aside class="esp-sidebar" id="esp-sidebar">
   <div class="esp-sidebar-brand">
     <div class="dot"></div>
     <span>ORIMETIER</span>
   </div>
-  <nav class="esp-sidebar-nav">
-    <a href="index.html"><i data-lucide="graduation-cap"></i><span>Enseignement Technique et Formation Professionnelle</span></a>
+  <nav class="esp-sidebar-nav" aria-label="Menu principal">
+    <a href="index.html"><i data-lucide="house"></i><span>Accueil</span></a>
+    <a href="technique.html"><i data-lucide="graduation-cap"></i><span>Enseignement Technique et Formation Professionnelle</span></a>
     <a href="superieur.html"><i data-lucide="landmark"></i><span>Enseignement supérieur</span></a>
     <a href="concours.html"><i data-lucide="clipboard-list"></i><span>Concours et Écoles de formation initiale</span></a>
     <a href="general.html"><i data-lucide="school"></i><span>Enseignement Général</span></a>

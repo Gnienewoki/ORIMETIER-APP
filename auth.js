@@ -138,7 +138,7 @@ function espHideAll(){
 // Annuaire des métiers, enseignement supérieur, concours & grandes écoles, test RIASEC :
 // consultables par n'importe quel visiteur. Tout le reste (espaces.html, eleves.html)
 // continue d'exiger une connexion, comme avant.
-const ESP_PUBLIC_PAGES = ['index.html', 'superieur.html', 'concours.html', 'test.html', 'general.html', 'liens-formation.html', ''];
+const ESP_PUBLIC_PAGES = ['index.html', 'technique.html', 'superieur.html', 'concours.html', 'test.html', 'general.html', 'liens-formation.html', ''];
 function espCurrentPageIsPublic(){
   const path = window.location.pathname;
   // Basename sans extension : tolère les "clean URLs" (serveur qui masque le .html —

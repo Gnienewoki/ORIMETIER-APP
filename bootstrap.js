@@ -88,39 +88,7 @@ if('serviceWorker' in navigator){
   });
 }
 
-// ---------------- Écran d'ouverture animé ----------------
-function finishSplash(){
-  const splash = document.getElementById('splash-screen');
-  if(splash) splash.style.display = 'none';
-}
-
-function splashSkip(){
-  if(window.__splashTimers) window.__splashTimers.forEach(t => clearTimeout(t));
-  finishSplash();
-}
-
-function runSplashSequence(){
-  const logoContent = document.getElementById('splash-logo-content');
-  const sloganContent = document.getElementById('splash-slogan-content');
-  const skipBtn = document.getElementById('splash-skip-btn');
-  if(!logoContent || !sloganContent) return;
-
-  const timers = [];
-  timers.push(setTimeout(() => { if(skipBtn) skipBtn.classList.add('visible'); }, 700));
-  timers.push(setTimeout(() => { logoContent.classList.add('fade-out'); }, 2200));
-  timers.push(setTimeout(() => {
-    logoContent.classList.add('splash-hidden');
-    sloganContent.classList.remove('splash-hidden');
-  }, 2750));
-  timers.push(setTimeout(() => { sloganContent.classList.add('fade-out'); }, 4750));
-  timers.push(setTimeout(() => { finishSplash(); }, 5350));
-  window.__splashTimers = timers;
-}
-
-// ---------------- Décision immédiate : faut-il jouer l'animation ? ----------------
-// Cette vérification se fait AVANT tout appel réseau (Supabase), pour que
-// l'écran de démarrage soit masqué instantanément sur les pages qui n'en
-// ont pas besoin — sans ce court flash du logo pendant le chargement.
+// ---------------- Lien "mot de passe oublié" ----------------
 // Lien "mot de passe oublié" (#reset=<jeton hex>, envoyé par l'Edge Function request-password-reset) :
 // lu une seule fois puis effacé de l'URL et de l'historique, avant tout appel réseau.
 // _espResetToken vaut '' si le lien est mal formé (écran "lien invalide").
@@ -130,18 +98,6 @@ if(_espResetLink){
   try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch(e){}
 }
 const _espPath = window.location.pathname;
-const _espEstPageAccueil = _espPath === '/' || _espPath === '' || /\/index\.html$/.test(_espPath);
-const _espDejaLancee = sessionStorage.getItem('orimetier_splash_shown');
-const _espDoitJouerAnimation = !_espResetLink && _espEstPageAccueil && !_espDejaLancee;
-
-if(!_espDoitJouerAnimation){
-  // Pas la page d'accueil, animation déjà jouée dans cette session, ou lien de
-  // réinitialisation : on masque l'écran de démarrage tout de suite, sans attendre Supabase.
-  finishSplash();
-}
-if(_espDoitJouerAnimation){
-  sessionStorage.setItem('orimetier_splash_shown', '1');
-}
 
 // ---------------- Compteur de visites (statistiques admin, 1 log par chargement de page) ----------------
 // Liste fermée des 7 vraies pages du site (menu latéral) — test.html en est exclu
@@ -154,10 +110,14 @@ const ESP_VISITE_PAGES = ['index.html', 'general.html', 'superieur.html', 'conco
 // pire un avertissement en console (même convention que l'enregistrement du service
 // worker plus haut dans ce fichier), rien de visible sur la page.
 function espLogVisiteCourante(){
-  let page = _espEstPageAccueil ? 'index.html' : (_espPath.split('/').pop() || '');
+  let page = _espPath.split('/').pop() || '';
   // Réaligne les "clean URLs" (/concours) sur le nom de fichier attendu par
   // log_visite() côté Supabase (concours.html), sinon aucune visite n'est comptée.
   if(page && !/\.html$/.test(page)) page += '.html';
+  // technique.html reprend tel quel l'ancien contenu d'index.html : ses visites restent
+  // comptées sous 'index.html' (liste fermée de log_visite inchangée côté Supabase). La
+  // nouvelle page d'accueil (index.html) ne charge pas bootstrap.js et n'est pas comptée.
+  if(page === 'technique.html') page = 'index.html';
   if(!ESP_VISITE_PAGES.includes(page)) return;
   espLogVisiteRPC(page).catch(e => console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) :', e));
 }
@@ -189,7 +149,7 @@ function espLogVisiteCourante(){
       espRenderAnnonceBar();
     }
     // Hook optionnel : une page qui a du contenu dépendant de Supabase (ex :
-    // annuaire des établissements privés sur index.html) s'y abonne pour se
+    // annuaire des établissements privés sur technique.html) s'y abonne pour se
     // rafraîchir dès que les données en ligne sont disponibles.
     if(typeof window.pageDataReady === 'function'){
       try { window.pageDataReady(); } catch(err){ console.error('[esp] pageDataReady a échoué', err); }
@@ -201,7 +161,7 @@ function espLogVisiteCourante(){
   // son contenu principal est statique (DATA des 351 filières, concours, test).
   // On l'affiche immédiatement ; les données Supabase se greffent après coup.
   // Condition volontairement restrictive : la page doit explicitement fournir
-  // window.pageDataReady (seul index.html le fait pour l'instant). Toutes les
+  // window.pageDataReady (seul technique.html le fait pour l'instant). Toutes les
   // autres situations — connecté, page privée — attendent, comme avant.
   const afficherSansAttendre =
     !espSession() &&
@@ -215,7 +175,6 @@ function espLogVisiteCourante(){
     chargement.then(finaliserDonnees);
   } else if(afficherSansAttendre){
     platformInit('none'); // aucune session ici (cf. condition ci-dessus)
-    if(_espDoitJouerAnimation) runSplashSequence();
     chargement.then(finaliserDonnees);
   } else {
     const err = await chargement;
@@ -231,12 +190,7 @@ function espLogVisiteCourante(){
     if(err && !espSession()){
       alert("Impossible de se connecter à la base de données en ligne.\n\nVérifie ta connexion internet, ainsi que les identifiants Supabase (SUPABASE_URL / SUPABASE_ANON_KEY) renseignés dans le fichier, puis recharge la page.\n\nDétail : " + err.message);
     }
-    if(_espDoitJouerAnimation){
-      platformInit(verdict);
-      runSplashSequence();
-    } else {
-      platformInit(verdict);
-    }
+    platformInit(verdict);
   }
   espSetupRealtime();
 })();

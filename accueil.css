@@ -1,0 +1,97 @@
+/* ============================================================
+   ORIMETIER — Page d'accueil (index.html) uniquement.
+   Fichier dédié : n'est chargé par aucune autre page.
+   Reproduit la maquette validée (accueil-maquette.html).
+   Aucune animation ni transition, volontairement.
+   ============================================================ */
+:root{
+  --a-vert:#14513a;
+  --a-vert-drapeau:#1d8a4f;
+  --a-orange:#ff7a1a;
+  --a-orange-texte:#c2570c;
+  --a-fond:#f1f7f3;
+  --a-texte:#1c2a23;
+  --a-gris:#5b675f;
+  --a-bordure:#e1e9e3;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--a-fond);color:var(--a-texte);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+a{color:inherit;text-decoration:none;}
+a:focus-visible{outline:3px solid var(--a-orange);outline-offset:2px;}
+.a-sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+
+.a-page{min-height:100vh;display:flex;flex-direction:column;}
+
+/* Liserés aux couleurs nationales (haut de page et bas de l'image) */
+.a-liseret,.a-liseret-bas{display:flex;}
+.a-liseret{height:5px;}
+.a-liseret-bas{position:absolute;left:0;right:0;bottom:0;height:6px;}
+.a-liseret span,.a-liseret-bas span{flex:1;}
+.a-or{background:var(--a-orange);}
+.a-bl{background:#fff;}
+.a-ve{background:var(--a-vert-drapeau);}
+
+/* ---------------- En-tête + menu ---------------- */
+.a-entete{background:#fff;box-shadow:0 1px 0 var(--a-bordure);}
+.a-entete-in{
+  max-width:1296px;width:100%;margin:0 auto;padding:14px 32px;
+  display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;justify-content:space-between;
+}
+.a-marque{display:flex;align-items:center;gap:12px;border-radius:8px;}
+.a-marque svg{flex-shrink:0;}
+.a-marque-txt{display:flex;flex-direction:column;gap:2px;}
+.a-nom{font-weight:800;font-size:26px;letter-spacing:.04em;color:var(--a-vert);line-height:1;}
+.a-nom span{color:var(--a-orange);}
+.a-slogan{font-size:12.5px;font-weight:600;color:var(--a-gris);}
+
+.a-menu{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13.5px;font-weight:600;}
+.a-menu a{
+  padding:8px 13px;border-radius:999px;border:1.5px solid var(--a-vert);
+  color:var(--a-vert);white-space:nowrap;
+}
+.a-menu a:hover{border-color:var(--a-orange);color:var(--a-orange-texte);}
+.a-menu a[aria-current="page"]{background:var(--a-vert);color:#fff;}
+.a-menu a[aria-current="page"]:hover{border-color:var(--a-orange);color:#fff;}
+
+/* ---------------- Image + phrase ---------------- */
+/* flex:1 : l'image occupe toute la hauteur restante de l'écran, 700 px au minimum. */
+.a-bandeau{
+  position:relative;flex:1;min-height:700px;
+  display:flex;align-items:flex-end;background:var(--a-vert);overflow:hidden;
+}
+.a-bandeau img{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:50% 100%;display:block;
+}
+.a-phrase-in{
+  position:relative;max-width:1296px;width:100%;margin:0 auto;
+  padding:0 32px 18px;display:flex;justify-content:flex-end;
+}
+.a-phrase{
+  margin:0;max-width:560px;padding:12px 18px;border-radius:10px;
+  background:rgba(15,63,44,.85);border-left:4px solid var(--a-orange);
+  font-size:15px;line-height:1.5;font-weight:600;color:#fff;text-align:left;
+}
+
+/* ---------------- Tablette et téléphone ----------------
+   L'image entière est affichée à son format (3:2), plaque « INSPECTRICE »
+   comprise, et l'encadré passe dessous : il ne peut donc jamais la masquer. */
+@media (max-width:900px){
+  .a-bandeau{display:block;flex:0 0 auto;min-height:0;}
+  .a-bandeau img{position:static;height:auto;aspect-ratio:3 / 2;}
+  .a-phrase-in{padding:14px 16px 20px;justify-content:flex-start;}
+  .a-phrase{max-width:none;}
+}
+@media (max-width:640px){
+  .a-entete-in{padding:12px 16px;}
+  .a-nom{font-size:23px;}
+  .a-menu a{padding:7px 11px;font-size:13px;}
+  .a-phrase{font-size:14.5px;padding:11px 14px;}
+}

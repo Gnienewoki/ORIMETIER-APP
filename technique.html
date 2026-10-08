@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
-<meta name="description" content="Liens et ressources de formation utiles aux élèves, étudiants et inspecteurs d'orientation en Côte d'Ivoire.">
-<title>ORIMETIER — Formations</title>
+<meta name="description" content="Annuaire des filières de l'Enseignement Technique et de la Formation Professionnelle en Côte d'Ivoire : établissements, débouchés et conditions d'accès.">
+<title>ORIMETIER — Enseignement Technique et Formation Professionnelle</title>
 
 <!-- PWA : application installable sur téléphone/PC -->
 <link rel="manifest" href="manifest.json">
@@ -100,57 +100,108 @@
 
 <div class="esp-main" id="platform-wrap" style="display:none">
   <div class="esp-main-topbar"><div id="auth-bar" class="auth-bar"></div></div>
-    <h1 class="esp-page-title"><i data-lucide="target"></i>Formations</h1>
+    <h1 class="esp-page-title"><i data-lucide="graduation-cap"></i>Enseignement Technique et Formation Professionnelle</h1>
 
     <div id="page-content">
-    <div class="es-header" style="text-align:left;background:none;padding:0;border:none;margin-bottom:14px;">
-      <p class="es-sub" style="color:var(--muted);">Liens et ressources de formation, classés par public.</p>
+    <div class="tab-nav" id="etab-subtabs" style="margin-bottom:18px;">
+      <button class="tab-btn active" id="etab-subtab-btn-publics" onclick="espShowEtabSubTab('publics')"><i data-lucide="school"></i><span>Établissements publics</span></button>
+      <button class="tab-btn" id="etab-subtab-btn-prive" onclick="espShowEtabSubTab('prive')"><i data-lucide="building-2"></i><span>Établissements privés</span></button>
+      <button class="tab-btn" id="etab-subtab-btn-technique" onclick="espShowEtabSubTab('technique')"><i data-lucide="graduation-cap"></i><span>Enseignement technique</span></button>
+      <button class="tab-btn" id="etab-subtab-btn-apprentissage" onclick="espShowEtabSubTab('apprentissage')"><i data-lucide="handshake"></i><span>Rejoindre l'apprentissage</span></button>
     </div>
 
-    <div class="es-tabs">
-      <button class="es-tab-btn active" data-tab="lf-inspecteur"><i data-lucide="compass"></i><span>Formation Inspecteur</span></button>
-      <button class="es-tab-btn" data-tab="lf-eleve"><i data-lucide="backpack"></i><span>Formation Élève</span></button>
-      <button class="es-tab-btn" data-tab="lf-etudiant"><i data-lucide="graduation-cap"></i><span>Formation Étudiant</span></button>
-      <button class="es-tab-btn" data-tab="lf-tous"><i data-lucide="globe"></i><span>Formation Tous</span></button>
+    <div id="etab-tab-publics">
+      <p class="sub" style="margin-top:-8px">Filtre les filières par nom, diplôme (2nde technique, CAP, BT, BTS) ou établissement (recherche combinée). <span id="total-formations-count">351</span> filières référencées, dont les classes de 2nde technique (passerelles vers le BT). Clique sur « Voir » pour consulter la fiche détaillée et les conditions d'accès correspondantes.</p>
+
+      <div class="filters">
+        <div class="filter-box">
+          <label for="f-filiere">Filière de formation</label>
+          <input id="f-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure..." list="dl-filiere-publique">
+          <datalist id="dl-filiere-publique"></datalist>
+        </div>
+        <div class="filter-box">
+          <label for="f-diplome">Diplôme</label>
+          <input id="f-diplome" type="text" placeholder="Ex : CAP, BT, BTS..." list="dl-diplome-publique">
+          <datalist id="dl-diplome-publique"></datalist>
+        </div>
+        <div class="filter-box">
+          <label for="f-etablissement">Établissement</label>
+          <input id="f-etablissement" type="text" placeholder="Ex : LPC Bouaké, LTP..." list="dl-etablissement-publique">
+          <datalist id="dl-etablissement-publique"></datalist>
+        </div>
+      </div>
+
+      <div class="meta">
+        <span class="count" id="count"></span>
+        <button class="reset" onclick="resetFilters()">Réinitialiser</button>
+      </div>
+
+      <div class="table-wrap o-cards-wrap">
+        <table class="o-cards-mobile">
+          <thead>
+            <tr><th>Filière de formation</th><th>Diplôme</th><th>Établissement</th><th>Fiche métier</th></tr>
+          </thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+      <div class="o-pager" id="results-pager" hidden></div>
+      <div id="empty-msg" hidden></div>
     </div>
 
-    <div class="es-main">
-
-      <!-- PANEL 1 : FORMATION INSPECTEUR -->
-      <section class="es-panel active" id="panel-lf-inspecteur">
-        <div class="school-header">Vous êtes inspecteur d'orientation, trouvez vos formations ici.</div>
-        <div class="results" id="results-lf-inspecteur">
-          <div class="empty-state">Chargement des liens de formation…</div>
+    <div id="etab-tab-prive" style="display:none;">
+      <p class="sub" style="margin-top:-8px">Établissements privés d'enseignement technique et de formation professionnelle inscrits sur la plateforme et validés par l'administration.</p>
+      <div class="filters">
+        <div class="filter-box filter-box--search">
+          <div class="o-search">
+            <input id="f-etab-prive-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-etab-prive-nom">
+            <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+          </div>
+          <datalist id="dl-etab-prive-nom"></datalist>
         </div>
-      </section>
-
-      <!-- PANEL 2 : FORMATION ELEVE -->
-      <section class="es-panel" id="panel-lf-eleve">
-        <div class="school-header">Vous êtes élève, trouvez votre formation ici.</div>
-        <div class="results" id="results-lf-eleve">
-          <div class="empty-state">Chargement des liens de formation…</div>
+        <div class="filter-box">
+          <label for="f-etab-prive-ville">Ville</label>
+          <input id="f-etab-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-ville-privee">
+          <datalist id="dl-ville-privee"></datalist>
         </div>
-      </section>
-
-      <!-- PANEL 3 : FORMATION ETUDIANT -->
-      <section class="es-panel" id="panel-lf-etudiant">
-        <div class="school-header">Vous êtes étudiant, trouvez votre formation ici.</div>
-        <div class="results" id="results-lf-etudiant">
-          <div class="empty-state">Chargement des liens de formation…</div>
+        <div class="filter-box">
+          <label for="f-etab-prive-filiere">Filière de formation</label>
+          <input id="f-etab-prive-filiere" type="text" placeholder="Ex : Comptabilité, Coiffure..." list="dl-filiere-privee">
+          <datalist id="dl-filiere-privee"></datalist>
         </div>
-      </section>
-
-      <!-- PANEL 4 : FORMATION TOUS -->
-      <section class="es-panel" id="panel-lf-tous">
-        <div class="school-header">Formations ouvertes à tous.</div>
-        <div class="results" id="results-lf-tous">
-          <div class="empty-state">Chargement des liens de formation…</div>
-        </div>
-      </section>
-
+      </div>
+      <div class="meta">
+        <span class="count" id="etab-prive-count"></span>
+      </div>
+      <div class="table-wrap o-cards-wrap">
+        <table class="o-cards-mobile">
+          <thead>
+            <tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr>
+          </thead>
+          <tbody id="etab-prive-results"></tbody>
+        </table>
+      </div>
+      <div id="etab-prive-empty-msg" hidden></div>
     </div>
 
-    <div class="es-footer">Liens de formation gérés par l'administration ORIMETIER.</div>
+    <div id="etab-tab-technique" style="display:none;">
+      <p class="sub" style="margin-top:-8px">Parcours de la classe de Seconde au débouché pour les principales filières de l'enseignement technique. Clique sur « Voir » pour la fiche détaillée (parcours complet et conditions d'accès).</p>
+      <div class="table-wrap o-cards-wrap">
+        <table class="o-cards-mobile">
+          <thead>
+            <tr><th>Seconde</th><th>1ère</th><th>Terminale</th><th>BAC</th><th>Métier / spécialité</th><th>Débouché</th><th>Fiche</th></tr>
+          </thead>
+          <tbody id="etab-technique-results"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="etab-tab-apprentissage" style="display:none;">
+      <div class="card">
+        <h3>Rejoindre l'apprentissage</h3>
+        <p style="margin:6px 0 14px;color:var(--muted);font-size:.9rem;line-height:1.5;">Tu veux apprendre un métier auprès d'un maître-artisan ou dans un centre agréé ? Inscris-toi via le formulaire ci-dessous, nous te recontacterons.</p>
+        <a class="fiche-btn" href="https://docs.google.com/forms/d/e/1FAIpQLSf_Y_fUVlb0Y0Ij7eqayTmowmwXZwIRreY7iHZLDMCyBh59Aw/viewform" target="_blank" rel="noopener"><i data-lucide="external-link"></i><span>Remplir le formulaire</span></a>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -170,6 +221,8 @@
 
 <script src="utils.js"></script>
 <script src="data-riasec.js"></script>
+<script src="data-formations.js"></script>
+<script src="data-regions.js"></script>
 <script src="supabase-client.js"></script>
 <script src="auth.js"></script>
 <script src="admin.js"></script>
@@ -177,7 +230,7 @@
 <script src="eleve.js"></script>
 <script src="etablissement.js"></script>
 <script src="modal.js"></script>
-<script src="liens-formation.js"></script>
+<script src="formations.js"></script>
 <script src="bootstrap.js"></script>
 </body>
 </html>

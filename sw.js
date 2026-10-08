@@ -13,7 +13,7 @@
 // venus, et déclenche le rechargement automatique (voir "controllerchange"
 // dans bootstrap.js) pour qu'ils récupèrent la nouvelle version sans rien
 // avoir à faire.
-const CACHE_NAME = 'orimetier-shell-v26';
+const CACHE_NAME = 'orimetier-shell-v27';
 
 // Liste exhaustive et vérifiée des fichiers réellement servis par le site
 // (aucune entrée fantôme : un seul 404 dans un cache.addAll classique fait
@@ -23,6 +23,7 @@ const APP_SHELL = [
   './',
   // Pages
   './index.html',
+  './technique.html',
   './superieur.html',
   './concours.html',
   './general.html',
@@ -32,6 +33,9 @@ const APP_SHELL = [
   './eleves.html',
   // Style
   './style.css',
+  './accueil.css',
+  // Images
+  './images/inspectrice-hd.jpg',
   // Socle JS commun
   './utils.js',
   './modal.js',

@@ -1,4 +1,4 @@
-// ---------------- Annuaire des formations (page index.html) ----------------
+// ---------------- Annuaire des formations (page technique.html) ----------------
 let tbody, countEl, emptyMsg, inputs;
 
 // --- Fiches métiers : index par formation associée ---

@@ -894,8 +894,9 @@ function espAdminVisiteFiltrePeriode(value){
   espRenderAdminDashboard('statistiques');
 }
 
-// Reprend les libellés déjà utilisés dans le menu latéral (cf. index.html etc.), pour que
+// Reprend les libellés déjà utilisés dans le menu latéral (cf. technique.html etc.), pour que
 // le tableau reste lisible plutôt que d'afficher les noms de fichiers bruts.
+// (la clé 'index.html' reste celle de la page Technique : bootstrap.js y compte technique.html)
 function espVisitePageLabel(page){
   return {
     'index.html': 'Enseignement Technique et Formation Professionnelle',
