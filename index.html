@@ -172,6 +172,13 @@
     <div id="etab-tab-prive" style="display:none;">
       <p class="sub" style="margin-top:-8px">Établissements privés d'enseignement technique et de formation professionnelle inscrits sur la plateforme et validés par l'administration.</p>
       <div class="filters">
+        <div class="filter-box filter-box--search">
+          <div class="o-search">
+            <input id="f-etab-prive-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-etab-prive-nom">
+            <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+          </div>
+          <datalist id="dl-etab-prive-nom"></datalist>
+        </div>
         <div class="filter-box">
           <label for="f-etab-prive-ville">Ville</label>
           <input id="f-etab-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-ville-privee">

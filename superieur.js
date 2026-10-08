@@ -323,6 +323,8 @@ async function initSuperieur(){
     const el = document.getElementById(id);
     if(el) el.addEventListener('input', renderEcolePriveDebounced);
   });
+  espBindSearchField(document.getElementById('f-univ-prive-nom'), () => renderSuperieurPriveTable('universite'));
+  espBindSearchField(document.getElementById('f-ecole-prive-nom'), () => renderSuperieurPriveTable('grande_ecole'));
 }
 
 function resetSuperieurPriveFilters(sousCategorie){
@@ -331,6 +333,7 @@ function resetSuperieurPriveFilters(sousCategorie){
     const el = document.getElementById('f-' + prefix + '-' + k);
     if(el) el.value = '';
   });
+  espClearSearchField(document.getElementById('f-' + prefix + '-nom'));
   renderSuperieurPriveTable(sousCategorie);
 }
 window.pageInit = initSuperieur;
@@ -363,16 +366,21 @@ function renderSuperieurPriveTable(sousCategorie){
   const allFilieres = [];
   allForSector.forEach(e => (e.filieresProposees||[]).forEach(f => allFilieres.push(f.nom)));
   espFillSupDatalist('dl-' + prefix + '-filiere', allFilieres);
+  espFillDatalist('dl-' + prefix + '-nom', allForSector.map(e => e.nom));
 
   const villeInput = document.getElementById('f-' + prefix + '-ville');
   const filiereInput = document.getElementById('f-' + prefix + '-filiere');
+  const nomInput = document.getElementById('f-' + prefix + '-nom');
   const nVille = normalize((villeInput ? villeInput.value : '').trim());
   const nFiliere = normalize((filiereInput ? filiereInput.value : '').trim());
+  // Recherche par nom (ou ville) : comparée via espTexteRecherche, en ET avec les autres filtres.
+  const nNom = espTexteRecherche(nomInput ? nomInput.value : '');
 
   const etabs = allForSector.filter(e => {
     const villeOk = !nVille || normalize(e.ville||'').includes(nVille);
     const filiereOk = !nFiliere || (e.filieresProposees||[]).some(f => normalize(f.nom||'').includes(nFiliere));
-    return villeOk && filiereOk;
+    const nomOk = !nNom || espTexteRecherche(e.nom).includes(nNom) || espTexteRecherche(e.ville).includes(nNom);
+    return villeOk && filiereOk && nomOk;
   });
 
   const rows = [];
@@ -411,12 +419,12 @@ function renderSuperieurPriveTable(sousCategorie){
   if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
 
   if(rows.length === 0){
-    const filtres = !!(nVille || nFiliere);
+    const filtres = !!(nVille || nFiliere || nNom);
     const label = sousCategorie === 'universite' ? 'université privée' : 'grande école privée';
     espRenderEmptyState(emptyEl, filtres ? {
       icon: 'search-x',
       title: 'Aucun résultat',
-      text: 'Aucune ' + label + ' ne correspond à ces filtres.',
+      text: nNom ? 'Aucun établissement ne correspond à votre recherche.' : 'Aucune ' + label + ' ne correspond à ces filtres.',
       actionLabel: 'Réinitialiser',
       actionIcon: 'filter-x',
       onAction: () => resetSuperieurPriveFilters(sousCategorie),

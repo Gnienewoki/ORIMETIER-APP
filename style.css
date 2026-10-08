@@ -178,6 +178,20 @@
     border-color:var(--orange);
     box-shadow:0 0 0 3px rgba(255,122,26,0.15);
   }
+  /* Champ « Rechercher par nom » : sans titre, aligné en bas avec les filtres titrés. */
+  .filter-box--search{align-self:end;}
+  .o-search{position:relative;}
+  /* .filter-box en tête : doit l'emporter sur le padding mobile de .filter-box input (plus bas). */
+  .filter-box .o-search input{font-size:16px;padding-right:42px;}
+  .o-search__clear{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    width:28px;height:28px;border-radius:50%;border:none;background:transparent;
+    color:var(--muted);font-size:20px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;
+  }
+  .o-search__clear[hidden]{display:none;}
+  .o-search__clear:hover{color:var(--text);}
+  .o-search__clear:focus-visible{outline:2px solid var(--orange);outline-offset:1px;}
   .meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
   .count{color:var(--green-dark);font-size:13px;font-weight:600;}
   .reset{

@@ -55,6 +55,32 @@ function espDebounce(fn, wait){
   };
 }
 
+// ---------------- Champ « Rechercher par nom » (.o-search) ----------------
+// Filtrage au fil de la frappe (200 ms) + croix d'effacement, visible seulement quand le
+// champ n'est pas vide. Purement local : onChange relit la liste déjà chargée.
+function espBindSearchField(input, onChange){
+  if(!input) return;
+  const clear = input.parentElement ? input.parentElement.querySelector('.o-search__clear') : null;
+  const majCroix = () => { if(clear) clear.hidden = !input.value; };
+  const filtrer = espDebounce(onChange, 200);
+  input.addEventListener('input', () => { majCroix(); filtrer(); });
+  if(clear) clear.addEventListener('click', () => {
+    input.value = '';
+    majCroix();
+    onChange();
+    input.focus();
+  });
+  majCroix();
+}
+
+// Vide un champ .o-search sans déclencher de rendu (utilisé par les « Réinitialiser »).
+function espClearSearchField(input){
+  if(!input) return;
+  input.value = '';
+  const clear = input.parentElement ? input.parentElement.querySelector('.o-search__clear') : null;
+  if(clear) clear.hidden = true;
+}
+
 // ---------------- Icônes Lucide ----------------
 // Rend une icône Lucide sous forme de balise <i data-lucide="..."> que la
 // librairie (chargée en CDN, cf. <head> des pages) transforme en <svg> au

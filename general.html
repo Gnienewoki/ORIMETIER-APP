@@ -137,9 +137,11 @@
           <input id="f-general-public-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-general-public-ville">
           <datalist id="dl-general-public-ville"></datalist>
         </div>
-        <div class="filter-box">
-          <label for="f-general-public-nom">Nom de l'établissement</label>
-          <input id="f-general-public-nom" type="text" placeholder="Ex : Lycée Sainte Marie" list="dl-general-public-nom">
+        <div class="filter-box filter-box--search">
+          <div class="o-search">
+            <input id="f-general-public-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-general-public-nom">
+            <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+          </div>
           <datalist id="dl-general-public-nom"></datalist>
         </div>
       </div>
@@ -165,9 +167,11 @@
           <input id="f-general-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-general-prive-ville">
           <datalist id="dl-general-prive-ville"></datalist>
         </div>
-        <div class="filter-box">
-          <label for="f-general-prive-nom">Nom de l'établissement</label>
-          <input id="f-general-prive-nom" type="text" placeholder="Ex : Lycée Sainte Marie" list="dl-general-prive-nom">
+        <div class="filter-box filter-box--search">
+          <div class="o-search">
+            <input id="f-general-prive-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-general-prive-nom">
+            <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+          </div>
           <datalist id="dl-general-prive-nom"></datalist>
         </div>
       </div>

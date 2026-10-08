@@ -201,6 +201,7 @@ function initFormations(){
   const renderPrivesDebounced = espDebounce(renderEtabPrivesList, 180);
   if(searchVille) searchVille.addEventListener('input', renderPrivesDebounced);
   if(searchFiliere) searchFiliere.addEventListener('input', renderPrivesDebounced);
+  espBindSearchField(document.getElementById('f-etab-prive-nom'), renderEtabPrivesList);
 
   const techTbody = document.getElementById('etab-technique-results');
   if(techTbody){
@@ -238,6 +239,7 @@ function espFillPriveDatalists(){
   const filieres = [];
   list.forEach(e => (e.filieresProposees||[]).forEach(f => filieres.push(f.nom)));
   espFillDatalist('dl-filiere-privee', filieres);
+  espFillDatalist('dl-etab-prive-nom', list.map(e => e.nom));
 }
 
 // ---------------- Sous-onglets Établissements publics / privés ----------------
@@ -336,11 +338,15 @@ function renderEtabPrivesList(){
   const qFiliere = (filiereInput ? filiereInput.value : '').trim();
   const nVille = normalize(qVille);
   const nFiliere = normalize(qFiliere);
+  // Recherche par nom (ou ville) : comparée via espTexteRecherche, en ET avec les autres filtres.
+  const nomInput = document.getElementById('f-etab-prive-nom');
+  const nNom = espTexteRecherche(nomInput ? nomInput.value : '');
 
   const etabs = espEtabPrivesTechnique().filter(e => {
     const villeOk = !nVille || normalize(e.ville||'').includes(nVille);
     const filiereOk = !nFiliere || (e.filieresProposees||[]).some(f => normalize(f.nom||'').includes(nFiliere));
-    return villeOk && filiereOk;
+    const nomOk = !nNom || espTexteRecherche(e.nom).includes(nNom) || espTexteRecherche(e.ville).includes(nNom);
+    return villeOk && filiereOk && nomOk;
   });
 
   // Une ligne par filière proposée, comme pour le tableau public (une ligne par filière/diplôme/établissement).
@@ -379,11 +385,11 @@ function renderEtabPrivesList(){
   if(countEl) countEl.textContent = rows.length + ' résultat' + (rows.length>1?'s':'');
 
   if(rows.length === 0){
-    const filtres = !!(nVille || nFiliere);
+    const filtres = !!(nVille || nFiliere || nNom);
     espRenderEmptyState(emptyEl, filtres ? {
       icon: 'search-x',
       title: 'Aucun résultat',
-      text: 'Aucun établissement privé ne correspond à ces filtres.',
+      text: nNom ? 'Aucun établissement ne correspond à votre recherche.' : 'Aucun établissement privé ne correspond à ces filtres.',
       actionLabel: 'Réinitialiser',
       actionIcon: 'filter-x',
       onAction: resetEtabPrivesFilters,
@@ -402,5 +408,6 @@ function resetEtabPrivesFilters(){
     const el = document.getElementById(id);
     if(el) el.value = '';
   });
+  espClearSearchField(document.getElementById('f-etab-prive-nom'));
   renderEtabPrivesList();
 }

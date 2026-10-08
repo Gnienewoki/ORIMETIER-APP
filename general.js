@@ -52,7 +52,7 @@ function renderGeneralTable(secteur){
 
   const rows = espGeneralRows(secteur).filter(r => {
     if(!villeCorrespond(r.ville)) return false;
-    if(nNom && !espTexteRecherche(r.nomTexte).includes(nNom)) return false;
+    if(nNom && !espTexteRecherche(r.nomTexte).includes(nNom) && !espTexteRecherche(r.ville).includes(nNom)) return false;
     return true;
   });
 
@@ -80,7 +80,7 @@ function renderGeneralTable(secteur){
     espRenderEmptyState(emptyEl, filtres ? {
       icon: 'search-x',
       title: 'Aucun résultat',
-      text: 'Aucun établissement ' + label + " d'enseignement général ne correspond à ces filtres.",
+      text: nNom ? 'Aucun établissement ne correspond à votre recherche.' : 'Aucun établissement ' + label + " d'enseignement général ne correspond à ces filtres.",
       actionLabel: 'Réinitialiser',
       actionIcon: 'filter-x',
       onAction: () => resetGeneralFilters(secteur),
@@ -99,7 +99,7 @@ function resetGeneralFilters(secteur){
   const ville = document.getElementById('f-' + prefix + '-ville');
   const nom = document.getElementById('f-' + prefix + '-nom');
   if(ville) ville.value = '';
-  if(nom) nom.value = '';
+  espClearSearchField(nom);
   renderGeneralTable(secteur);
 }
 
@@ -125,9 +125,9 @@ function initGeneral(){
   const renderPublicDebounced = espDebounce(() => renderGeneralTable('public'), 180);
   const renderPriveDebounced = espDebounce(() => renderGeneralTable('prive'), 180);
   if(searchPubVille) searchPubVille.addEventListener('input', renderPublicDebounced);
-  if(searchPubNom) searchPubNom.addEventListener('input', renderPublicDebounced);
   if(searchPrivVille) searchPrivVille.addEventListener('input', renderPriveDebounced);
-  if(searchPrivNom) searchPrivNom.addEventListener('input', renderPriveDebounced);
+  espBindSearchField(searchPubNom, () => renderGeneralTable('public'));
+  espBindSearchField(searchPrivNom, () => renderGeneralTable('prive'));
 
   renderGeneralTable('public'); // onglet actif par défaut
 }

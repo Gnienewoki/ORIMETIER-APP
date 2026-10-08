@@ -183,6 +183,13 @@
       <section class="es-panel" id="panel-univ-prive">
         <p class="note" style="margin-bottom:14px;">Universités privées inscrites sur la plateforme et validées par l'administration.</p>
         <div class="filters">
+          <div class="filter-box filter-box--search">
+            <div class="o-search">
+              <input id="f-univ-prive-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-univ-prive-nom">
+              <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+            </div>
+            <datalist id="dl-univ-prive-nom"></datalist>
+          </div>
           <div class="filter-box">
             <label for="f-univ-prive-ville">Ville</label>
             <input id="f-univ-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-univ-prive-ville">
@@ -208,6 +215,13 @@
       <section class="es-panel" id="panel-ecole-prive">
         <p class="note" style="margin-bottom:14px;">Grandes écoles privées inscrites sur la plateforme et validées par l'administration.</p>
         <div class="filters">
+          <div class="filter-box filter-box--search">
+            <div class="o-search">
+              <input id="f-ecole-prive-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-ecole-prive-nom">
+              <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+            </div>
+            <datalist id="dl-ecole-prive-nom"></datalist>
+          </div>
           <div class="filter-box">
             <label for="f-ecole-prive-ville">Ville</label>
             <input id="f-ecole-prive-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-ecole-prive-ville">
