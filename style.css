@@ -513,6 +513,27 @@
   .esp-btn-danger:hover{background:#d9534f;color:#fff;}
   .esp-toggle-link{color:var(--orange-dark);cursor:pointer;font-weight:700;font-size:13px;}
   .esp-toggle-link:hover{text-decoration:underline;}
+  /* Infobulles de l'écran de connexion établissement (etablissement.js). Sans animation ni
+     transition ; la bulle s'insère sous la ligne (largeur de la carte), donc jamais hors écran. */
+  .esp-infobulle-btn{
+    display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;
+    width:24px;height:24px;min-height:24px;margin-left:6px;padding:0;
+    border:1.5px solid #14513a;border-radius:50%;background:#fff;color:#14513a;
+    font:italic 700 13px/1 Georgia,"Times New Roman",serif;cursor:pointer;
+  }
+  .esp-infobulle-btn:hover,.esp-infobulle-btn[aria-expanded="true"]{border-color:#ff7a1a;color:#ff7a1a;}
+  .esp-infobulle-btn:focus-visible{outline:3px solid #ff7a1a;outline-offset:2px;}
+  .esp-infobulle-bulle{
+    display:none;margin:6px 0 2px;max-width:100%;padding:8px 11px;border-radius:8px;
+    background:#14513a;border-left:3px solid #ff7a1a;color:#fff;
+    font-size:13px;font-weight:500;line-height:1.45;text-align:left;overflow-wrap:break-word;
+  }
+  .esp-infobulle.ouverte .esp-infobulle-bulle,
+  .esp-infobulle .esp-toggle-link:focus-visible ~ .esp-infobulle-bulle{display:block;}
+  @media (hover:hover){
+    .esp-infobulle:hover .esp-infobulle-bulle{display:block;}
+  }
+  .esp-infobulle.fermee .esp-infobulle-bulle{display:none !important;}
   .esp-error{color:#c0392b;font-size:13px;margin:4px 0 10px;font-weight:600;}
   .esp-etab-doublon-warning{color:var(--orange-dark);font-size:12.5px;margin-top:4px;font-weight:600;}
   .esp-success{color:var(--green-dark);font-size:13px;margin:4px 0 10px;font-weight:600;}

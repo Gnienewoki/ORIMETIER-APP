@@ -11,8 +11,8 @@ function espRenderEtabAuth(mode){
         <div class="esp-field" style="margin-bottom:8px;"><label>Mot de passe</label><input type="password" id="esp-etab-pass" onkeydown="if(event.key==='Enter')espEtabLogin()"></div>
         <p style="margin:0 0 14px;font-size:12.5px;"><span class="esp-toggle-link" onclick="espRenderForgotPassword('etablissement','esp-etablissement', () => espRenderEtabAuth('login'))" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Mot de passe oublié ?</span></p>
         <button class="esp-btn esp-btn-primary" onclick="espEtabLogin()">Se connecter</button>
-        <p style="margin-top:14px;font-size:13px;">Pas encore inscrit ? <span class="esp-toggle-link" onclick="espRenderEtabAuth('register')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Inscrire mon établissement</span></p>
-        <p style="margin-top:6px;font-size:13px;">Votre établissement a reçu un code de récupération ? <span class="esp-toggle-link" onclick="espRenderEtabClaim()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Récupérer mon compte</span></p>
+        <p style="margin-top:14px;font-size:13px;">Pas encore inscrit ? <span class="esp-infobulle" onmouseenter="espInfobulleRouvrir(this)" onfocusin="espInfobulleRouvrir(this)"><span class="esp-toggle-link" onclick="espRenderEtabAuth('register')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)" aria-describedby="esp-ib-inscription">Inscrire mon établissement</span><button type="button" class="esp-infobulle-btn" aria-label="Information sur l'inscription" aria-expanded="false" aria-controls="esp-ib-inscription" onclick="espInfobulleBascule(this)">i</button><span class="esp-infobulle-bulle" role="tooltip" id="esp-ib-inscription">Vérifiez d'abord si votre établissement n'est pas déjà inscrit. Si c'est le cas, procédez plutôt à une récupération.</span></span></p>
+        <p style="margin-top:6px;font-size:13px;">Votre établissement a reçu un code de récupération ? <span class="esp-infobulle" onmouseenter="espInfobulleRouvrir(this)" onfocusin="espInfobulleRouvrir(this)"><span class="esp-toggle-link" onclick="espRenderEtabClaim()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)" aria-describedby="esp-ib-recuperation">Récupérer mon compte</span><button type="button" class="esp-infobulle-btn" aria-label="Information sur la récupération" aria-expanded="false" aria-controls="esp-ib-recuperation" onclick="espInfobulleBascule(this)">i</button><span class="esp-infobulle-bulle" role="tooltip" id="esp-ib-recuperation">Votre établissement est pré-inscrit. Si vous n'avez pas le code de récupération, appelez le support au 07 87 63 34 81.</span></span></p>
       ` : `
         <div class="esp-field-row">
           <div class="esp-field">
@@ -125,6 +125,38 @@ function espRenderEtabAuth(mode){
   }
   espRefreshIcons();
 }
+
+// ---------------- Infobulles « i » de l'écran de connexion (inscription / récupération) ----------------
+// Ordinateur : la bulle s'affiche au survol et au focus clavier du lien (CSS seul). Téléphone (pas
+// de survol) : l'appui sur « i » ouvre/ferme la bulle (.ouverte) ; l'appui sur le lien garde son
+// action. Échap ferme tout (.fermee masque aussi survol et focus) jusqu'au prochain survol/focus.
+function espInfobulleBascule(btn){
+  const box = btn.closest('.esp-infobulle');
+  const ouvrir = !box.classList.contains('ouverte');
+  espInfobulleFermerTout();
+  box.classList.remove('fermee');
+  box.classList.toggle('ouverte', ouvrir);
+  btn.setAttribute('aria-expanded', ouvrir ? 'true' : 'false');
+}
+function espInfobulleFermerTout(){
+  document.querySelectorAll('.esp-infobulle').forEach(box => {
+    box.classList.remove('ouverte');
+    const btn = box.querySelector('.esp-infobulle-btn');
+    if(btn) btn.setAttribute('aria-expanded', 'false');
+  });
+}
+function espInfobulleRouvrir(box){ box.classList.remove('fermee'); }
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  const boxes = document.querySelectorAll('.esp-infobulle');
+  if(!boxes.length) return;
+  espInfobulleFermerTout();
+  boxes.forEach(box => box.classList.add('fermee'));
+});
+// Appui en dehors d'une infobulle : referme celle ouverte par « i ».
+document.addEventListener('click', e => {
+  if(!e.target.closest('.esp-infobulle')) espInfobulleFermerTout();
+});
 
 // ---------------- Vérification de doublon en temps réel (avertissement non bloquant) ----------------
 // L'avertissement ne bloque rien côté navigateur : il propose l'écran « Récupérer mon
