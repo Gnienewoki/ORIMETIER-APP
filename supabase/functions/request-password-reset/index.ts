@@ -11,6 +11,10 @@
 // (EdgeRuntime.waitUntil) : ni la réponse ni son délai ne révèlent si
 // l'e-mail correspond à un compte.
 //
+// Compte élève supprimé (2026-10) : le rôle 'eleve' n'est plus traité. Une
+// demande bien formée avec role 'eleve' reçoit exactement la même réponse
+// neutre { ok: true } qu'un e-mail sans compte, sans aucun appel à la base.
+//
 // Journaux : jamais le jeton, le lien, l'empreinte, l'e-mail ni une clé.
 //
 // Secrets attendus (npx supabase secrets set / tableau de bord) :
@@ -23,7 +27,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
-const ROLES = ["eleve", "inspecteur", "etablissement"];
+const ROLES = ["inspecteur", "etablissement"];
+// Rôles supprimés : acceptés tels quels (pas de 400 qui révélerait la suppression),
+// puis réponse neutre immédiate, comme pour un e-mail sans compte.
+const ROLES_RETIRES = ["eleve"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAILJS_URL = "https://api.emailjs.com/api/v1.0/email/send";
 
@@ -138,7 +145,7 @@ Deno.serve(async (req) => {
     return json(400, { ok: false });
   }
   const { role, email } = (body ?? {}) as { role?: unknown; email?: unknown };
-  if (typeof role !== "string" || !ROLES.includes(role)) {
+  if (typeof role !== "string" || (!ROLES.includes(role) && !ROLES_RETIRES.includes(role))) {
     return json(400, { ok: false });
   }
   if (typeof email !== "string") {
@@ -147,6 +154,11 @@ Deno.serve(async (req) => {
   const emailNormalise = email.trim().toLowerCase();
   if (emailNormalise.length > 254 || !EMAIL_RE.test(emailNormalise)) {
     return json(400, { ok: false });
+  }
+
+  // Rôle supprimé : même réponse, même délai qu'un e-mail sans compte, et aucun travail.
+  if (ROLES_RETIRES.includes(role)) {
+    return json(200, { ok: true });
   }
 
   const travail = traiterDemande(role, emailNormalise).catch((e) => {
