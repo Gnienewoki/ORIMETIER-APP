@@ -21,8 +21,6 @@ function espDataFromServer(){ return _espCache !== null && _espCacheFromServer; 
 let _espPrivateCache = [];
 
 // ---------------- Conversion snake_case (Supabase) <-> camelCase (app) ----------------
-function espRowToEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, classe:r.classe, etablissement:r.etablissement, tel:r.tel, email:r.email, password:r.password, riasec:r.riasec, active:r.active, dateInscription:r.date_inscription, banni:!!r.banni }; }
-function espEleveToRow(e){ return { id:e.id, nom:e.nom, prenoms:e.prenoms, classe:e.classe, etablissement:e.etablissement, tel:e.tel, email:e.email, password:e.password, riasec:e.riasec, active:!!e.active, date_inscription:e.dateInscription, banni:!!e.banni }; }
 function espRowToInspecteur(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms, fonction:r.fonction, cio:r.cio, tel:r.tel, email:r.email, password:r.password, active:r.active, dateInscription:r.date_inscription, certifie:!!r.certifie, banni:!!r.banni, avatarUrl:r.avatar_url||null, certificationDemandee:!!r.certification_demandee, messageAccueil:r.message_accueil||'' }; }
 function espInspecteurToRow(i){ return { id:i.id, nom:i.nom, prenoms:i.prenoms, fonction:i.fonction, cio:i.cio, tel:i.tel, email:i.email, password:i.password, active:!!i.active, date_inscription:i.dateInscription }; }
 // responsable/contactTel : réservés (admin_list_etablissements_full / etablissement_get_own
@@ -33,13 +31,11 @@ function espRowToEtab(r){ return { id:r.id, nom:r.nom, region:r.region||'', vill
 function espRowToSuiviEleve(r){ return { id:r.id, nom:r.nom, prenoms:r.prenoms||'', classe:r.classe, raisons:r.raisons||[], appreciationFinale:r.appreciation_finale||'', dateAjout:r.date_ajout }; }
 function espRowToSuiviNote(r){ return { id:r.id, date:r.date_note, texte:r.texte }; }
 function espEtabToRow(e){ return { id:e.id, nom:e.nom, region:e.region||'', ville:e.ville, quartier:e.quartier||'', type:e.type, responsable:e.responsable, contact_tel:e.contactTel||null, tel:e.tel, tel2:e.tel2||null, tel3:e.tel3||null, site_web:e.siteWeb||null, email:e.email, password:e.password, statut:e.statut, active:!!e.active, date_inscription:e.dateInscription, filieres_proposees:e.filieresProposees||[], photos:e.photos||[], logo_url:e.logoUrl||null, categorie:e.categorie||null, sous_categorie:e.sousCategorie||null, secteur:e.secteur||null }; }
-function espRowToNote(r){ return { id:r.id, eleveId:r.eleve_id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date }; }
-function espNoteToRow(n){ return { id:n.id, eleve_id:n.eleveId, inspecteur_id:n.inspecteurId, inspecteur_nom:n.inspecteurNom, texte:n.texte, date:n.date }; }
 function espRowToMessage(r){ return { id:r.id, inspecteurId:r.inspecteur_id, inspecteurNom:r.inspecteur_nom, texte:r.texte, date:r.date, type:r.type||'C', auteurRole:r.auteur_role||'inspecteur', replyTo:r.reply_to||null, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
 function espRowToAnnonce(r){ return { id:r.id, type:r.type, texte:r.texte||'', imageUrl:r.image_url||'', active:!!r.active, updatedAt:r.updated_at }; }
 function espRowToPrivateMessage(r){ return { id:r.id, expediteurId:r.expediteur_id, destinataireId:r.destinataire_id, texte:r.texte, date:r.date, lu:!!r.lu, attachmentUrl:r.attachment_url||null, attachmentType:r.attachment_type||null, attachmentName:r.attachment_name||null }; }
 
-// ---------------- Pagination des RPC de listage (list_eleves / list_inspecteurs / list_etablissements) ----------------
+// ---------------- Pagination des RPC de listage (list_inspecteurs / list_etablissements) ----------------
 // PostgREST applique un plafond de lignes par requête (réglage "Max Rows" du projet
 // Supabase, ou LIMIT en base) — invisible dans ce fichier, et jamais garanti stable dans
 // le temps. Un simple .rpc(nom) tronque donc silencieusement le résultat dès que la table
@@ -93,24 +89,21 @@ async function espLoadFromSupabase(forceRefresh){
     }
   }
 
-  // eleves/inspecteurs/etablissements n'accordent pas de SELECT direct à la clé
+  // inspecteurs/etablissements n'accordent pas de SELECT direct à la clé
   // publique (pas de grant anon) : on passe par des fonctions RPC dédiées qui ne
   // renvoient jamais la colonne "password", plutôt que par une lecture de table.
-  const [elevesRows, inspecteursRows, etabRows, notesRes, messagesRes, annonceRes] = await Promise.all([
-    espFetchAllRows('list_eleves'),
+  // Compte élève supprimé : plus de liste des élèves ni de notes sur un élève inscrit.
+  const [inspecteursRows, etabRows, messagesRes, annonceRes] = await Promise.all([
     espFetchAllRows('list_inspecteurs'),
     espFetchAllRows('list_etablissements'),
-    supabaseClient.from('notes').select('*'),
     supabaseClient.from('messages_inspecteurs').select('*').order('created_at', { ascending: true }),
     supabaseClient.from('annonce').select('*').eq('active', true).order('created_at', { ascending: true }),
   ]);
-  [notesRes, messagesRes, annonceRes].forEach(r => { if(r.error) throw r.error; });
+  [messagesRes, annonceRes].forEach(r => { if(r.error) throw r.error; });
 
   _espCache = {
-    eleves: elevesRows.map(espRowToEleve),
     inspecteurs: inspecteursRows.map(espRowToInspecteur),
     etablissements: etabRows.map(espRowToEtab),
-    notes: (notesRes.data||[]).map(espRowToNote),
     messages: (messagesRes.data||[]).map(espRowToMessage),
     annonces: (annonceRes.data||[]).map(espRowToAnnonce),
   };
@@ -147,7 +140,7 @@ function espResetPrivateMessages(){
 // ligne. Les fiches se rechargent quand même via list_etablissements : à chaque changement des
 // autres tables écoutées, et après chaque action de l'utilisateur (forceRefresh).
 function espSetupRealtime(){
-  ['eleves','inspecteurs','notes','messages_inspecteurs','messages_prives'].forEach(table => {
+  ['inspecteurs','messages_inspecteurs','messages_prives'].forEach(table => {
     supabaseClient
       .channel('esp-' + table)
       .on('postgres_changes', { event: '*', schema: 'public', table }, () => espScheduleRefresh())
@@ -185,7 +178,7 @@ function espScheduleRefresh(){
 }
 
 function espDB(){
-  return _espCache || { eleves:[], inspecteurs:[], etablissements:[], notes:[], messages:[], annonces:[] };
+  return _espCache || { inspecteurs:[], etablissements:[], messages:[], annonces:[] };
 }
 // Reflète un changement dans le cache local (affichage immédiat), sans jamais envoyer
 // le tableau complet au serveur : chaque écriture réelle passe par une fonction dédiée ci-dessous.
@@ -206,10 +199,6 @@ function espSaveDB(db){
 
 // ---------------- Inscription (création de compte) ----------------
 // Autorisée directement : chaque personne ne crée que SON PROPRE compte.
-async function espInsertEleve(row){
-  const { error } = await supabaseClient.from('eleves').insert([row]);
-  if(error){ throw error; }
-}
 async function espInsertInspecteur(row){
   const { error } = await supabaseClient.from('inspecteurs').insert([row]);
   if(error){ throw error; }
@@ -250,7 +239,7 @@ function espRowToDemandeInscription(r){
     dateDemande: r.date_demande, statutDemande: r.statut_demande, motifRefus: r.motif_refus||'',
   };
 }
-// Admin : authentifié par le jeton de session (espAuthRpc, auth.js), comme les élèves.
+// Admin : authentifié par le jeton de session (espAuthRpc, auth.js).
 async function espAdminListDemandesInscriptionRPC(){
   return ((await espAuthRpc('admin_list_demandes_inscription_etablissements_v2')) || []).map(espRowToDemandeInscription);
 }
@@ -271,13 +260,6 @@ async function espAdminFichesProchesDemandeRPC(demandeId){
 }
 
 // ---------------- Connexion (vérifiée côté serveur, mot de passe jamais renvoyé) ----------------
-// Ouverture de session élève par jeton : null (identifiants incorrects), {banni:true}
-// (compte suspendu, aucune session créée) ou {token, expires_at, id, ...fiche}.
-async function espEleveSessionOpenRPC(tel, password){
-  const { data, error } = await supabaseClient.rpc('eleve_session_open', { p_tel: tel, p_password: password });
-  if(error) throw error;
-  return data || null;
-}
 // Ouverture de session inspecteur par jeton : null (téléphone ou mot de passe incorrects),
 // {banni:true} (compte suspendu, aucune session créée) ou {token, expires_at, id, nom, prenoms}.
 // Téléphone comparé tel quel côté serveur. Session serveur de 30 jours.
@@ -339,10 +321,6 @@ async function espAdminGetVisiteStatsRPC(){
 }
 
 // ---------------- Actions d'écriture sécurisées (vérifient l'identité côté serveur) ----------------
-// Élève : authentifié par le jeton de session (espAuthRpc, auth.js).
-async function espSaveRiasecRPC(riasec){
-  return !!(await espAuthRpc('eleve_save_riasec', { p_riasec: riasec }));
-}
 // Inspecteur : authentifié par le jeton de session (espAuthRpc, auth.js) ; la fiche est celle du jeton.
 async function espPostMessageRPC(texte, type, replyTo, attachment){
   return !!(await espAuthRpc('inspecteur_post_message_v2', {
@@ -460,9 +438,6 @@ async function espAdminSetInspecteurBanniRPC(inspecteurId, banni){
 async function espAdminSetInspecteurCertifieRPC(inspecteurId, certifie){
   return !!(await espAuthRpc('admin_set_inspecteur_certifie_v2', { p_inspecteur_id: inspecteurId, p_certifie: certifie }));
 }
-async function espAdminSetEleveBanniRPC(eleveId, banni){
-  return !!(await espAuthRpc('admin_set_eleve_banni_v2', { p_eleve_id: eleveId, p_banni: banni }));
-}
 async function espSetEtabStatutRPC(etabId, statut){
   return !!(await espAuthRpc('admin_set_etab_statut_v2', { p_etab_id: etabId, p_statut: statut }));
 }
@@ -471,10 +446,6 @@ async function espEtabUpdateLocalisationRPC(region, ville, quartier){
 }
 async function espSetFiliereStatutRPC(etabId, filiereId, statut){
   return !!(await espAuthRpc('admin_set_filiere_statut_v2', { p_etab_id: etabId, p_filiere_id: filiereId, p_statut: statut }));
-}
-// Élève : par jeton. Lève EMAIL_DEJA_UTILISE si un autre élève porte déjà cet e-mail.
-async function espUpdateEleveEmailRPC(email){
-  return !!(await espAuthRpc('eleve_update_email', { p_email: email }));
 }
 // Inspecteur : par jeton. Lève EMAIL_DEJA_UTILISE si un autre inspecteur porte déjà cet e-mail.
 async function espUpdateInspecteurEmailRPC(email){

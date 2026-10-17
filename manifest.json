@@ -1,7 +1,7 @@
 {
   "name": "ORIMETIER — Choisissez votre avenir",
   "short_name": "ORIMETIER",
-  "description": "Orientation scolaire et professionnelle en Côte d'Ivoire : annuaire des formations, test RIASEC, espaces élève/inspecteur/établissement.",
+  "description": "Orientation scolaire et professionnelle en Côte d'Ivoire : annuaire des formations, test RIASEC, espaces inspecteur/établissement.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

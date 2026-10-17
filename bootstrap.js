@@ -104,7 +104,7 @@ const _espPath = window.location.pathname;
 // volontairement, ce n'est pas une page consultée en tant que telle. Doit rester
 // synchronisée avec la liste acceptée par log_visite() côté Supabase.
 // index.html (accueil) ne charge pas ce fichier : elle compte sa visite elle-même.
-const ESP_VISITE_PAGES = ['index.html', 'technique.html', 'general.html', 'superieur.html', 'concours.html', 'eleves.html', 'espaces.html', 'liens-formation.html'];
+const ESP_VISITE_PAGES = ['index.html', 'technique.html', 'general.html', 'superieur.html', 'concours.html', 'espaces.html', 'liens-formation.html'];
 
 // Fire-and-forget : jamais attendu, ne doit jamais retarder ni bloquer le chargement de
 // la page, et un échec (réseau, RLS, etc.) ne doit jamais remonter à l'utilisateur — au

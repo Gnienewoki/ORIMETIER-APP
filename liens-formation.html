@@ -38,7 +38,6 @@
     <a href="general.html"><i data-lucide="school"></i><span>Enseignement Général</span></a>
     <a href="liens-formation.html"><i data-lucide="target"></i><span>Formations</span></a>
     <a href="test.html"><i data-lucide="compass"></i><span>Test de personnalité</span></a>
-    <a id="tab-eleves" href="eleves.html" style="display:none"><i data-lucide="users"></i><span>Élèves inscrits</span></a>
     <a href="espaces.html"><i data-lucide="lock"></i><span>Espaces</span></a>
   </nav>
 </aside>
@@ -71,7 +70,6 @@
       <div id="esp-role-select" style="display:none"></div>
       <div id="esp-admin" style="display:none"></div>
       <div id="esp-inspecteur" style="display:none"></div>
-      <div id="esp-eleve" style="display:none"></div>
       <div id="esp-etablissement" style="display:none"></div>
     </div>
   </div>
@@ -85,8 +83,9 @@
     if(!sessionRaw) return;
     var session = JSON.parse(sessionRaw);
     if(!session || !session.role) return;
-    // Rôles migrés aux jetons (cf. ESP_TOKEN_ROLES, auth.js) : ancienne session ou jeton expiré => pas d'affichage anticipé.
-    if(['eleve','admin','etablissement','inspecteur'].indexOf(session.role) !== -1 && (session.v !== 2 || !session.token || !(session.exp > Date.now()))) return;
+    // Rôles connus (cf. ESP_TOKEN_ROLES, auth.js), tous par jeton : rôle inconnu (ex. ancienne session
+    // élève, compte supprimé), ancienne session ou jeton expiré => pas d'affichage anticipé.
+    if(['admin','etablissement','inspecteur'].indexOf(session.role) === -1 || session.v !== 2 || !session.token || !(session.exp > Date.now())) return;
     var gate = document.getElementById('auth-gate');
     var wrap = document.getElementById('platform-wrap');
     if(gate) gate.style.display = 'none';
@@ -175,7 +174,6 @@
 <script src="auth.js"></script>
 <script src="admin.js"></script>
 <script src="inspecteur.js"></script>
-<script src="eleve.js"></script>
 <script src="etablissement.js"></script>
 <script src="modal.js"></script>
 <script src="liens-formation.js"></script>

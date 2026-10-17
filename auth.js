@@ -12,6 +12,19 @@ function espSetSession(role, id, password){
 function espClearSession(){
   try { localStorage.removeItem(ESP_SESSION_KEY); } catch(e){}
 }
+// Le compte élève n'existe plus : une session 'eleve' restée dans ce navigateur est effacée sans
+// bruit dès le chargement (avant tout verdict de session), et son jeton est révoqué côté serveur
+// sans attendre la réponse. Aucune alerte : le visiteur retrouve simplement le mode sans compte.
+(function espPurgeEleveSession(){
+  const session = espSession();
+  if(!session || session.role !== 'eleve') return;
+  espClearSession();
+  try {
+    if(session.token && typeof supabaseClient !== 'undefined'){
+      supabaseClient.rpc('session_close', { p_token: session.token }).then(() => {}, () => {});
+    }
+  } catch(e){}
+})();
 
 // ---------------- Sessions par jeton (migration progressive, rôle par rôle) ----------------
 // Rôles déjà migrés : la session locale est {v:2, role, id, token, exp[, nom]} (exp en ms), sans
@@ -19,7 +32,7 @@ function espClearSession(){
 // nom : facultatif, affiché dans la barre du haut (admin).
 // Les autres rôles gardent l'ancien format {role, id, password} jusqu'à leur phase.
 // Doit rester synchronisé avec la liste des 8 scripts inline anti-flash des pages HTML.
-const ESP_TOKEN_ROLES = ['eleve', 'admin', 'etablissement', 'inspecteur'];
+const ESP_TOKEN_ROLES = ['admin', 'etablissement', 'inspecteur'];
 const ESP_TOKEN_SESSION_FALLBACK_MS = 30 * 24 * 3600 * 1000;
 function espSetTokenSession(role, id, token, expiresAt, nom){
   let exp = Date.parse(expiresAt);
@@ -128,7 +141,7 @@ function espCheckStoragePersistence(){
 }
 
 function espHideAll(){
-  ['esp-role-select','esp-admin','esp-inspecteur','esp-eleve','esp-etablissement'].forEach(id => {
+  ['esp-role-select','esp-admin','esp-inspecteur','esp-etablissement'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -136,7 +149,7 @@ function espHideAll(){
 
 // ---------------- Pages en libre accès (aucun compte requis) ----------------
 // Annuaire des métiers, enseignement supérieur, concours & grandes écoles, test RIASEC :
-// consultables par n'importe quel visiteur. Tout le reste (espaces.html, eleves.html)
+// consultables par n'importe quel visiteur. Tout le reste (espaces.html)
 // continue d'exiger une connexion, comme avant.
 const ESP_PUBLIC_PAGES = ['index.html', 'technique.html', 'superieur.html', 'concours.html', 'test.html', 'general.html', 'liens-formation.html', ''];
 function espCurrentPageIsPublic(){
@@ -156,7 +169,6 @@ function espAccountStillExists(session){
   const db = espDB();
   // Un compte banni est traité comme inexistant : il repasse par le portail au prochain chargement.
   if(session.role === 'inspecteur'){ const i = db.inspecteurs.find(x => x.id === session.id); return !!i && !i.banni; }
-  if(session.role === 'eleve'){ const e = db.eleves.find(x => x.id === session.id); return !!e && !e.banni; }
   if(session.role === 'etablissement') return db.etablissements.some(e => e.id === session.id);
   return false;
 }
@@ -179,7 +191,6 @@ function espCurrentUserLabel(session){
   const db = espDB();
   if(session.role === 'admin') return { nom: session.nom || 'Administrateur', role:'Administrateur' };
   if(session.role === 'inspecteur'){ const i = db.inspecteurs.find(x=>x.id===session.id); return { nom: i ? (i.nom+' '+(i.prenoms||'')).trim() : '', role:"Inspecteur d'orientation" }; }
-  if(session.role === 'eleve'){ const e = db.eleves.find(x=>x.id===session.id); return { nom: e ? (e.nom+' '+(e.prenoms||'')).trim() : '', role:'Élève' }; }
   if(session.role === 'etablissement'){ const e = db.etablissements.find(x=>x.id===session.id); return { nom: e ? e.nom : '', role:'Établissement' }; }
   return { nom:'', role:'' };
 }
@@ -187,8 +198,6 @@ function espCurrentUserLabel(session){
 function updateAuthBar(){
   const bar = document.getElementById('auth-bar');
   const session = espSession();
-  const tabEleves = document.getElementById('tab-eleves');
-  if(tabEleves) tabEleves.style.display = (session && session.role === 'inspecteur') ? '' : 'none';
   if(!bar) return;
   if(!session){
     bar.innerHTML = `
@@ -197,7 +206,6 @@ function updateAuthBar(){
           <button class="esp-btn esp-btn-primary" onclick="espToggleGuestMenu(event)">${icon('plus')}Ouvrir un compte</button>
           <div class="esp-guest-menu" id="esp-guest-menu">
             <a href="espaces.html?role=inspecteur&amp;action=register">${icon('compass')}Inspecteur d'orientation</a>
-            <a href="espaces.html?role=eleve&amp;action=register">${icon('graduation-cap')}Élève / Étudiant</a>
             <span class="esp-infobulle" onmouseenter="espInfobulleRouvrir(this)" onfocusin="espInfobulleRouvrir(this)"><a href="espaces.html?role=etablissement&amp;action=register" aria-describedby="esp-ib-guest-etab">${icon('school')}Établissement</a><button type="button" class="esp-infobulle-btn" aria-label="Information avant d'inscrire un établissement" aria-expanded="false" aria-controls="esp-ib-guest-etab" onclick="espInfobulleBascule(this)">i</button><span class="esp-infobulle-bulle" role="tooltip" id="esp-ib-guest-etab">Avez-vous vérifié que votre établissement n'est pas déjà inscrit avant de continuer ?</span></span>
           </div>
         </div>
@@ -288,7 +296,7 @@ function platformUnlock(){
 // ---------------- Déverrouillage "visiteur" (pages en libre accès, sans compte) ----------------
 // Même comportement que platformUnlock(), mais sans session : pas de chargement des
 // messages privés (réservés aux inspecteurs connectés). Les fonctionnalités qui exigent
-// un compte (ex : sauvegarder son profil RIASEC) continuent de demander une connexion
+// un compte (ex : espaces inspecteur et établissement) continuent de demander une connexion
 // au moment où le visiteur clique dessus, comme c'est déjà le cas ailleurs dans l'app.
 function platformUnlockGuest(){
   const gate = document.getElementById('auth-gate');
@@ -310,10 +318,11 @@ function platformLock(){
   if(bar) bar.innerHTML = '';
   if(typeof window.onBeforeLock === 'function') window.onBeforeLock();
   espShowRoleSelect();
-  // Lien direct vers un rôle précis (ex : espaces.html?role=eleve&action=register depuis les boutons "Ouvrir un compte").
+  // Lien direct vers un rôle précis (ex : espaces.html?role=etablissement&action=register depuis le menu "Ouvrir un compte").
+  // Un ancien lien ?role=eleve (compte supprimé) n'est plus reconnu : le portail s'affiche normalement.
   const role = new URLSearchParams(window.location.search).get('role');
   const action = new URLSearchParams(window.location.search).get('action');
-  if(role && ['admin','inspecteur','eleve','etablissement'].includes(role)) espSelectRole(role, action);
+  if(role && ['admin','inspecteur','etablissement'].includes(role)) espSelectRole(role, action);
 }
 
 function platformLogout(){
@@ -339,7 +348,7 @@ function platformLogout(){
 //                   est CONSERVÉE.
 // Seul 'revoked' autorise à effacer la session : ni un cache périmé, ni un chargement échoué,
 // ni une coupure réseau ne suffisent.
-const ESP_SESSION_ROLES = ['admin','inspecteur','eleve','etablissement'];
+const ESP_SESSION_ROLES = ['admin','inspecteur','etablissement'];
 function espSessionVerdictLocal(session){
   if(!session) return 'none';
   if(!ESP_SESSION_ROLES.includes(session.role) || (session.role !== 'admin' && !session.id)) return 'revoked';
@@ -482,11 +491,6 @@ function espShowRoleSelect(){
         <div class="esp-role-title">Inspecteur d'orientation</div>
         <div class="esp-role-desc">Suivi des élèves et de leurs profils d'orientation</div>
       </div>
-      <div class="esp-role-card" onclick="espSelectRole('eleve')">
-        <div class="esp-role-icon">${icon('graduation-cap', { lg: true })}</div>
-        <div class="esp-role-title">Élève / Étudiant</div>
-        <div class="esp-role-desc">Mon compte, mon test d'orientation, mes recommandations</div>
-      </div>
       <div class="esp-role-card" onclick="espSelectRole('etablissement')">
         <div class="esp-role-icon">${icon('school', { lg: true })}</div>
         <div class="esp-role-title">Établissement</div>
@@ -503,7 +507,6 @@ function espSelectRole(role, mode){
   document.getElementById('esp-' + role).style.display = '';
   if(role === 'admin') espRenderAdminLogin();
   if(role === 'inspecteur') espRenderInspecteurAuth(mode);
-  if(role === 'eleve') espRenderEleveAuth(mode);
   if(role === 'etablissement') espRenderEtabAuth(mode);
 }
 
@@ -842,7 +845,7 @@ async function espSendPrivateMessage(){
 
 // ---------------- Renseigner/modifier son e-mail (comptes créés avant l'ajout de cette fonctionnalité) ----------------
 function espShowEmailForm(role){
-  const formId = role === 'eleve' ? 'esp-eleve-email-form' : 'esp-insp-email-form';
+  const formId = 'esp-insp-email-form';
   const container = document.getElementById(formId);
   container.innerHTML = `
     <div class="esp-field-row" style="margin-top:8px;">
@@ -859,25 +862,15 @@ async function espSubmitEmailForm(role){
   if(!email){ msgEl.innerHTML = '<p class="esp-error">Merci de saisir un e-mail.</p>'; return; }
   try {
     let ok;
-    if(role === 'eleve'){
-      ok = await espUpdateEleveEmailRPC(email);
-      if(!ok){ msgEl.innerHTML = '<p class="esp-error">Impossible d\'enregistrer l\'e-mail.</p>'; return; }
-    } else if(role === 'inspecteur'){
+    if(role === 'inspecteur'){
       ok = await espUpdateInspecteurEmailRPC(email);
       if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     }
     const db = espDB();
-    if(role === 'eleve'){
-      const e = db.eleves.find(x => x.id === session.id);
-      if(e) e.email = email;
-      espSaveDB(db);
-      espRenderEleveDashboard();
-    } else {
-      const i = db.inspecteurs.find(x => x.id === session.id);
-      if(i) i.email = email;
-      espSaveDB(db);
-      espRenderInspecteurDashboard();
-    }
+    const i = db.inspecteurs.find(x => x.id === session.id);
+    if(i) i.email = email;
+    espSaveDB(db);
+    espRenderInspecteurDashboard();
   } catch(e){
     if(e.espSessionInvalid) return; // bandeau "session expirée" déjà affiché
     if(/EMAIL_DEJA_UTILISE/.test(e.message || '')){
@@ -892,7 +885,7 @@ async function espSubmitEmailForm(role){
 // Demande : Edge Function request-password-reset (espRequestPasswordReset).
 // Lien reçu par e-mail : APP_URL/#reset=<jeton>, lu et retiré de l'URL par bootstrap.js,
 // puis espRenderResetPasswordScreen. Le jeton ne passe jamais par le DOM ni par les journaux.
-const ESP_RESET_ROLES = { eleve: 'Élève', inspecteur: 'Inspecteur', etablissement: 'Établissement' };
+const ESP_RESET_ROLES = { inspecteur: 'Inspecteur', etablissement: 'Établissement' };
 const ESP_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // même règle que l'Edge Function
 let _espPendingResetToken = null;
 
@@ -917,7 +910,7 @@ function espForgotFormHtml(role){
     ${espSupportContactHtml()}`;
 }
 
-// Affiché à l'intérieur du conteneur d'un espace (ex : 'esp-eleve', 'esp-inspecteur', 'esp-etablissement').
+// Affiché à l'intérieur du conteneur d'un espace (ex : 'esp-inspecteur', 'esp-etablissement').
 function espRenderForgotPassword(role, containerId, backToLoginFn){
   const container = document.getElementById(containerId);
   container.innerHTML = `

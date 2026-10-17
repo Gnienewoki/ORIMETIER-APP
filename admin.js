@@ -60,14 +60,11 @@ function espRenderAdminDashboard(sub){
   const db = espDB();
   const enAttente = db.etablissements.filter(e => e.statut === 'en_attente').length;
   const propositionsEnAttente = db.etablissements.reduce((n,e) => n + (e.filieresProposees||[]).filter(f=>f.statut==='en_attente').length, 0);
-  const eleveAvecTest = db.eleves.filter(e => e.riasec).length;
 
   let subHtml = '';
   if(sub === 'overview'){
     subHtml = `
       <div class="esp-stat-grid">
-        <div class="esp-stat-box"><div class="esp-stat-num">${db.eleves.length}</div><div class="esp-stat-label">Comptes élèves</div></div>
-        <div class="esp-stat-box"><div class="esp-stat-num">${eleveAvecTest}</div><div class="esp-stat-label">Tests RIASEC réalisés</div></div>
         <div class="esp-stat-box"><div class="esp-stat-num">${db.inspecteurs.length}</div><div class="esp-stat-label">Inspecteurs inscrits</div></div>
         <div class="esp-stat-box"><div class="esp-stat-num">${db.etablissements.length}</div><div class="esp-stat-label">Établissements inscrits</div></div>
         <div class="esp-stat-box"><div class="esp-stat-num">${enAttente}</div><div class="esp-stat-label">Inscriptions en attente</div></div>
@@ -110,17 +107,6 @@ function espRenderAdminDashboard(sub){
         `).join('') : `<tr><td colspan="7" class="esp-empty">Aucun inspecteur inscrit pour le moment.</td></tr>`}
         </tbody>
       </table>
-    `;
-  } else if(sub === 'ban-eleve'){
-    subHtml = `
-      <div class="esp-card">
-        <div class="esp-title" style="font-size:16px;">${icon('search')}Rechercher un élève à bannir</div>
-        <p class="esp-sub">Recherche par nom ou numéro de téléphone. Les résultats ne s'affichent qu'après une recherche.</p>
-        <div class="esp-field" style="max-width:420px;">
-          <input type="text" id="esp-ban-eleve-search" placeholder="Nom ou téléphone..." oninput="espAdminSearchEleve(this.value)">
-        </div>
-        <div id="esp-ban-eleve-results" style="margin-top:14px;"></div>
-      </div>
     `;
   } else if(sub === 'chat'){
     const messages = db.messages || [];
@@ -324,7 +310,6 @@ function espRenderAdminDashboard(sub){
       <button class="esp-subtab-btn ${sub==='overview'?'active':''}" onclick="espRenderAdminDashboard('overview')">Vue d'ensemble</button>
       <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderAdminDashboard('etablissements')">Établissements${enAttente ? ' ('+enAttente+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='inspecteurs'?'active':''}" onclick="espRenderAdminDashboard('inspecteurs')">Comptes inspecteurs</button>
-      <button class="esp-subtab-btn ${sub==='ban-eleve'?'active':''}" onclick="espRenderAdminDashboard('ban-eleve')">${icon('search')}Bannir un élève</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">${icon('message-circle')}Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">${icon('target')}Liens de formation</button>
       <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">${icon('megaphone')}Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
@@ -337,7 +322,6 @@ function espRenderAdminDashboard(sub){
   espRefreshIcons();
   // Carte des codes ouverte : son <datalist> des villes vient d'être recréé vide.
   if(sub === 'etablissements' && _espCodesListe) espAdminCodesRemplirVilles();
-  if(sub === 'ban-eleve') document.getElementById('esp-ban-eleve-search').focus();
 }
 
 // ---------------- Établissements : liste paginée/filtrée (évite d'injecter des milliers de lignes d'un coup) ----------------
@@ -566,36 +550,6 @@ function espAdminEtabGoToPage(page){
   espAdminRefreshEtabSection();
 }
 
-function espAdminSearchEleve(query){
-  const resultsEl = document.getElementById('esp-ban-eleve-results');
-  const q = (query||'').trim();
-  if(!q){ resultsEl.innerHTML = ''; return; }
-  const db = espDB();
-  const norm = s => (s||'').toString().toLowerCase();
-  const nq = norm(q);
-  const matches = db.eleves.filter(e => norm(e.nom + ' ' + (e.prenoms||'')).includes(nq) || (e.tel||'').includes(q));
-  if(!matches.length){ resultsEl.innerHTML = '<p class="esp-empty">Aucun élève trouvé.</p>'; return; }
-  resultsEl.innerHTML = matches.map(e => `
-    <div class="esp-note-item" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-      <span><b>${escapeHtml(e.nom)} ${escapeHtml(e.prenoms||'')}</b> — ${escapeHtml(e.classe)} · ${escapeHtml(e.etablissement)} · ${escapeHtml(e.tel)} ${e.banni ? '<span class="esp-badge refuse">Banni</span>' : '<span class="esp-badge valide">Actif</span>'}</span>
-      <button class="esp-btn" style="padding:5px 10px;font-size:11.5px;" onclick="espAdminToggleEleveBanni('${e.id}', ${!e.banni})">${e.banni ? icon('check-circle') + 'Réactiver' : icon('ban') + 'Bannir'}</button>
-    </div>
-  `).join('');
-  espRefreshIcons();
-}
-async function espAdminToggleEleveBanni(eleveId, nouvelEtat){
-  const db = espDB();
-  const e = db.eleves.find(x => x.id === eleveId);
-  if(!e) return;
-  if(nouvelEtat && !confirm(`Bannir ${e.nom} ${e.prenoms||''} ? Cette personne ne pourra plus se connecter.`)) return;
-  let ok;
-  try { ok = await espAdminSetEleveBanniRPC(eleveId, nouvelEtat); }
-  catch(err){ if(err.espSessionInvalid) return; alert('Erreur : ' + err.message); return; }
-  if(!ok){ alert("Compte introuvable (supprimé entre-temps ?)."); return; }
-  e.banni = nouvelEtat; espSaveDB(db);
-  const searchInput = document.getElementById('esp-ban-eleve-search');
-  if(searchInput) espAdminSearchEleve(searchInput.value);
-}
 async function espAdminToggleCertifie(inspecteurId, nouvelEtat){
   const db = espDB();
   const i = db.inspecteurs.find(x => x.id === inspecteurId);

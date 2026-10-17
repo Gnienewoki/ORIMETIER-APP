@@ -160,40 +160,12 @@ function ptRenderResults(){
 
     <div class="pt-nav-row" style="margin-top:0">
       <button class="pt-btn" onclick="ptGoTo(${RIASEC_DIMENSIONS.length})">${icon('chevron-left')}Revoir mes réponses</button>
-      <button class="pt-btn" onclick="ptSaveToEleveSpace()">${icon('save')}Sauvegarder dans mon espace élève</button>
       <button class="pt-btn pt-primary" id="pt-download-btn" onclick="ptDownloadResults()">${icon('download')}Télécharger mon profil (PDF)</button>
       <button class="pt-btn" onclick="ptRestart()">Recommencer le test</button>
     </div>
   `;
   document.getElementById('pt-screen-results').innerHTML = html;
   espRefreshIcons();
-}
-
-async function ptSaveToEleveSpace(){
-  if(typeof espSession !== 'function'){ alert("La fonctionnalité Espaces n'est pas disponible."); return; }
-  const session = espSession();
-  if(!session || session.role !== 'eleve'){
-    alert("Connectez-vous d'abord à votre espace élève (onglet Espaces) pour pouvoir sauvegarder ce profil.");
-    window.location.href = 'espaces.html?role=eleve';
-    return;
-  }
-  if(!window.__lastRiasecResult){ alert("Aucun résultat à sauvegarder."); return; }
-  const db = espDB();
-  const eleve = db.eleves.find(e => e.id === session.id);
-  if(!eleve){ alert("Compte élève introuvable."); return; }
-  let ok;
-  try {
-    ok = await espSaveRiasecRPC(window.__lastRiasecResult);
-  } catch(e){
-    // Jeton refusé : bandeau "Ta session a expiré" déjà affiché, le résultat reste à l'écran.
-    if(e.espSessionInvalid) return;
-    alert("Erreur lors de la sauvegarde : " + e.message);
-    return;
-  }
-  if(!ok){ alert("Session expirée, merci de te reconnecter."); platformLogout(); return; }
-  eleve.riasec = window.__lastRiasecResult;
-  espSaveDB(db);
-  alert('Votre profil RIASEC (code ' + window.__lastRiasecResult.hollandCode + ') a été sauvegardé dans votre espace élève !');
 }
 
 function ptDownloadResults(){

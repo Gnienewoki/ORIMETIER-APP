@@ -85,7 +85,7 @@
     box-shadow:0 2px 10px rgba(0,0,0,0.05);
   }
   .gate-storage-warning b{display:block;margin-bottom:4px;}
-  .gate-inner #esp-role-select, .gate-inner #esp-admin, .gate-inner #esp-inspecteur, .gate-inner #esp-eleve, .gate-inner #esp-etablissement{
+  .gate-inner #esp-role-select, .gate-inner #esp-admin, .gate-inner #esp-inspecteur, .gate-inner #esp-etablissement{
     text-align:left;
   }
   .auth-bar{
@@ -465,7 +465,7 @@
     .es-tab-btn{font-size:.8rem;min-width:118px;padding:9px 10px;}
   }
 
-  /* ==== Espaces (admin / inspecteur / élève / établissement) ==== */
+  /* ==== Espaces (admin / inspecteur / établissement) ==== */
   .esp-role-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:6px;}
   .esp-role-card{
     background:var(--panel);border:2px solid var(--border);border-radius:20px;
@@ -633,7 +633,7 @@
     .gate-intro{font-size:14px;}
     .gate-storage-warning{font-size:13.5px;}
 
-    /* Espaces (admin / inspecteur / élève / établissement) */
+    /* Espaces (admin / inspecteur / établissement) */
     .esp-role-card{padding:24px 16px;}
     .esp-role-icon{width:48px;height:48px;}
     .esp-role-icon svg{width:24px;height:24px;}

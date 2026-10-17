@@ -4,7 +4,7 @@
 // en cache les fichiers de l'application (HTML/CSS/JS/icônes) pour
 // un chargement plus rapide et une meilleure résilience.
 // ⚠️ Ceci NE fait PAS fonctionner l'application sans connexion :
-// les données (élèves, inspecteurs, notes...) viennent toujours de
+// les données (inspecteurs, établissements, messages...) viennent toujours de
 // Supabase et nécessitent Internet. Le vrai mode hors-ligne avec
 // synchronisation est une étape ultérieure de la feuille de route.
 // ============================================================
@@ -13,7 +13,7 @@
 // venus, et déclenche le rechargement automatique (voir "controllerchange"
 // dans bootstrap.js) pour qu'ils récupèrent la nouvelle version sans rien
 // avoir à faire.
-const CACHE_NAME = 'orimetier-shell-v33';
+const CACHE_NAME = 'orimetier-shell-v34';
 
 // Liste exhaustive et vérifiée des fichiers réellement servis par le site
 // (aucune entrée fantôme : un seul 404 dans un cache.addAll classique fait
@@ -30,7 +30,6 @@ const APP_SHELL = [
   './liens-formation.html',
   './test.html',
   './espaces.html',
-  './eleves.html',
   // Style
   './style.css',
   './accueil.css',
@@ -60,7 +59,6 @@ const APP_SHELL = [
   // Espaces
   './admin.js',
   './inspecteur.js',
-  './eleve.js',
   './etablissement.js',
   './lycam.js',
   './mbti.js',
