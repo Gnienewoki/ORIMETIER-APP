@@ -198,7 +198,7 @@ function updateAuthBar(){
           <div class="esp-guest-menu" id="esp-guest-menu">
             <a href="espaces.html?role=inspecteur&amp;action=register">${icon('compass')}Inspecteur d'orientation</a>
             <a href="espaces.html?role=eleve&amp;action=register">${icon('graduation-cap')}Élève / Étudiant</a>
-            <a href="espaces.html?role=etablissement&amp;action=register">${icon('school')}Établissement</a>
+            <span class="esp-infobulle" onmouseenter="espInfobulleRouvrir(this)" onfocusin="espInfobulleRouvrir(this)"><a href="espaces.html?role=etablissement&amp;action=register" aria-describedby="esp-ib-guest-etab">${icon('school')}Établissement</a><button type="button" class="esp-infobulle-btn" aria-label="Information avant d'inscrire un établissement" aria-expanded="false" aria-controls="esp-ib-guest-etab" onclick="espInfobulleBascule(this)">i</button><span class="esp-infobulle-bulle" role="tooltip" id="esp-ib-guest-etab">Avez-vous vérifié que votre établissement n'est pas déjà inscrit avant de continuer ?</span></span>
           </div>
         </div>
         <a href="espaces.html" class="esp-btn">${icon('lock')}Déjà inscrit ? Se connecter</a>

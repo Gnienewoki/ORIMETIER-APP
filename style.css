@@ -843,6 +843,13 @@
 }
 .esp-guest-menu a svg{ width:16px; height:16px; flex-shrink:0; }
 .esp-guest-menu a:hover{ background:var(--bg); color:var(--orange-dark); }
+/* Infobulle anti-doublon du choix « Établissement » (classes .esp-infobulle* plus haut) : le
+   « i » se place à droite du lien et la bulle passe dessous, dans la largeur du menu. */
+.esp-guest-menu .esp-infobulle{ display:flex; flex-wrap:wrap; align-items:center; }
+.esp-guest-menu .esp-infobulle > a{ flex:1 1 auto; }
+.esp-guest-menu .esp-infobulle-btn{ margin:0 6px 0 4px; }
+.esp-guest-menu .esp-infobulle-bulle{ flex:1 1 100%; margin:2px 4px 4px; }
+.esp-guest-menu .esp-infobulle > a:focus-visible ~ .esp-infobulle-bulle{ display:block; }
 @media (max-width:640px){
   .esp-guest-bar{ width:100%; justify-content:space-between; margin-left:0; }
   .esp-guest-menu{ right:auto; left:0; min-width:200px; }
