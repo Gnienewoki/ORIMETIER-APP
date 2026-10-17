@@ -13,7 +13,7 @@
 // venus, et déclenche le rechargement automatique (voir "controllerchange"
 // dans bootstrap.js) pour qu'ils récupèrent la nouvelle version sans rien
 // avoir à faire.
-const CACHE_NAME = 'orimetier-shell-v28';
+const CACHE_NAME = 'orimetier-shell-v29';
 
 // Liste exhaustive et vérifiée des fichiers réellement servis par le site
 // (aucune entrée fantôme : un seul 404 dans un cache.addAll classique fait
@@ -39,6 +39,7 @@ const APP_SHELL = [
   // Socle JS commun
   './utils.js',
   './modal.js',
+  './supabase-config.js',
   './supabase-client.js',
   './auth.js',
   './bootstrap.js',

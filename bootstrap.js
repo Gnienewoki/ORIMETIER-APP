@@ -100,10 +100,11 @@ if(_espResetLink){
 const _espPath = window.location.pathname;
 
 // ---------------- Compteur de visites (statistiques admin, 1 log par chargement de page) ----------------
-// Liste fermée des 7 vraies pages du site (menu latéral) — test.html en est exclu
+// Liste fermée des vraies pages du site (menu latéral) — test.html en est exclu
 // volontairement, ce n'est pas une page consultée en tant que telle. Doit rester
 // synchronisée avec la liste acceptée par log_visite() côté Supabase.
-const ESP_VISITE_PAGES = ['index.html', 'general.html', 'superieur.html', 'concours.html', 'eleves.html', 'espaces.html', 'liens-formation.html'];
+// index.html (accueil) ne charge pas ce fichier : elle compte sa visite elle-même.
+const ESP_VISITE_PAGES = ['index.html', 'technique.html', 'general.html', 'superieur.html', 'concours.html', 'eleves.html', 'espaces.html', 'liens-formation.html'];
 
 // Fire-and-forget : jamais attendu, ne doit jamais retarder ni bloquer le chargement de
 // la page, et un échec (réseau, RLS, etc.) ne doit jamais remonter à l'utilisateur — au
@@ -114,10 +115,8 @@ function espLogVisiteCourante(){
   // Réaligne les "clean URLs" (/concours) sur le nom de fichier attendu par
   // log_visite() côté Supabase (concours.html), sinon aucune visite n'est comptée.
   if(page && !/\.html$/.test(page)) page += '.html';
-  // technique.html reprend tel quel l'ancien contenu d'index.html : ses visites restent
-  // comptées sous 'index.html' (liste fermée de log_visite inchangée côté Supabase). La
-  // nouvelle page d'accueil (index.html) ne charge pas bootstrap.js et n'est pas comptée.
-  if(page === 'technique.html') page = 'index.html';
+  // technique.html est comptée sous sa propre clé : tant que la migration visites-technique
+  // n'est pas passée, log_visite() renvoie false (aucune erreur) et la visite est ignorée.
   if(!ESP_VISITE_PAGES.includes(page)) return;
   espLogVisiteRPC(page).catch(e => console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) :', e));
 }

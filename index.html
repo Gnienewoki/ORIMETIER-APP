@@ -91,6 +91,34 @@ if('serviceWorker' in navigator){
     window.location.reload();
   });
 }
+
+// Compteur de visites (statistiques admin), sous la clé 'index.html'. L'accueil n'embarque
+// pas supabase-js : après l'affichage complet (événement load, image comprise), on charge
+// supabase-config.js (URL + clé anon publique, quelques octets) puis un seul POST vers la
+// RPC log_visite. Tir-et-oublie : rien n'est attendu, et un échec donne au pire un
+// avertissement en console, rien de visible sur la page.
+window.addEventListener('load', function(){
+  var s = document.createElement('script');
+  s.src = 'supabase-config.js';
+  s.onload = function(){
+    try {
+      fetch(SUPABASE_URL + '/rest/v1/rpc/log_visite', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_page: 'index.html' }),
+        keepalive: true
+      }).then(function(r){
+        if(!r.ok) console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) : HTTP ' + r.status);
+      }).catch(function(e){
+        console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) :', e);
+      });
+    } catch(e){
+      console.warn('[esp] échec de l\'enregistrement de la visite (non bloquant) :', e);
+    }
+  };
+  s.onerror = function(){ console.warn('[esp] supabase-config.js introuvable : visite non comptée (non bloquant).'); };
+  document.body.appendChild(s);
+});
 </script>
 </body>
 </html>

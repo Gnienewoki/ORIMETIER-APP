@@ -271,6 +271,8 @@ function espRenderAdminDashboard(sub){
       rows = rows.filter(r => r.jour >= cutoffStr);
     }
     const total = rows.reduce((n, r) => n + Number(r.visites), 0);
+    // Jour de bascule de la clé 'index.html' (cf. espVisitePageLabel) : calculé sur toutes les lignes.
+    const bascule = allRows.filter(r => r.page === 'technique.html').map(r => String(r.jour)).sort()[0] || null;
     subHtml = `
       <div class="esp-card">
         <div class="esp-title" style="font-size:16px;">${icon('bar-chart-3')}Statistiques de visites</div>
@@ -294,11 +296,12 @@ function espRenderAdminDashboard(sub){
           </div>
         </div>
         <p class="esp-sub"><b>${total}</b> visite${total > 1 ? 's' : ''} sur la sélection actuelle.</p>
+        <p class="esp-sub">« Accueil » : ${bascule ? `avant le ${escapeHtml(espFormatJourFr(bascule))}` : 'jusqu\'à la première visite comptée pour la page Technique'}, ces visites correspondent à l'ancienne page d'accueil (contenu de la page Technique) et sont signalées comme telles dans le tableau.${bascule ? ' Ce jour-là, les deux pages peuvent être mêlées.' : ''}</p>
         <table class="esp-table">
           <thead><tr><th>Jour</th><th>Page</th><th>Visites</th></tr></thead>
           <tbody>
           ${rows.length ? rows.map(r => `
-            <tr><td>${escapeHtml(espFormatJourFr(r.jour))}</td><td>${escapeHtml(espVisitePageLabel(r.page))}</td><td>${r.visites}</td></tr>
+            <tr><td>${escapeHtml(espFormatJourFr(r.jour))}</td><td>${escapeHtml(espVisitePageLabel(r.page, String(r.jour), bascule))}</td><td>${r.visites}</td></tr>
           `).join('') : `<tr><td colspan="3" class="esp-empty">Aucune visite enregistrée sur cette sélection.</td></tr>`}
           </tbody>
         </table>
@@ -896,10 +899,17 @@ function espAdminVisiteFiltrePeriode(value){
 
 // Reprend les libellés déjà utilisés dans le menu latéral (cf. technique.html etc.), pour que
 // le tableau reste lisible plutôt que d'afficher les noms de fichiers bruts.
-// (la clé 'index.html' reste celle de la page Technique : bootstrap.js y compte technique.html)
-function espVisitePageLabel(page){
+// La clé 'index.html' a changé de sens : jusqu'au jour de bascule (premier jour où
+// 'technique.html' apparaît dans les statistiques), elle comptait la page Technique (ancienne
+// accueil) ; depuis, elle compte la nouvelle page d'accueil. Les lignes historiques ne sont pas
+// modifiées en base : seul le libellé d'une ligne datée d'avant la bascule le rappelle.
+function espVisitePageLabel(page, jour, bascule){
+  if(page === 'index.html' && jour && (!bascule || jour < bascule)){
+    return 'Enseignement Technique et Formation Professionnelle (ancienne page d\'accueil)';
+  }
   return {
-    'index.html': 'Enseignement Technique et Formation Professionnelle',
+    'index.html': 'Accueil',
+    'technique.html': 'Enseignement Technique et Formation Professionnelle',
     'general.html': 'Enseignement Général',
     'superieur.html': 'Enseignement supérieur',
     'concours.html': 'Concours et Écoles de formation initiale',

@@ -3,10 +3,7 @@
 // ============================================================
 
 // ---------------- Connexion Supabase (base de données partagée) ----------------
-// ⚠️ Remplace ces deux valeurs par celles de TON projet Supabase
-// (Supabase > Project Settings > API > Project URL / anon public key)
-const SUPABASE_URL = 'https://ltfxaxzkuyejcluoaimq.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_h7s1eQ5VX8iBU2KYTpnZ3w_xRB9Mbl7';
+// SUPABASE_URL / SUPABASE_ANON_KEY : définies dans supabase-config.js, chargé juste avant.
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Les e-mails (lien "mot de passe oublié") partent de l'Edge Function request-password-reset :
 // plus aucune clé EmailJS côté navigateur.
@@ -337,7 +334,7 @@ async function espAdminSessionOpenRPC(email, password){
 
 // ---------------- Statistiques de visites (log brut, écriture publique) ----------------
 // Callable sans mot de passe (simple compteur de passage) : log_visite() côté base valide
-// p_page contre la liste fermée des 7 vraies pages du site et rejette silencieusement
+// p_page contre la liste fermée des vraies pages du site et rejette silencieusement
 // (retourne false) toute autre valeur, donc pas besoin de revalider ici.
 async function espLogVisiteRPC(page){
   const { data, error } = await supabaseClient.rpc('log_visite', { p_page: page });
