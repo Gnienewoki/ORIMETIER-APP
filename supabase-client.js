@@ -286,16 +286,6 @@ async function espInspecteurSessionOpenRPC(tel, password){
   if(error) throw error;
   return data || null;
 }
-async function espInspecteurLoginRPC(tel, password){
-  const { data, error } = await supabaseClient.rpc('inspecteur_login', { p_tel: tel, p_password: password });
-  if(error) throw error;
-  return (data && data[0]) || null;
-}
-async function espEtabLoginRPC(email, password){
-  const { data, error } = await supabaseClient.rpc('etablissement_login', { p_email: email, p_password: password });
-  if(error) throw error;
-  return (data && data[0]) || null;
-}
 // Récupération d'un compte établissement pré-inscrit : id de la fiche choisie + code reçu par
 // courrier (le code seul ne suffit pas ; 5 essais ratés par heure et par fiche). L'établissement
 // choisit à ce moment-là son propre e-mail et mot de passe.
@@ -527,6 +517,11 @@ async function espLycamListSessionsRPC(){
 async function espLycamListResultsRPC(sessionId){
   return ((await espAuthRpc('inspecteur_lycam_list_results_v2', { p_session_id: sessionId })) || []).map(espRowToLycamResultat);
 }
+// Supprime la session et tous ses résultats. Session inexistante ou d'un autre inspecteur :
+// erreur 'unauthorized' (même réponse dans les deux cas).
+async function espLycamDeleteSessionRPC(sessionId){
+  return !!(await espAuthRpc('inspecteur_lycam_delete_session_v2', { p_session_id: sessionId }));
+}
 
 // ---------------- Conversion des lignes MBTI (snake_case) <-> camelCase ----------------
 function espRowToMbtiSession(r){ return { id:r.id, inspecteurId:r.inspecteur_id, nom:r.nom, createdAt:r.created_at }; }
@@ -549,6 +544,11 @@ async function espMbtiListSessionsRPC(){
 }
 async function espMbtiListResultsRPC(sessionId){
   return ((await espAuthRpc('inspecteur_mbti_list_results_v2', { p_session_id: sessionId })) || []).map(espRowToMbtiResultat);
+}
+// Supprime la session et tous ses résultats. Session inexistante ou d'un autre inspecteur :
+// erreur 'unauthorized' (même réponse dans les deux cas).
+async function espMbtiDeleteSessionRPC(sessionId){
+  return !!(await espAuthRpc('inspecteur_mbti_delete_session_v2', { p_session_id: sessionId }));
 }
 
 // ---------------- Établissement : photos et modification des informations générales ----------------

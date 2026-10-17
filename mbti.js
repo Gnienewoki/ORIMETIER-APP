@@ -273,7 +273,10 @@ function espMbtiRenderList(){
           ${_espMbtiSessions.length ? _espMbtiSessions.map(s => `
             <div class="esp-lycam-session-item" onclick="espMbtiOpenSession('${s.id}')">
               <div class="esp-lycam-session-name">${escapeHtml(s.nom)}</div>
-              <div class="esp-lycam-session-date">${new Date(s.createdAt).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="esp-lycam-session-date">${new Date(s.createdAt).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+                <button type="button" class="esp-btn esp-btn-danger" style="padding:5px 10px;font-size:11.5px;" aria-label="Supprimer la session ${escapeHtml(s.nom)}" onclick="event.stopPropagation();espMbtiDeleteSession('${s.id}')">${icon('trash-2')}Supprimer cette session</button>
+              </div>
             </div>
           `).join('') : `<p class="esp-empty">Aucune session pour l'instant. Crée-en une pour commencer.</p>`}
         </div>
@@ -298,6 +301,27 @@ async function espMbtiCreateSession(){
     _espMbtiError = "Erreur : " + e.message;
     espMbtiRefreshContainer();
   }
+}
+
+// Suppression définitive d'une session et de tous ses résultats (serveur). Les résultats de
+// cette session encore en file locale (non synchronisés) sont retirés aussi : sans session,
+// leur envoi échouerait indéfiniment.
+async function espMbtiDeleteSession(sessionId){
+  const s = _espMbtiSessions.find(x => x.id === sessionId);
+  if(!s) return;
+  const pending = espMbtiPendingForSession(sessionId).length;
+  if(!confirm(`Supprimer la session « ${s.nom} » ?\n\nTous les résultats de cette session seront supprimés${pending ? `, y compris ${pending} résultat(s) pas encore synchronisé(s) sur cet appareil` : ''}.\nCette action est définitive.`)) return;
+  try {
+    await espMbtiDeleteSessionRPC(sessionId);
+  } catch(e){
+    if(e.espSessionInvalid) return;
+    _espMbtiError = "Suppression impossible : " + (e.message === 'unauthorized' ? "session introuvable ou accès refusé." : e.message);
+    espMbtiRefreshContainer();
+    return;
+  }
+  espMbtiSavePending(espMbtiLoadPending().filter(p => p.sessionId !== sessionId));
+  if(_espMbtiCurrentSession && _espMbtiCurrentSession.id === sessionId) _espMbtiCurrentSession = null;
+  await espMbtiInitTab();
 }
 
 async function espMbtiOpenSession(sessionId){
