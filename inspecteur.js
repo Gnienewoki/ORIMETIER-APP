@@ -23,7 +23,7 @@ function espRenderInspecteurAuth(mode){
         </div>
         <div class="esp-field-row">
           <div class="esp-field"><label>Téléphone</label><input type="tel" id="esp-insp-tel2" placeholder="Ex : 07 00 00 00 00"></div>
-          <div class="esp-field"><label>Mot de passe</label><input type="password" id="esp-insp-pass2"></div>
+          <div class="esp-field"><label>Mot de passe</label><input type="password" id="esp-insp-pass2" oninput="espMdpIndicateurMaj(this)" aria-describedby="esp-insp-pass2-longueur">${espMdpIndicateurHtml('esp-insp-pass2')}</div>
         </div>
         <div class="esp-field" style="margin-bottom:12px;"><label>E-mail</label><input type="email" id="esp-insp-email2" placeholder="Pour récupérer ton mot de passe en cas d'oubli"></div>
         <button class="esp-btn esp-btn-primary" id="esp-insp-register-btn" onclick="espInspecteurRegister()">Créer mon compte</button>
@@ -50,6 +50,10 @@ async function espInspecteurRegister(){
   const errEl = document.getElementById('esp-insp-error');
   if(!nom || !tel || !pass){
     errEl.innerHTML = '<p class="esp-error">Nom, téléphone et mot de passe sont obligatoires.</p>';
+    return;
+  }
+  if(espMdpTropCourt(pass)){
+    errEl.innerHTML = '<p class="esp-error">' + ESP_MDP_TROP_COURT_MSG + '</p>';
     return;
   }
   const btn = document.getElementById('esp-insp-register-btn');

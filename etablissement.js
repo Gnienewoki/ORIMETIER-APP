@@ -71,7 +71,7 @@ function espRenderEtabAuth(mode){
         </div>
         <div class="esp-field"><label>Site web</label><input type="text" id="esp-etab-siteweb" placeholder="Optionnel"></div>
         <div class="esp-field-row">
-          <div class="esp-field"><label for="esp-etab-pass2">Mot de passe</label><input type="password" id="esp-etab-pass2" autocomplete="new-password"></div>
+          <div class="esp-field"><label for="esp-etab-pass2">Mot de passe</label><input type="password" id="esp-etab-pass2" autocomplete="new-password" oninput="espMdpIndicateurMaj(this)" aria-describedby="esp-etab-pass2-longueur">${espMdpIndicateurHtml('esp-etab-pass2')}</div>
           <div class="esp-field"><label for="esp-etab-pass2-confirm">Confirmer le mot de passe</label><input type="password" id="esp-etab-pass2-confirm" autocomplete="new-password"></div>
         </div>
         <p style="margin:0 0 14px;font-size:12.5px;"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="esp-etab-pass2-afficher" onchange="espEtabRegisterAfficherPass(this.checked)">Afficher les mots de passe</label></p>
@@ -450,6 +450,10 @@ async function espEtabRegister(){
     document.getElementById('esp-etab-error').innerHTML = "<p class=\"esp-error\">Nom de l'établissement, ville, e-mail et mot de passe sont obligatoires.</p>";
     return;
   }
+  if(espMdpTropCourt(pass)){
+    document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + ESP_MDP_TROP_COURT_MSG + '</p>';
+    return;
+  }
   if(pass !== passConfirm){
     document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">Les deux mots de passe ne correspondent pas : saisissez le même mot de passe dans « Mot de passe » et « Confirmer le mot de passe ».</p>';
     return;
@@ -479,6 +483,10 @@ async function espEtabRegister(){
       document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + espEtabDoublonAvertissementHtml() + '</p>'
         + '<p class="esp-sub">' + escapeHtml(msg.slice('DOUBLON:'.length).trim()) + '</p>';
       espRefreshIcons();
+      return;
+    }
+    if(/MOT_DE_PASSE_TROP_COURT/.test(msg)){
+      document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + ESP_MDP_TROP_COURT_MSG + '</p>';
       return;
     }
     document.getElementById('esp-etab-error').innerHTML = '<p class="esp-error">' + escapeHtml("Erreur lors de l'inscription : " + msg) + '</p>';
@@ -561,7 +569,7 @@ function espRenderEtabClaim(){
         <p class="esp-sub" style="margin:4px 0 0;">Pas de lettres O, I, L ni de chiffres 0, 1 dans les codes.</p>
       </div>
       <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-email">E-mail de l'établissement</label><input type="email" id="esp-etab-claim-email" placeholder="contact@etablissement.ci"></div>
-      <div class="esp-field" style="margin-bottom:8px;"><label for="esp-etab-claim-pass">Choisir un mot de passe (4 caractères minimum)</label><input type="password" id="esp-etab-claim-pass" autocomplete="new-password"></div>
+      <div class="esp-field" style="margin-bottom:8px;"><label for="esp-etab-claim-pass">Choisir un mot de passe</label><input type="password" id="esp-etab-claim-pass" autocomplete="new-password" oninput="espMdpIndicateurMaj(this)" aria-describedby="esp-etab-claim-pass-longueur">${espMdpIndicateurHtml('esp-etab-claim-pass')}</div>
       <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-pass2">Confirmer le mot de passe</label><input type="password" id="esp-etab-claim-pass2" autocomplete="new-password" onkeydown="if(event.key==='Enter')espEtabClaim()"></div>
       <p class="esp-sub" style="margin:4px 0 8px;">Facultatif :</p>
       <div class="esp-field" style="margin-bottom:12px;"><label for="esp-etab-claim-resp">Nom du responsable</label><input type="text" id="esp-etab-claim-resp" placeholder="Optionnel si déjà renseigné par l'administration"></div>
@@ -661,7 +669,7 @@ async function espEtabClaim(){
   if(code.length !== 8) return erreur('Le code de récupération compte 8 signes.');
   if(!email) return erreur("L'e-mail de l'établissement est obligatoire.");
   if(!ESP_EMAIL_RE.test(email)) return erreur('Merci de saisir une adresse e-mail valide.');
-  if(pass.length < 4) return erreur('Le mot de passe doit contenir au moins 4 caractères.');
+  if(espMdpTropCourt(pass)) return erreur(ESP_MDP_TROP_COURT_MSG);
   if(pass !== pass2) return erreur('Les mots de passe ne correspondent pas.');
 
   errEl.innerHTML = '';
@@ -712,6 +720,8 @@ async function espEtabClaim(){
       return erreur("Cette fiche n'existe plus. Recherchez à nouveau votre établissement.");
     case 'CHAMPS_OBLIGATOIRES':
       return erreur('La fiche, le code, l\'e-mail et le mot de passe sont obligatoires.');
+    case 'MOT_DE_PASSE_TROP_COURT':
+      return erreur(ESP_MDP_TROP_COURT_MSG);
     default:
       return erreur('La récupération a échoué. Réessayez dans quelques instants.');
   }

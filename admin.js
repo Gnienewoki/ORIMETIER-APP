@@ -953,7 +953,7 @@ const ESP_ADMIN_COMPTE_ERREURS = {
   CHAMPS_OBLIGATOIRES: 'Nom et e-mail sont obligatoires.',
   EMAIL_INVALIDE: 'Adresse e-mail invalide.',
   EMAIL_DEJA_UTILISE: 'Cet e-mail est déjà utilisé par un autre admin.',
-  MOT_DE_PASSE_TROP_COURT: '8 caractères minimum.',
+  MOT_DE_PASSE_TROP_COURT: 'Le mot de passe doit contenir au moins 8 caractères.',
   ADMINS_LIMITE_ATTEINTE: "5 admins actifs au maximum : désactive d'abord un compte.",
   DERNIER_ADMIN_ACTIF: 'Impossible : il doit rester au moins un admin actif.',
   ADMIN_AUTO_DESACTIVATION: 'Tu ne peux pas désactiver ton propre compte.',
@@ -1041,7 +1041,7 @@ function espAdminComptesHtml(list){
         <div class="esp-field"><label>E-mail</label><input type="email" id="esp-admin-new-email" autocomplete="off"></div>
       </div>
       <div class="esp-field-row" style="margin-bottom:14px;">
-        <div class="esp-field"><label>Mot de passe initial (8 caractères minimum)</label><input type="password" id="esp-admin-new-pass" autocomplete="new-password"></div>
+        <div class="esp-field"><label>Mot de passe initial</label><input type="password" id="esp-admin-new-pass" autocomplete="new-password" oninput="espMdpIndicateurMaj(this)" aria-describedby="esp-admin-new-pass-longueur">${espMdpIndicateurHtml('esp-admin-new-pass')}</div>
         <div class="esp-field"><label>Confirmation</label><input type="password" id="esp-admin-new-pass2" autocomplete="new-password"></div>
       </div>
       <button class="esp-btn esp-btn-primary" onclick="espAdminCreateCompte()">${icon('user-plus')}Créer le compte</button>
@@ -1059,6 +1059,10 @@ async function espAdminCreateCompte(){
   const passEl = document.getElementById('esp-admin-new-pass');
   const pass2El = document.getElementById('esp-admin-new-pass2');
   errEl.innerHTML = '';
+  if(espMdpTropCourt(passEl.value)){
+    errEl.innerHTML = '<p class="esp-error">' + ESP_MDP_TROP_COURT_MSG + '</p>';
+    return;
+  }
   if(passEl.value !== pass2El.value){
     errEl.innerHTML = '<p class="esp-error">Les deux mots de passe ne correspondent pas.</p>';
     return;

@@ -880,6 +880,30 @@ async function espSubmitEmailForm(role){
   }
 }
 
+// ---------------- Longueur minimale des NOUVEAUX mots de passe ----------------
+// Même seuil que le serveur (erreur MOT_DE_PASSE_TROP_COURT) : inscription inspecteur et
+// établissement, récupération de fiche, réinitialisation, création d'un compte admin.
+// Jamais appliqué à la connexion : un ancien mot de passe plus court reste accepté.
+// Longueur comptée en caractères (points de code), comme length() côté base.
+const ESP_MDP_MIN = 8;
+const ESP_MDP_TROP_COURT_MSG = 'Le mot de passe doit contenir au moins 8 caractères.';
+function espMdpLongueur(valeur){ return [...(valeur || '')].length; }
+function espMdpTropCourt(valeur){ return espMdpLongueur(valeur) < ESP_MDP_MIN; }
+// Indicateur discret sous le champ (id du champ + '-longueur'), mis à jour à chaque saisie
+// par oninput="espMdpIndicateurMaj(this)". Indicatif seulement : le contrôle bloquant est
+// fait à l'envoi, puis par le serveur.
+function espMdpIndicateurHtml(inputId){
+  return `<p class="esp-sub" id="${inputId}-longueur" style="margin:4px 0 0;font-size:12px;">${ESP_MDP_MIN} caractères minimum</p>`;
+}
+function espMdpIndicateurMaj(input){
+  const el = input && document.getElementById(input.id + '-longueur');
+  if(!el) return;
+  const n = espMdpLongueur(input.value);
+  el.textContent = n === 0 ? `${ESP_MDP_MIN} caractères minimum`
+    : n < ESP_MDP_MIN ? `${n} / ${ESP_MDP_MIN} caractères minimum`
+    : `${n} caractères : longueur suffisante`;
+}
+
 // ---------------- Mot de passe oublié ----------------
 // Demande : Edge Function request-password-reset (espRequestPasswordReset).
 // Lien reçu par e-mail : APP_URL/#reset=<jeton>, lu et retiré de l'URL par bootstrap.js,
@@ -957,7 +981,7 @@ function espRenderResetPasswordScreen(token){
     <div class="esp-card" style="max-width:480px;margin:40px auto;">
       <div class="esp-title">${icon('key')}Nouveau mot de passe</div>
       <div class="esp-field" style="margin-bottom:12px;"><label>Nouveau mot de passe</label>
-        <input type="password" id="esp-reset-pass1" autocomplete="new-password"></div>
+        <input type="password" id="esp-reset-pass1" autocomplete="new-password" oninput="espMdpIndicateurMaj(this)" aria-describedby="esp-reset-pass1-longueur">${espMdpIndicateurHtml('esp-reset-pass1')}</div>
       <div class="esp-field" style="margin-bottom:12px;"><label>Confirmer le mot de passe</label>
         <input type="password" id="esp-reset-pass2" autocomplete="new-password" onkeydown="if(event.key==='Enter')espSubmitResetPassword()"></div>
       <button class="esp-btn esp-btn-primary" id="esp-reset-submit-btn" onclick="espSubmitResetPassword()">Valider le nouveau mot de passe</button>
@@ -984,7 +1008,7 @@ async function espSubmitResetPassword(){
   const pass2 = document.getElementById('esp-reset-pass2').value;
   const msgEl = document.getElementById('esp-reset-msg');
   const btn = document.getElementById('esp-reset-submit-btn');
-  if(pass1.length < 4){ msgEl.innerHTML = '<p class="esp-error">Le mot de passe doit contenir au moins 4 caractères.</p>'; return; }
+  if(espMdpTropCourt(pass1)){ msgEl.innerHTML = '<p class="esp-error">' + ESP_MDP_TROP_COURT_MSG + '</p>'; return; }
   if(pass1 !== pass2){ msgEl.innerHTML = '<p class="esp-error">Les deux mots de passe ne correspondent pas.</p>'; return; }
   btn.disabled = true; btn.textContent = 'Validation en cours...';
   try {
@@ -997,8 +1021,11 @@ async function espSubmitResetPassword(){
     btn.style.display = 'none';
     setTimeout(() => window.location.replace('espaces.html'), 2500);
   } catch(e){
-    msgEl.innerHTML = /MOT_DE_PASSE_INVALIDE/.test(e.message || '')
-      ? '<p class="esp-error">Ce mot de passe n\'est pas accepté. Choisis-en un autre (4 caractères minimum).</p>'
+    const message = (e && e.message) || '';
+    msgEl.innerHTML = /MOT_DE_PASSE_TROP_COURT/.test(message)
+      ? '<p class="esp-error">' + ESP_MDP_TROP_COURT_MSG + '</p>'
+      : /MOT_DE_PASSE_INVALIDE/.test(message)
+      ? '<p class="esp-error">Ce mot de passe n\'est pas accepté. Choisis-en un autre.</p>'
       : '<p class="esp-error">La mise à jour n\'a pas pu aboutir. Vérifie ta connexion internet puis réessaie.</p>';
     btn.disabled = false; btn.textContent = 'Valider le nouveau mot de passe';
   }

@@ -206,6 +206,7 @@ const ESP_INSP_REGISTER_ERREURS = {
   CHAMPS_OBLIGATOIRES: 'Nom, téléphone et mot de passe sont obligatoires.',
   CHAMP_TROP_LONG: 'Un des champs est trop long.',
   MOT_DE_PASSE_INVALIDE: 'Ce mot de passe ne peut pas être utilisé, choisis-en un autre.',
+  MOT_DE_PASSE_TROP_COURT: 'Le mot de passe doit contenir au moins 8 caractères.',
   TEL_DEJA_UTILISE: 'Un compte existe déjà avec ce numéro de téléphone.',
   EMAIL_DEJA_UTILISE: 'Un compte existe déjà avec cette adresse e-mail.',
   ID_DEJA_UTILISE: 'Identifiant de compte déjà utilisé, réessaie.',
