@@ -198,10 +198,30 @@ function espSaveDB(db){
 }
 
 // ---------------- Inscription (création de compte) ----------------
-// Autorisée directement : chaque personne ne crée que SON PROPRE compte.
+// Inspecteur : par la fonction inspecteur_register (plus d'INSERT direct dans la table), qui
+// impose elle-même active, certifie, banni et certification_demandee : row.active est ignoré.
+// Erreurs métier renvoyées en jsonb {ok:false, erreur}, converties en Error au message lisible
+// (affiché tel quel par l'écran d'inscription) ; le code reste disponible dans e.espErreur.
+const ESP_INSP_REGISTER_ERREURS = {
+  CHAMPS_OBLIGATOIRES: 'Nom, téléphone et mot de passe sont obligatoires.',
+  CHAMP_TROP_LONG: 'Un des champs est trop long.',
+  MOT_DE_PASSE_INVALIDE: 'Ce mot de passe ne peut pas être utilisé, choisis-en un autre.',
+  TEL_DEJA_UTILISE: 'Un compte existe déjà avec ce numéro de téléphone.',
+  EMAIL_DEJA_UTILISE: 'Un compte existe déjà avec cette adresse e-mail.',
+  ID_DEJA_UTILISE: 'Identifiant de compte déjà utilisé, réessaie.',
+};
 async function espInsertInspecteur(row){
-  const { error } = await supabaseClient.from('inspecteurs').insert([row]);
+  const { data, error } = await supabaseClient.rpc('inspecteur_register', {
+    p_id: row.id, p_nom: row.nom, p_prenoms: row.prenoms, p_fonction: row.fonction, p_cio: row.cio,
+    p_tel: row.tel, p_email: row.email, p_password: row.password, p_date_inscription: row.date_inscription,
+  });
   if(error){ throw error; }
+  if(!data || !data.ok){
+    const code = (data && data.erreur) || 'REPONSE_VIDE';
+    const e = new Error(ESP_INSP_REGISTER_ERREURS[code] || 'Inscription refusée par le serveur.');
+    e.espErreur = code;
+    throw e;
+  }
 }
 async function espInsertEtablissement(row){
   const { data, error } = await supabaseClient.rpc('etablissement_register', {
