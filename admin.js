@@ -39,11 +39,31 @@ async function espAdminLogin(){
   platformUnlock();
 }
 // Caches admin en mémoire : vidés à la déconnexion et sur session refusée (auth.js, espHandleSessionInvalid).
-function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; _espAdminComptes = null; _espCodesListe = null; }
+function espAdminResetCaches(){ _espAdminEtabFull = null; _espAdminDemandesInscription = null; _espAdminComptes = null; _espCodesListe = null; _espAdminInspContacts = null; }
 function espAdminLogout(){ espAdminResetCaches(); platformLogout(); }
 
-function espExportBackup(){
-  const db = espDB();
+// Sauvegarde JSON : espDB() + tel / email des inspecteurs (list_inspecteurs ne les renvoie plus),
+// fusionnés dans une COPIE des inspecteurs pour l'export uniquement, jamais dans espDB() ni dans
+// sessionStorage. Contacts indisponibles : l'export part quand même, sans eux, avec un message.
+async function espExportBackup(){
+  let contacts = _espAdminInspContacts;
+  let avertissement = '';
+  if(contacts === null){
+    try {
+      contacts = espAdminInspContactsDepuisLignes(await espAdminListInspecteursContactsRPC());
+      _espAdminInspContacts = contacts;
+    } catch(e){
+      if(e.espSessionInvalid) return; // bandeau "session expirée" déjà affiché
+      contacts = null;
+      avertissement = "Sauvegarde exportée SANS le téléphone ni l'e-mail des inspecteurs (contacts indisponibles : " + e.message + "). Réessaie plus tard pour une sauvegarde complète.";
+    }
+  }
+  const base = espDB();
+  const inspecteurs = (base.inspecteurs || []).map(i => {
+    const c = contacts && contacts[i.id];
+    return c ? Object.assign({}, i, { tel: c.tel, email: c.email }) : Object.assign({}, i);
+  });
+  const db = Object.assign({}, base, { inspecteurs });
   const blob = new Blob([JSON.stringify({ db }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -54,6 +74,7 @@ function espExportBackup(){
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+  if(avertissement) alert(avertissement);
 }
 
 function espRenderAdminDashboard(sub){
@@ -88,7 +109,7 @@ function espRenderAdminDashboard(sub){
     if(_espAdminDemandesInscription === null) espAdminEnsureDemandesInscriptionLoaded();
   } else if(sub === 'inspecteurs'){
     subHtml = `
-      <table class="esp-table">
+      <table class="esp-table" id="esp-admin-insp-table">
         <thead><tr><th>Nom</th><th>Fonction</th><th>CIO / Zone</th><th>Contact</th><th>Inscrit le</th><th>Statut</th><th></th></tr></thead>
         <tbody>
         ${db.inspecteurs.length ? db.inspecteurs.map(i => `
@@ -96,7 +117,7 @@ function espRenderAdminDashboard(sub){
             <td><b>${escapeHtml(i.nom)} ${escapeHtml(i.prenoms||'')}</b>${i.certifie ? ` <span class="esp-badge-certifie" title="Compte certifié">${icon('badge-check')}</span>` : ''}${(!i.certifie && i.certificationDemandee) ? ` <span class="esp-badge en_attente" title="A demandé la certification">${icon('shield-check')}Demande</span>` : ''}</td>
             <td>${escapeHtml(i.fonction)}</td>
             <td>${escapeHtml(i.cio)}</td>
-            <td>${escapeHtml(i.tel)}</td>
+            <td>${espAdminInspContactHtml(i.id)}</td>
             <td>${escapeHtml(i.dateInscription)}</td>
             <td>${i.banni ? '<span class="esp-badge refuse">Banni</span>' : '<span class="esp-badge valide">Actif</span>'}</td>
             <td>
@@ -108,6 +129,7 @@ function espRenderAdminDashboard(sub){
         </tbody>
       </table>
     `;
+    if(_espAdminInspContacts === null) espAdminEnsureInspContactsLoaded();
   } else if(sub === 'chat'){
     const messages = db.messages || [];
     subHtml = `
@@ -309,7 +331,7 @@ function espRenderAdminDashboard(sub){
     <div class="esp-subtabs">
       <button class="esp-subtab-btn ${sub==='overview'?'active':''}" onclick="espRenderAdminDashboard('overview')">Vue d'ensemble</button>
       <button class="esp-subtab-btn ${sub==='etablissements'?'active':''}" onclick="espRenderAdminDashboard('etablissements')">Établissements${enAttente ? ' ('+enAttente+')' : ''}</button>
-      <button class="esp-subtab-btn ${sub==='inspecteurs'?'active':''}" onclick="espRenderAdminDashboard('inspecteurs')">Comptes inspecteurs</button>
+      <button class="esp-subtab-btn ${sub==='inspecteurs'?'active':''}" onclick="_espAdminInspContacts = null; espRenderAdminDashboard('inspecteurs')">Comptes inspecteurs</button>
       <button class="esp-subtab-btn ${sub==='chat'?'active':''}" onclick="espRenderAdminDashboard('chat')">${icon('message-circle')}Chat & Actualités${(db.messages||[]).length ? ' ('+db.messages.length+')' : ''}</button>
       <button class="esp-subtab-btn ${sub==='liens-formation'?'active':''}" onclick="espRenderAdminDashboard('liens-formation')">${icon('target')}Liens de formation</button>
       <button class="esp-subtab-btn ${sub==='annonce'?'active':''}" onclick="espRenderAdminDashboard('annonce')">${icon('megaphone')}Annonces${(db.annonces||[]).length ? ' ('+db.annonces.length+'/5)' : ''}</button>
@@ -391,6 +413,42 @@ async function espAdminEnsureDemandesInscriptionLoaded(){
 }
 function espAdminInvalidateDemandesInscription(){
   _espAdminDemandesInscription = null;
+}
+
+// Coordonnées des inspecteurs (tel, e-mail), réservées à l'admin : list_inspecteurs ne les
+// renvoie plus. Cache séparé, alimenté par admin_list_inspecteurs_contacts_v2, jamais écrit
+// dans espDB() ni dans sessionStorage. null = pas encore chargé, sinon { id: { tel, email } }.
+let _espAdminInspContacts = null;
+let _espAdminInspContactsLoading = false;
+
+async function espAdminEnsureInspContactsLoaded(){
+  if(_espAdminInspContacts !== null || _espAdminInspContactsLoading) return;
+  _espAdminInspContactsLoading = true;
+  let rows;
+  try {
+    rows = await espAdminListInspecteursContactsRPC();
+  } catch(err){
+    _espAdminInspContactsLoading = false;
+    if(err.espSessionInvalid) return;
+    alert("Erreur lors du chargement des contacts des inspecteurs : " + err.message);
+    return;
+  }
+  _espAdminInspContacts = espAdminInspContactsDepuisLignes(rows);
+  _espAdminInspContactsLoading = false;
+  // Onglet toujours affiché : on le redessine avec les contacts.
+  if(document.getElementById('esp-admin-insp-table')) espRenderAdminDashboard('inspecteurs');
+}
+// Lignes de admin_list_inspecteurs_contacts_v2 -> { id: { tel, email } }.
+function espAdminInspContactsDepuisLignes(rows){
+  const contacts = {};
+  (rows || []).forEach(r => { contacts[r.id] = { tel: r.tel || '', email: r.email || '' }; });
+  return contacts;
+}
+function espAdminInspContactHtml(inspecteurId){
+  if(_espAdminInspContacts === null) return '<span class="esp-sub">Chargement…</span>';
+  const c = _espAdminInspContacts[inspecteurId];
+  if(!c) return '';
+  return [c.tel, c.email].filter(Boolean).map(escapeHtml).join('<br>');
 }
 
 function espAdminEtabFilteredList(list){

@@ -86,6 +86,8 @@ function espHandleSessionInvalid(){
   if(typeof espEtabResetOwn === 'function') espEtabResetOwn();
   // Messages privés de l'inspecteur en mémoire (supabase-client.js), comme à la déconnexion.
   if(typeof espResetPrivateMessages === 'function') espResetPrivateMessages();
+  // Coordonnées de l'inspecteur en mémoire (inspecteur.js), comme à la déconnexion.
+  if(typeof espInspecteurResetOwn === 'function') espInspecteurResetOwn();
   if(espCurrentPageIsPublic()) updateAuthBar();
   else platformLock();
   espShowSessionExpiredNotice(role);
@@ -856,7 +858,6 @@ function espShowEmailForm(role){
   `;
 }
 async function espSubmitEmailForm(role){
-  const session = espSession();
   const email = document.getElementById('esp-email-input-' + role).value.trim();
   const msgEl = document.getElementById('esp-email-msg-' + role);
   if(!email){ msgEl.innerHTML = '<p class="esp-error">Merci de saisir un e-mail.</p>'; return; }
@@ -866,10 +867,8 @@ async function espSubmitEmailForm(role){
       ok = await espUpdateInspecteurEmailRPC(email);
       if(!ok){ msgEl.innerHTML = '<p class="esp-error">Action impossible (limite atteinte ou accès refusé).</p>'; return; }
     }
-    const db = espDB();
-    const i = db.inspecteurs.find(x => x.id === session.id);
-    if(i) i.email = email;
-    espSaveDB(db);
+    // E-mail relu par inspecteur_get_own_v2 au rendu suivant (list_inspecteurs ne le renvoie plus).
+    if(typeof espInspecteurResetOwn === 'function') espInspecteurResetOwn();
     espRenderInspecteurDashboard();
   } catch(e){
     if(e.espSessionInvalid) return; // bandeau "session expirée" déjà affiché

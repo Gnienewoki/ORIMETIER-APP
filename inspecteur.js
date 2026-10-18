@@ -33,9 +33,10 @@ function espRenderInspecteurAuth(mode){
   `;
   espRefreshIcons();
 }
-// Verrou anti double envoi : l'insert est asynchrone et le contrôle de doublon lit une liste
-// distante, donc deux clics rapprochés passeraient tous les deux avant que le premier compte
-// n'existe. Le drapeau bloque le second appel même si le bouton n'a pas encore été grisé.
+// Verrou anti double envoi : l'inscription est asynchrone, deux clics rapprochés enverraient
+// deux demandes. Le drapeau bloque le second appel même si le bouton n'a pas encore été grisé.
+// Téléphone ou e-mail déjà utilisé : tranché par inspecteur_register (numéro normalisé côté
+// serveur), plus par une liste lue ici (list_inspecteurs ne renvoie plus tel ni email).
 let _espInspRegisterBusy = false;
 async function espInspecteurRegister(){
   if(_espInspRegisterBusy) return;
@@ -56,19 +57,6 @@ async function espInspecteurRegister(){
   if(btn){ btn.disabled = true; btn.textContent = 'Création en cours...'; }
   errEl.innerHTML = '';
   try {
-    // Liste fraîche (pas le cache, potentiellement antérieur à un compte créé ailleurs) ;
-    // comparaison sur le numéro normalisé pour aussi rattraper les anciens comptes saisis
-    // avec espaces ou +225.
-    try {
-      const rows = await espFetchAllRows('list_inspecteurs');
-      if(rows.some(r => normalizeTel(r.tel) === tel)){
-        errEl.innerHTML = '<p class="esp-error">Un compte existe déjà avec ce numéro de téléphone.</p>';
-        return;
-      }
-    } catch(e){
-      errEl.innerHTML = '<p class="esp-error">Impossible de vérifier ce numéro pour le moment. Vérifie ta connexion et réessaie.</p>';
-      return;
-    }
     const id = espUid();
     const nouvelInsp = { id, nom, prenoms, fonction, cio, tel, email, password:pass, active:true, dateInscription:espDate() };
     try {
@@ -127,7 +115,76 @@ async function espInspecteurLogin(){
   espSetTokenSession('inspecteur', ouverture.id, ouverture.token, ouverture.expires_at);
   platformUnlock();
 }
-function espInspecteurLogout(){ platformLogout(); }
+function espInspecteurLogout(){ _espInspOwnContact = null; platformLogout(); }
+// Appelée par espHandleSessionInvalid (auth.js) et après un changement d'e-mail : oublie les
+// coordonnées en mémoire, relues au prochain rendu du tableau de bord.
+function espInspecteurResetOwn(){ _espInspOwnContact = null; _espInspOwnContactErreur = false; }
+
+// Coordonnées (tel, e-mail) et message d'accueil de l'inspecteur connecté : alimentés par
+// inspecteur_get_own_v2, jamais par list_inspecteurs (qui ne les renvoie pas). En mémoire
+// seulement, jamais dans espDB() ni dans sessionStorage. null = pas encore chargé.
+let _espInspOwnContact = null;
+let _espInspOwnContactLoading = false;
+let _espInspOwnContactErreur = false;
+async function espInspecteurEnsureOwnContactLoaded(){
+  const session = espSession();
+  if(!session || session.role !== 'inspecteur') return;
+  if((_espInspOwnContact && _espInspOwnContact.id === session.id) || _espInspOwnContactLoading) return;
+  _espInspOwnContactLoading = true;
+  let own;
+  try {
+    own = await espInspecteurGetOwnRPC();
+  } catch(e){
+    _espInspOwnContactLoading = false;
+    if(e.espSessionInvalid) return;
+    console.error('[esp] lecture des coordonnées impossible', e);
+    _espInspOwnContactErreur = true;
+    espInspecteurRefreshOwnLignes();
+    return;
+  }
+  _espInspOwnContactLoading = false;
+  _espInspOwnContact = own;
+  _espInspOwnContactErreur = !own;
+  espInspecteurRefreshOwnLignes();
+}
+// Ligne « E-mail de récupération » du profil (seule la ligne est redessinée après chargement).
+function espInspecteurEmailStatutHtml(){
+  const session = espSession();
+  const own = (_espInspOwnContact && session && _espInspOwnContact.id === session.id) ? _espInspOwnContact : null;
+  if(!own) return _espInspOwnContactErreur ? `${icon('triangle-alert')}E-mail indisponible pour le moment.` : 'Chargement…';
+  return own.email ? `${icon('mail')}<b>${escapeHtml(own.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Modifier</span>` : `${icon('triangle-alert')}Aucun e-mail enregistré. <span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Ajouter</span>`;
+}
+// Coordonnées chargées pour la session courante, sinon null.
+function espInspecteurOwnCharge(){
+  const session = espSession();
+  return (_espInspOwnContact && session && _espInspOwnContact.id === session.id) ? _espInspOwnContact : null;
+}
+// Message d'accueil : valeur de espDB() si renseignée (enregistrée dans cet onglet), sinon celle
+// lue par inspecteur_get_own_v2 (list_inspecteurs ne le renvoie pas).
+function espInspecteurMessageAccueil(insp){
+  const own = espInspecteurOwnCharge();
+  return (insp && insp.messageAccueil) || (own && own.messageAccueil) || '';
+}
+function espInspecteurMessageAccueilHtml(insp){
+  const message = espInspecteurMessageAccueil(insp);
+  if(message) return escapeHtml(message);
+  if(!espInspecteurOwnCharge() && !_espInspOwnContactErreur) return '<i>Chargement…</i>';
+  return '<i>Aucun message d\'accueil défini.</i>';
+}
+// Redessine les lignes du profil qui dépendent de inspecteur_get_own_v2 (e-mail, message
+// d'accueil), sans redessiner le tableau de bord.
+function espInspecteurRefreshOwnLignes(){
+  const el = document.getElementById('esp-insp-email-statut');
+  if(el) el.innerHTML = espInspecteurEmailStatutHtml();
+  const session = espSession();
+  const insp = session ? espDB().inspecteurs.find(i => i.id === session.id) : null;
+  const affiche = document.getElementById('esp-insp-message-accueil-affiche');
+  if(affiche) affiche.innerHTML = espInspecteurMessageAccueilHtml(insp);
+  // Champ de saisie : pré-rempli seulement s'il est vide et pas en cours d'édition.
+  const champ = document.getElementById('esp-insp-message-accueil');
+  if(champ && !champ.value && document.activeElement !== champ) champ.value = espInspecteurMessageAccueil(insp);
+  espRefreshIcons();
+}
 
 function espInspecteurToggleProfileEdit(){
   const panel = document.getElementById('esp-insp-profile-edit');
@@ -201,7 +258,7 @@ function espRenderInspecteurDashboard(sub){
             <div class="esp-insp-profile-fonction">${escapeHtml(insp.fonction||'Inspecteur')}${insp.cio ? ' · ' + escapeHtml(insp.cio) : ''}</div>
           </div>
         </div>
-        <p class="esp-insp-profile-msg">${insp.messageAccueil ? escapeHtml(insp.messageAccueil) : '<i>Aucun message d\'accueil défini.</i>'}</p>
+        <p class="esp-insp-profile-msg" id="esp-insp-message-accueil-affiche">${espInspecteurMessageAccueilHtml(insp)}</p>
         <span class="esp-toggle-link" onclick="espInspecteurToggleProfileEdit()" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">${icon('pencil')}Modifier</span>
         <div id="esp-insp-profile-edit" style="display:none;margin-top:12px;border-top:1px dashed var(--border);padding-top:12px;">
           <div class="esp-field">
@@ -211,13 +268,13 @@ function espRenderInspecteurDashboard(sub){
           </div>
           <div class="esp-field" style="margin-top:10px;">
             <label>Message d'accueil</label>
-            <textarea id="esp-insp-message-accueil" rows="2" maxlength="200" placeholder="Ex : Bonjour, je suis à votre écoute pour toute question d'orientation.">${escapeHtml(insp.messageAccueil||'')}</textarea>
+            <textarea id="esp-insp-message-accueil" rows="2" maxlength="200" placeholder="Ex : Bonjour, je suis à votre écoute pour toute question d'orientation.">${escapeHtml(espInspecteurMessageAccueil(insp))}</textarea>
           </div>
           <button class="esp-btn esp-btn-primary" style="margin-top:8px;" onclick="espInspecteurSaveMessageAccueil()">Enregistrer le message</button>
           <div id="esp-insp-message-accueil-msg"></div>
           <div class="esp-field" style="margin-top:14px;" id="esp-insp-email-card">
             <label>E-mail de récupération</label>
-            ${insp.email ? `<p class="esp-sub" style="margin:0;">${icon('mail')}<b>${escapeHtml(insp.email)}</b> &nbsp;<span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Modifier</span></p>` : `<p class="esp-sub" style="margin:0;">${icon('triangle-alert')}Aucun e-mail enregistré. <span class="esp-toggle-link" onclick="espShowEmailForm('inspecteur')" role="button" tabindex="0" onkeydown="espActivateOnKeydown(event)">Ajouter</span></p>`}
+            <p id="esp-insp-email-statut" class="esp-sub" style="margin:0;">${espInspecteurEmailStatutHtml()}</p>
             <div id="esp-insp-email-form"></div>
           </div>
           <div style="margin-top:14px;">
@@ -243,6 +300,8 @@ function espRenderInspecteurDashboard(sub){
     ${subHtml}
   `;
   espRefreshIcons();
+  // E-mail de récupération : lu par inspecteur_get_own_v2 (une fois par session).
+  espInspecteurEnsureOwnContactLoaded();
 
   if(sub === 'chat'){
     const list = document.getElementById('esp-chat-list');
@@ -326,6 +385,10 @@ async function espInspecteurSaveMessageAccueil(){
     const insp = db.inspecteurs.find(i => i.id === session.id);
     if(insp) insp.messageAccueil = message;
     espSaveDB(db);
+    // Cache de inspecteur_get_own_v2 aligné : sinon l'ancien message y reviendrait (ex. message vidé).
+    const own = espInspecteurOwnCharge();
+    if(own) own.messageAccueil = message;
+    espInspecteurRefreshOwnLignes();
     msgEl.innerHTML = `<p class="esp-sub" style="margin:6px 0 0;color:var(--green-dark);">Message enregistré ${icon('badge-check')}</p>`;
     espRefreshIcons();
   } catch(e){

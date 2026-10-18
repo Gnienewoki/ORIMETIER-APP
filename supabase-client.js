@@ -471,6 +471,15 @@ async function espSetFiliereStatutRPC(etabId, filiereId, statut){
 async function espUpdateInspecteurEmailRPC(email){
   return !!(await espAuthRpc('inspecteur_update_email_v2', { p_email: email }));
 }
+// Coordonnées (tel, e-mail) et message d'accueil de l'inspecteur connecté : list_inspecteurs
+// ne renvoie ni les unes ni l'autre. Inspecteur : authentifié par le jeton de session
+// (espAuthRpc, auth.js). null si introuvable.
+async function espInspecteurGetOwnRPC(){
+  const data = await espAuthRpc('inspecteur_get_own_v2');
+  if(!data || !data[0]) return null;
+  const r = data[0];
+  return { id: r.id, tel: r.tel || '', email: r.email || '', messageAccueil: r.message_accueil || '' };
+}
 // Mot de passe oublié : le jeton est généré et envoyé par e-mail côté serveur (Edge Function).
 // Réponse toujours { ok: true } si la requête est bien formée, que le compte existe ou non.
 async function espRequestPasswordReset(role, email){
@@ -600,6 +609,10 @@ async function espAdminValiderPremiumRPC(etabId){
 // cache partagé espDB() — consommée séparément par la vue "Établissements" de admin.js.
 async function espAdminListEtablissementsFullRPC(){
   return (await espAuthRpc('admin_list_etablissements_full_v2')) || [];
+}
+// Téléphone et e-mail de chaque inspecteur, réservés à l'admin (list_inspecteurs ne les renvoie plus).
+async function espAdminListInspecteursContactsRPC(){
+  return (await espAuthRpc('admin_list_inspecteurs_contacts_v2')) || [];
 }
 
 // ---------------- Admin : suppression et classification d'un établissement ----------------
