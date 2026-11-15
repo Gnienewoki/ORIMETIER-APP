@@ -156,59 +156,271 @@ function espFiliereEtablissements(nom, universites, universitesNoms, grandesEcol
   return rows;
 }
 
+// Chargement unique des tables publiques (universites, universite_filieres, debouches_filieres,
+// grandes écoles), partagé entre initSuperieur et les liens filière -> conditions. Un échec
+// n'est pas mémorisé : le clic suivant retentera le chargement.
+let _esPublicDataPromise = null;
+function espSuperieurPublicData(){
+  if(!_esPublicDataPromise){
+    _esPublicDataPromise = espLoadSuperieurPublicData().catch(e => { _esPublicDataPromise = null; throw e; });
+  }
+  return _esPublicDataPromise;
+}
+
+// ---------------- Panel 3 : détail d'une filière ----------------
+// Débouchés (debouches_filieres), puis conditions d'admission telles que recensées dans
+// universite_filieres (aucun critère n'est déduit ni recopié ailleurs), puis filières proches.
+// codeUniv (optionnel) : université d'où vient le clic, affichée en premier et mise en avant.
+function espRenderFiliereDetail(data, nom, codeUniv){
+  const { universites, universitesNoms, grandesEcoles, filiereDebouches } = data;
+  const container = document.getElementById('results-filiere');
+  container.innerHTML = '';
+  if (!nom) {
+    container.innerHTML = '<div class="empty-state">Sélectionnez une filière pour afficher ses débouchés.</div>';
+    return;
+  }
+
+  const f = filiereDebouches.find(x => x.nom === nom);
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = f ? `
+      <h3>${f.nom}</h3>
+      <div class="meta-row"><div class="meta-item"><b>Filière recensée dans</b>${f.source}</div></div>
+      <div class="debouches"><b>Débouchés :</b> ${f.debouches}</div>
+    ` : `<h3>${escapeHtml(nom)}</h3><div class="es-fp-etab-meta">Débouchés non recensés pour cette filière.</div>`;
+  container.appendChild(card);
+
+  const conditions = [];
+  Object.keys(universites).forEach(code => {
+    universites[code].forEach(u => { if (u.nom === nom) conditions.push({ code, ...u }); });
+  });
+  if (conditions.length) {
+    conditions.sort((a, b) => (b.code === codeUniv) - (a.code === codeUniv));
+    const section = document.createElement('div');
+    section.className = 'es-fp-section';
+    section.innerHTML = '<div class="es-fp-title">Conditions d\'admission (universités publiques)</div>' +
+      conditions.map(c => espCarteConditionsHtml(universitesNoms[c.code], c, c.code === codeUniv)).join('');
+    container.appendChild(section);
+  }
+
+  const proches = espFilieresProches(nom, universites, grandesEcoles);
+  if (proches.length) {
+    const section = document.createElement('div');
+    section.className = 'es-fp-section';
+    const grid = document.createElement('div');
+    grid.className = 'es-fp-grid';
+    proches.forEach(pNom => {
+      const etabs = espFiliereEtablissements(pNom, universites, universitesNoms, grandesEcoles);
+      const etabsHtml = etabs.length
+        ? etabs.map(e => `
+            <div class="es-fp-etab">
+              <div class="es-fp-etab-nom">${e.etablissement}</div>
+              <div class="es-fp-etab-meta">Bac ${e.bac} · Âge limite ${e.age}${e.criteres ? ' · ' + e.criteres : ''}</div>
+            </div>
+          `).join('')
+        : '<div class="es-fp-etab-meta">Aucun établissement public relevé pour cette filière.</div>';
+      const pCard = document.createElement('div');
+      pCard.className = 'es-fp-card';
+      pCard.innerHTML = `<div class="es-fp-nom">${pNom}</div>${etabsHtml}`;
+      grid.appendChild(pCard);
+    });
+    section.innerHTML = '<div class="es-fp-title">Filières proches</div>';
+    section.appendChild(grid);
+    container.appendChild(section);
+  }
+}
+
+function espCarteConditionsHtml(nomUniv, f, enAvant){
+  return `
+    <div class="card${enAvant ? ' es-cond--focus' : ''}">
+      <h3>${escapeHtml(nomUniv || '')}</h3>
+      <div class="meta-row">
+        <div class="meta-item"><b>Série(s) BAC</b>${escapeHtml(f.bac || '—')}</div>
+        <div class="meta-item"><b>Âge limite</b>${escapeHtml(f.age || '—')}</div>
+      </div>
+      <div class="criteres"><b>Critères d'accès :</b> ${escapeHtml(f.criteres || '—')}</div>
+    </div>`;
+}
+
+// Affiche un onglet (sans toucher au parcours de retour : cf. le clic menu dans initSuperieur).
+function espActiverOnglet(tab){
+  const panel = document.getElementById('panel-' + tab);
+  if (!panel) return;
+  document.querySelectorAll('.es-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.es-panel').forEach(p => p.classList.remove('active'));
+  panel.classList.add('active');
+  if(tab === 'univ-prive') renderSuperieurPriveTable('universite');
+  if(tab === 'ecole-prive') renderSuperieurPriveTable('grande_ecole');
+}
+
+// ---------------- Retour vers « Universités publiques » ----------------
+// Actif seulement quand on arrive sur l'écran filière par un lien de l'onglet Universités
+// publiques (tableau ou fiche détail). Une entrée d'historique est ajoutée à ce moment-là :
+// le bouton « Retour », le bouton précédent du navigateur et le geste retour d'Android
+// ramènent tous à l'onglet. La recherche et les filtres de l'onglet ne sont jamais
+// réinitialisés (l'onglet est seulement masqué) ; la position dans la liste est restaurée.
+let _esRetourUniv = null; // { scrollY } tant que le retour est possible
+
+function espEntrerDepuisUnivPublic(){
+  if (_esRetourUniv) return; // déjà dans le parcours (ex. clic sur une autre filière proposée)
+  _esRetourUniv = { scrollY: window.scrollY };
+  try { history.pushState({ esRetourUniv: true }, ''); } catch(e) {}
+  const b = document.getElementById('es-retour-univ');
+  if (b) b.hidden = false;
+}
+
+function espRestaurerUnivPublic(){
+  const ctx = _esRetourUniv;
+  _esRetourUniv = null;
+  const b = document.getElementById('es-retour-univ');
+  if (b) b.hidden = true;
+  espActiverOnglet('univ');
+  requestAnimationFrame(() => window.scrollTo(0, ctx ? ctx.scrollY : 0));
+}
+
+// Bouton « Retour » : passe par l'historique pour qu'il reste cohérent avec le bouton
+// précédent (popstate fait alors la restauration).
+function espRetourUnivPublic(){
+  if (!_esRetourUniv) return;
+  if (history.state && history.state.esRetourUniv) history.back();
+  else espRestaurerUnivPublic();
+}
+
+// Départ par le menu alors que le retour était possible : on retire l'entrée d'historique
+// ajoutée, pour que le bouton précédent ne « tourne pas à vide ».
+function espAbandonnerRetourUniv(){
+  if (!_esRetourUniv) return;
+  _esRetourUniv = null;
+  const b = document.getElementById('es-retour-univ');
+  if (b) b.hidden = true;
+  if (history.state && history.state.esRetourUniv) history.back();
+}
+
+window.addEventListener('popstate', () => {
+  if (_esRetourUniv) espRestaurerUnivPublic();
+});
+
+// ---------------- Lien filière (fiche MESRS) -> conditions d'admission ----------------
+// Fiches etablissements des 9 universités publiques (lot 3, MESRS) -> code universites.
+const ES_UNIV_MS_CODE = { ms_439:'UFHB', ms_440:'UNA', ms_441:'UPGC', ms_442:'UJLOG', ms_443:'UMAN', ms_444:'UVCI', ms_445:'UAO', ms_446:'USP', ms_447:'UBOND' };
+window.espFiliereLienPossible = e => !!(e && ES_UNIV_MS_CODE[e.id]);
+let _esFiliereUI = null;
+
+// Retire les préfixes de forme (« LICENCE (PROFESSIONNELLE) DE/D'/DES/EN », « UVCI/ISN : »,
+// « spécialité ») pour ne garder que l'intitulé de la filière.
+function espFiliereSansPrefixe(nom){
+  let t = (nom || '').trim(), avant;
+  do {
+    avant = t;
+    t = t.replace(/^UVCI\s*\/\s*ISN\s*:\s*/i, '')
+         .replace(/^sp[ée]cialit[ée]\s+/i, '')
+         .replace(/^licence(\s+professionnelle)?(\s+(de|des|du|en|es)\s+|\s+d['’]\s*|\s+)/i, '')
+         .trim();
+  } while (t !== avant);
+  return t;
+}
+// Clé de comparaison : sans préfixe, minuscules, sans accents ni ponctuation.
+function espFiliereCle(nom){
+  return espTexteRecherche(espFiliereSansPrefixe(nom));
+}
+
+function espOuvrirFiliereDepuisBouton(btn){
+  espOuvrirFiliereCriteres(btn.dataset.etab, btn.dataset.filiere);
+}
+
+// 1) Intitulé retrouvé dans universite_filieres de cette université : critères de la filière.
+// 2) Sinon : filières de cette université (avec leurs critères), intitulé repris dans la recherche.
+async function espOuvrirFiliereCriteres(etabId, nomFiliere){
+  espEntrerDepuisUnivPublic(); // mémorise la position dans la liste AVANT de changer d'onglet
+  if (typeof closeModal === 'function') closeModal();
+  espActiverOnglet('filiere');
+  const container = document.getElementById('results-filiere');
+  const panel = document.getElementById('panel-filiere');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  let data;
+  try {
+    data = await espSuperieurPublicData();
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = '<div class="empty-state">Les conditions d\'admission ne sont pas disponibles pour le moment. Vérifiez votre connexion et réessayez.</div>';
+    return;
+  }
+
+  const codeUniv = ES_UNIV_MS_CODE[etabId] || null;
+  const liste = codeUniv ? (data.universites[codeUniv] || []) : [];
+  const cle = espFiliereCle(nomFiliere);
+  const correspondance = cle ? liste.find(f => espFiliereCle(f.nom) === cle) : null;
+  const ui = _esFiliereUI;
+
+  if (correspondance) {
+    if (ui) { ui.search.value = ''; ui.populate(''); ui.select.value = correspondance.nom; }
+    espRenderFiliereDetail(data, correspondance.nom, codeUniv);
+    return;
+  }
+
+  const recherche = espFiliereSansPrefixe(nomFiliere);
+  if (ui) { ui.search.value = recherche; ui.populate(recherche); ui.select.value = ''; }
+  espRenderFiliereUniversite(data, codeUniv, nomFiliere);
+}
+
+function espRenderFiliereUniversite(data, codeUniv, nomFiliere){
+  const container = document.getElementById('results-filiere');
+  container.innerHTML = '';
+  const nomUniv = codeUniv ? data.universitesNoms[codeUniv] : '';
+  const liste = codeUniv ? (data.universites[codeUniv] || []) : [];
+  const intro = document.createElement('div');
+  intro.className = 'school-header';
+  intro.textContent = liste.length
+    ? `« ${nomFiliere} » : pas d'intitulé identique dans les conditions d'admission recensées. Filières recensées pour ${nomUniv} :`
+    : `« ${nomFiliere} » : aucune condition d'admission n'est recensée pour cette université. Utilisez la recherche ci-dessus.`;
+  container.appendChild(intro);
+  liste.forEach(f => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = espCarteConditionsHtml(f.nom, f, false);
+    const carte = wrap.firstElementChild;
+    const voir = document.createElement('button');
+    voir.type = 'button';
+    voir.className = 'es-filiere-lien';
+    voir.textContent = 'Voir les débouchés de cette filière';
+    voir.addEventListener('click', () => {
+      if (_esFiliereUI) { _esFiliereUI.search.value = ''; _esFiliereUI.populate(''); _esFiliereUI.select.value = f.nom; }
+      espRenderFiliereDetail(data, f.nom, codeUniv);
+    });
+    carte.appendChild(voir);
+    container.appendChild(carte);
+  });
+}
+
 async function initSuperieur(){
   // ---- Tabs ----
   document.querySelectorAll('.es-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.es-tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.es-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-      if(btn.dataset.tab === 'univ-prive') renderSuperieurPriveTable('universite');
-      if(btn.dataset.tab === 'ecole-prive') renderSuperieurPriveTable('grande_ecole');
+      // Navigation normale par le menu : on quitte le parcours « depuis les universités publiques ».
+      espAbandonnerRetourUniv();
+      espActiverOnglet(btn.dataset.tab);
     });
   });
+  const boutonRetour = document.getElementById('es-retour-univ');
+  if(boutonRetour) boutonRetour.addEventListener('click', espRetourUnivPublic);
+
+  // ---- Panel 1 : Universités publiques ----
+  // Fiches de la table etablissements (secteur = 'public', données officielles MESRS),
+  // affichées comme l'onglet privé. Rendu AVANT le chargement des tables universites/
+  // universite_filieres ci-dessous : il n'en dépend pas (onglet actif par défaut).
+  const renderUnivPublicDebounced = espDebounce(() => renderSuperieurEtabTable('univ-public', 'universite', 'public'), 180);
+  ['f-univ-public-ville','f-univ-public-filiere'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', renderUnivPublicDebounced);
+  });
+  espBindSearchField(document.getElementById('f-univ-public-nom'), () => renderSuperieurEtabTable('univ-public', 'universite', 'public'));
+  renderSuperieurEtabTable('univ-public', 'universite', 'public');
 
   // ---- Chargement des données publiques (Supabase) ----
-  const { universitesNoms, universites, grandesEcoles, filiereDebouches } = await espLoadSuperieurPublicData();
-
-  // ---- Panel 1 : Universités ----
-  const selectUniv = document.getElementById('select-univ');
-  Object.keys(universitesNoms).forEach(code => {
-    const opt = document.createElement('option');
-    opt.value = code;
-    opt.textContent = `${code} — ${universitesNoms[code]}`;
-    selectUniv.appendChild(opt);
-  });
-
-  selectUniv.addEventListener('change', () => {
-    const code = selectUniv.value;
-    const container = document.getElementById('results-univ');
-    container.innerHTML = '';
-    if (!code) {
-      container.innerHTML = '<div class="empty-state">Sélectionnez une université pour afficher ses filières et conditions d\'accès.</div>';
-      return;
-    }
-    const filieres = universites[code] || [];
-    if (filieres.length === 0) {
-      container.innerHTML = '<div class="empty-state">Aucune filière relevée pour cette université dans le document source.</div>';
-      return;
-    }
-    container.innerHTML = `<div class="school-header">${universitesNoms[code]} — ${filieres.length} filière(s)</div>`;
-    filieres.forEach(f => {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <h3>${f.nom}</h3>
-        <div class="meta-row">
-          <div class="meta-item"><b>Série(s) BAC</b>${f.bac}</div>
-          <div class="meta-item"><b>Âge limite</b>${f.age}</div>
-        </div>
-        <div class="criteres"><b>Critères d'accès :</b> ${f.criteres}</div>
-      `;
-      container.appendChild(card);
-    });
-  });
+  // universites/universite_filieres restent la seule source des conditions d'admission
+  // (bac, âge, critères) : panel 3 et liens filière -> conditions (espOuvrirFiliereCriteres).
+  const data = await espSuperieurPublicData();
+  const { grandesEcoles, filiereDebouches } = data;
 
   // ---- Panel 2 : Grandes écoles ----
   const selectEcole = document.getElementById('select-ecole');
@@ -267,50 +479,10 @@ async function initSuperieur(){
 
   searchFiliere.addEventListener('input', espDebounce(() => populateFiliereSelect(searchFiliere.value), 180));
 
-  selectFiliere.addEventListener('change', () => {
-    const nom = selectFiliere.value;
-    const container = document.getElementById('results-filiere');
-    container.innerHTML = '';
-    if (!nom) {
-      container.innerHTML = '<div class="empty-state">Sélectionnez une filière pour afficher ses débouchés.</div>';
-      return;
-    }
-    const f = filiereDebouches.find(x => x.nom === nom);
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <h3>${f.nom}</h3>
-      <div class="meta-row"><div class="meta-item"><b>Filière recensée dans</b>${f.source}</div></div>
-      <div class="debouches"><b>Débouchés :</b> ${f.debouches}</div>
-    `;
-    container.appendChild(card);
+  selectFiliere.addEventListener('change', () => espRenderFiliereDetail(data, selectFiliere.value, null));
 
-    const proches = espFilieresProches(nom, universites, grandesEcoles);
-    if (proches.length) {
-      const section = document.createElement('div');
-      section.className = 'es-fp-section';
-      const grid = document.createElement('div');
-      grid.className = 'es-fp-grid';
-      proches.forEach(pNom => {
-        const etabs = espFiliereEtablissements(pNom, universites, universitesNoms, grandesEcoles);
-        const etabsHtml = etabs.length
-          ? etabs.map(e => `
-              <div class="es-fp-etab">
-                <div class="es-fp-etab-nom">${e.etablissement}</div>
-                <div class="es-fp-etab-meta">Bac ${e.bac} · Âge limite ${e.age}${e.criteres ? ' · ' + e.criteres : ''}</div>
-              </div>
-            `).join('')
-          : '<div class="es-fp-etab-meta">Aucun établissement public relevé pour cette filière.</div>';
-        const pCard = document.createElement('div');
-        pCard.className = 'es-fp-card';
-        pCard.innerHTML = `<div class="es-fp-nom">${pNom}</div>${etabsHtml}`;
-        grid.appendChild(pCard);
-      });
-      section.innerHTML = '<div class="es-fp-title">Filières proches</div>';
-      section.appendChild(grid);
-      container.appendChild(section);
-    }
-  });
+  // Accès du lien filière -> conditions (espOuvrirFiliereCriteres) au sélecteur de ce panel.
+  _esFiliereUI = { select: selectFiliere, search: searchFiliere, populate: populateFiliereSelect };
 
   // ---- Panels 4 et 5 : Universités privées / Grandes écoles privées ----
   const renderUnivPriveDebounced = espDebounce(() => renderSuperieurPriveTable('universite'), 180);
@@ -329,22 +501,28 @@ async function initSuperieur(){
 
 function resetSuperieurPriveFilters(sousCategorie){
   const prefix = sousCategorie === 'universite' ? 'univ-prive' : 'ecole-prive';
+  resetSuperieurEtabFilters(prefix, sousCategorie, 'prive');
+}
+function resetSuperieurEtabFilters(prefix, sousCategorie, secteur){
   ['ville','filiere'].forEach(k => {
     const el = document.getElementById('f-' + prefix + '-' + k);
     if(el) el.value = '';
   });
   espClearSearchField(document.getElementById('f-' + prefix + '-nom'));
-  renderSuperieurPriveTable(sousCategorie);
+  renderSuperieurEtabTable(prefix, sousCategorie, secteur);
 }
 window.pageInit = initSuperieur;
 
-// ---------------- Universités / Grandes écoles privées (comptes établissements inscrits) ----------------
-// Contrairement aux panels 1-3 (données statiques du document officiel), ces deux
-// tableaux sont entièrement alimentés par les établissements inscrits sur la
-// plateforme (catégorie = 'superieur', secteur = 'prive'), une fois validés par l'admin.
-function espEtabSuperieurPrive(sousCategorie){
+// ---------------- Universités publiques / privées, grandes écoles privées (table etablissements) ----------------
+// Tableaux alimentés par la table etablissements (catégorie = 'superieur') : fiches
+// officielles MESRS pour le public (secteur = 'public'), établissements inscrits sur la
+// plateforme pour le privé (secteur = 'prive') — dans les deux cas une fois validées.
+function espEtabSuperieur(sousCategorie, secteur){
   const db = espDB();
-  return (db.etablissements || []).filter(e => e.categorie === 'superieur' && e.sousCategorie === sousCategorie && e.secteur === 'prive' && e.statut === 'valide');
+  return (db.etablissements || []).filter(e => e.categorie === 'superieur' && e.sousCategorie === sousCategorie && e.secteur === secteur && e.statut === 'valide');
+}
+function espEtabSuperieurPrive(sousCategorie){
+  return espEtabSuperieur(sousCategorie, 'prive');
 }
 
 function espFillSupDatalist(id, values){
@@ -356,12 +534,16 @@ function espFillSupDatalist(id, values){
 
 function renderSuperieurPriveTable(sousCategorie){
   const prefix = sousCategorie === 'universite' ? 'univ-prive' : 'ecole-prive';
+  renderSuperieurEtabTable(prefix, sousCategorie, 'prive');
+}
+
+function renderSuperieurEtabTable(prefix, sousCategorie, secteur){
   const tbody = document.getElementById(prefix + '-results');
   const countEl = document.getElementById(prefix + '-count');
   const emptyEl = document.getElementById(prefix + '-empty-msg');
   if(!tbody) return;
 
-  const allForSector = espEtabSuperieurPrive(sousCategorie);
+  const allForSector = espEtabSuperieur(sousCategorie, secteur);
   espFillSupDatalist('dl-' + prefix + '-ville', allForSector.map(e => e.ville));
   const allFilieres = [];
   allForSector.forEach(e => (e.filieresProposees||[]).forEach(f => allFilieres.push(f.nom)));
@@ -388,6 +570,8 @@ function renderSuperieurPriveTable(sousCategorie){
     const contact = espEtabContactCellHtml(e);
     const nom = espEtabNomCellHtml(e);
     const filieres = e.filieresProposees || [];
+    // Universités publiques MESRS : intitulé cliquable vers les conditions d'admission.
+    const lien = secteur === 'public' && window.espFiliereLienPossible(e);
     if(!filieres.length){
       rows.push({ nom, ville: e.ville, filiere: '—', contact });
     } else {
@@ -395,7 +579,10 @@ function renderSuperieurPriveTable(sousCategorie){
         if(!nFiliere || normalize(f.nom||'').includes(nFiliere)){
           const nomF = (f.nom || '').trim();
           const filiere = (f.diplome ? `${nomF || '—'} (${f.diplome})` : nomF) || '—';
-          rows.push({ nom, ville: e.ville, filiere, contact });
+          const filiereHtml = (lien && nomF)
+            ? `<button type="button" class="es-filiere-lien" data-etab="${escapeHtml(e.id)}" data-filiere="${escapeHtml(nomF)}" onclick="espOuvrirFiliereDepuisBouton(this)" title="Voir la série du bac, l'âge et les moyennes">${escapeHtml(filiere)}</button>`
+            : escapeHtml(filiere);
+          rows.push({ nom, ville: e.ville, filiereHtml, contact });
         }
       });
     }
@@ -408,7 +595,7 @@ function renderSuperieurPriveTable(sousCategorie){
     tr.innerHTML =
       `<td data-label="Établissement">${r.nom}</td>` +
       `<td data-label="Ville">${escapeHtml(r.ville||'—')}</td>` +
-      `<td data-label="Filière">${escapeHtml(r.filiere)}</td>` +
+      `<td data-label="Filière">${r.filiereHtml !== undefined ? r.filiereHtml : escapeHtml(r.filiere)}</td>` +
       `<td data-label="Contact">${r.contact}</td>`;
     frag.appendChild(tr);
   });
@@ -420,14 +607,14 @@ function renderSuperieurPriveTable(sousCategorie){
 
   if(rows.length === 0){
     const filtres = !!(nVille || nFiliere || nNom);
-    const label = sousCategorie === 'universite' ? 'université privée' : 'grande école privée';
+    const label = (sousCategorie === 'universite' ? 'université ' : 'grande école ') + (secteur === 'public' ? 'publique' : 'privée');
     espRenderEmptyState(emptyEl, filtres ? {
       icon: 'search-x',
       title: 'Aucun résultat',
       text: nNom ? 'Aucun établissement ne correspond à votre recherche.' : 'Aucune ' + label + ' ne correspond à ces filtres.',
       actionLabel: 'Réinitialiser',
       actionIcon: 'filter-x',
-      onAction: () => resetSuperieurPriveFilters(sousCategorie),
+      onAction: () => resetSuperieurEtabFilters(prefix, sousCategorie, secteur),
     } : {
       icon: 'landmark',
       title: 'Rien pour le moment',

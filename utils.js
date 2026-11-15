@@ -225,10 +225,19 @@ function espOpenEtabDetailModal(etabId){
   // ---------------- Filières proposées (validées) : pills pleines, couleurs en alternance ----------------
   const filieresValidees = (e.filieresProposees || []).filter(f => f.statut === 'valide');
   const filiereCouleurs = ['esp-fiche-filiere-pill--red', 'esp-fiche-filiere-pill--orange', 'esp-fiche-filiere-pill--blue'];
+  // Page du supérieur uniquement (superieur.js définit espFiliereLienPossible) : pour les
+  // universités publiques MESRS, chaque filière ouvre ses conditions d'admission.
+  const filiereLien = typeof window.espFiliereLienPossible === 'function' && window.espFiliereLienPossible(e);
   const filieresHtml = filieresValidees.length ? `
     <h3>Filières proposées</h3>
+    ${filiereLien ? `<p class="esp-sub" style="margin-bottom:8px;">Touchez une filière pour voir la série du bac, l'âge et les moyennes demandés.</p>` : ''}
     <div class="esp-fiche-filieres">
-      ${filieresValidees.map((f,i) => `<span class="esp-fiche-filiere-pill ${filiereCouleurs[i % filiereCouleurs.length]}">${escapeHtml(f.nom)}${f.diplome ? ` <b>${escapeHtml(f.diplome)}</b>` : ''}</span>`).join('')}
+      ${filieresValidees.map((f,i) => {
+        const contenu = `${escapeHtml(f.nom)}${f.diplome ? ` <b>${escapeHtml(f.diplome)}</b>` : ''}`;
+        return filiereLien
+          ? `<button type="button" class="esp-fiche-filiere-pill esp-fiche-filiere-pill--lien ${filiereCouleurs[i % filiereCouleurs.length]}" data-etab="${escapeHtml(e.id)}" data-filiere="${escapeHtml(f.nom)}" onclick="espOuvrirFiliereDepuisBouton(this)">${contenu}</button>`
+          : `<span class="esp-fiche-filiere-pill ${filiereCouleurs[i % filiereCouleurs.length]}">${contenu}</span>`;
+      }).join('')}
     </div>
   ` : '';
 

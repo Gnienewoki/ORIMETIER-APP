@@ -461,6 +461,25 @@
   .search-box{width:100%;padding:12px 14px;font-size:1rem;border:2px solid var(--border);border-radius:var(--r-sm);margin-bottom:10px;font-family:inherit;background:#fff;color:var(--text);}
   .search-box:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,122,26,0.15);}
   .es-footer{text-align:center;color:var(--muted);font-size:.8rem;padding:20px 0 0;}
+  /* Filière cliquable (universités publiques -> conditions d'admission), lisible sur téléphone */
+  .es-filiere-lien{
+    background:none;border:none;padding:4px 0;margin:0;font:inherit;text-align:left;cursor:pointer;
+    color:var(--green-dark);font-weight:600;text-decoration:underline;text-underline-offset:3px;
+    overflow-wrap:anywhere;min-height:32px;
+  }
+  .es-filiere-lien::after{content:" ›";font-weight:800;color:var(--orange);text-decoration:none;}
+  .es-filiere-lien:hover{color:var(--orange);}
+  .es-filiere-lien:focus-visible{outline:3px solid var(--orange);outline-offset:2px;border-radius:4px;}
+  .card .es-filiere-lien{margin-top:8px;}
+  .card.es-cond--focus{border-left-color:var(--green);box-shadow:0 0 0 2px var(--green) inset, var(--sh-1);}
+  .es-retour-univ{
+    display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:44px;
+    background:var(--panel);border:2px solid var(--green-dark);border-radius:var(--r-full);padding:8px 16px;margin-bottom:12px;
+    font:inherit;font-size:.9rem;font-weight:700;color:var(--green-dark);cursor:pointer;text-align:left;
+  }
+  .es-retour-univ[hidden]{display:none;}
+  .es-retour-univ:hover{border-color:var(--orange);color:var(--orange);}
+  .es-retour-univ:focus-visible{outline:3px solid var(--orange);outline-offset:2px;}
   @media (max-width:640px){
     .es-tab-btn{font-size:.8rem;min-width:118px;padding:9px 10px;}
   }
@@ -913,6 +932,14 @@
 .esp-fiche-filiere-pill--red{ background:var(--chip-red); }
 .esp-fiche-filiere-pill--orange{ background:var(--chip-orange); }
 .esp-fiche-filiere-pill--blue{ background:var(--chip-blue); }
+/* Filière cliquable (universités publiques MESRS -> conditions d'admission) */
+.esp-fiche-filiere-pill--lien{
+  border:none; font-family:inherit; cursor:pointer; text-align:left; line-height:1.35;
+  text-decoration:underline; text-underline-offset:3px;
+}
+.esp-fiche-filiere-pill--lien::after{ content:" ›"; font-weight:800; }
+.esp-fiche-filiere-pill--lien:hover{ filter:brightness(.92); }
+.esp-fiche-filiere-pill--lien:focus-visible{ outline:3px solid var(--text); outline-offset:2px; }
 
 .esp-fiche-photos{
   display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:10px;

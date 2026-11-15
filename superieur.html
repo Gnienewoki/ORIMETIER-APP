@@ -118,16 +118,34 @@
 
       <!-- PANEL 1 : UNIVERSITES -->
       <section class="es-panel active" id="panel-univ">
-        <div class="selector-box">
-          <label for="select-univ">Choisissez une université publique</label>
-          <select id="select-univ">
-            <option value="">— Sélectionner —</option>
-          </select>
-          <div class="note"><i data-lucide="triangle-alert" class="o-ico" aria-hidden="true"></i> L'association filière ↔ université a été relevée visuellement dans le tableau source (grille de cases colorées). Fiable pour les filières générales ; à reconfirmer pour les filières spécialisées (n° 32 à 51) si vous disposez du fichier Word/Excel d'origine.</div>
+        <p class="note" style="margin-bottom:14px;">Universités publiques et leurs filières, d'après les données officielles du ministère de l'Enseignement supérieur (MESRS). Touchez une filière pour voir la série du bac, l'âge et les moyennes demandés.</p>
+        <div class="filters">
+          <div class="filter-box filter-box--search">
+            <div class="o-search">
+              <input id="f-univ-public-nom" type="text" placeholder="Rechercher par nom" aria-label="Rechercher un établissement par nom" autocomplete="off" list="dl-univ-public-nom">
+              <button type="button" class="o-search__clear" aria-label="Effacer la recherche" hidden>×</button>
+            </div>
+            <datalist id="dl-univ-public-nom"></datalist>
+          </div>
+          <div class="filter-box">
+            <label for="f-univ-public-ville">Ville</label>
+            <input id="f-univ-public-ville" type="text" placeholder="Ex : Abidjan, Bouaké..." list="dl-univ-public-ville">
+            <datalist id="dl-univ-public-ville"></datalist>
+          </div>
+          <div class="filter-box">
+            <label for="f-univ-public-filiere">Filière</label>
+            <input id="f-univ-public-filiere" type="text" placeholder="Ex : Droit, Gestion..." list="dl-univ-public-filiere">
+            <datalist id="dl-univ-public-filiere"></datalist>
+          </div>
         </div>
-        <div class="results" id="results-univ">
-          <div class="empty-state">Sélectionnez une université pour afficher ses filières et conditions d'accès.</div>
+        <div class="meta"><span class="count" id="univ-public-count"></span></div>
+        <div class="table-wrap o-cards-wrap">
+          <table class="o-cards-mobile">
+            <thead><tr><th>Établissement</th><th>Ville</th><th>Filière</th><th>Contact établissement</th></tr></thead>
+            <tbody id="univ-public-results"></tbody>
+          </table>
         </div>
+        <div id="univ-public-empty-msg" hidden></div>
       </section>
 
       <!-- PANEL 2 : GRANDES ECOLES -->
@@ -145,6 +163,7 @@
 
       <!-- PANEL 3 : FILIERE -> DEBOUCHES -->
       <section class="es-panel" id="panel-filiere">
+        <button type="button" class="es-retour-univ" id="es-retour-univ" hidden><span aria-hidden="true">←</span> Retour aux universités publiques</button>
         <div class="selector-box">
           <label for="select-filiere">Choisissez une filière</label>
           <input type="text" class="search-box" id="search-filiere" placeholder="Rechercher une filière...">
